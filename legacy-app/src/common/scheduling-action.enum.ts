@@ -1,0 +1,5 @@
+export enum SchedulingAction {
+  UPDATE_PRICE = 'UPDATE_PRICE',
+  UPDATE_PRICE_OFFER = 'UPDATE_PRICE_OFFER'
+}
+

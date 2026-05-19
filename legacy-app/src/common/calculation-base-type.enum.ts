@@ -1,0 +1,5 @@
+export enum CalculationBaseType {
+  COMPETITIVE_PRICE = 'COMPETITIVE_PRICE',
+  SALE_PRICE = 'SALE_PRICE',
+  OFFER_PRICE = 'OFFER_PRICE'
+}

@@ -1,0 +1,7 @@
+export enum OfferBookRulesStatus {
+  IDLE = 'IDLE',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  PARTIALLY_SUCCEEDED = 'PARTIALLY_SUCCEEDED',
+  ERRORED = 'ERRORED'
+}

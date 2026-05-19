@@ -1,0 +1,5 @@
+export enum StockStatus {
+  ANALYZE_INCLUSION = 'ANALYZE_INCLUSION',
+  POTENTIAL = 'POTENTIAL',
+  OK = 'OK'
+}
