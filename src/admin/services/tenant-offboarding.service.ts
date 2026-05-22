@@ -7,7 +7,8 @@ import { TenantStatus } from '../../database/enums/tenant-status.enum';
 @Injectable()
 export class TenantOffboardingService {
   constructor(
-    @InjectRepository(TenantEntity) private readonly tenants: Repository<TenantEntity>,
+    @InjectRepository(TenantEntity)
+    private readonly tenants: Repository<TenantEntity>,
   ) {}
 
   public async softDelete(slug: string): Promise<void> {

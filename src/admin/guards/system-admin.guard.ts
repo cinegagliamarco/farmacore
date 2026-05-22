@@ -11,7 +11,9 @@ import type { JwtPayload } from '../../auth/jwt-payload.type';
 @Injectable()
 export class SystemAdminGuard implements CanActivate {
   public canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest<Request & { user?: JwtPayload }>();
+    const req = context
+      .switchToHttp()
+      .getRequest<Request & { user?: JwtPayload }>();
     const user = req.user;
     if (!user) throw new UnauthorizedException();
     if (user.tenantId !== 'system' || user.role !== 'admin') {

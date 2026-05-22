@@ -9,6 +9,7 @@ import { TenantModule } from './tenant/tenant.module';
 import { IntegrationModule } from './integration/integration.module';
 import { QueueModule } from './queue/queue.module';
 import { PipelineStepsModule } from './pipeline/pipeline-steps.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { PipelineStepsModule } from './pipeline/pipeline-steps.module';
     IntegrationModule,
     QueueModule,
     PipelineStepsModule.forRoot({ withConsumers: false }),
+    AdminModule,
   ],
   providers: [
     {

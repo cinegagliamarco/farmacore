@@ -15,7 +15,15 @@ import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
 import { PasswordService } from '../../auth/password.service';
 
-const RESERVED = new Set(['admin', 'api', 'app', 'meta', 'shared', 'system', 'www']);
+const RESERVED = new Set([
+  'admin',
+  'api',
+  'app',
+  'meta',
+  'shared',
+  'system',
+  'www',
+]);
 
 export interface OnboardingResult {
   slug: string;
@@ -28,21 +36,25 @@ export class TenantOnboardingService {
   private readonly logger = new Logger(TenantOnboardingService.name);
 
   constructor(
-    @InjectRepository(TenantEntity) private readonly tenants: Repository<TenantEntity>,
-    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
+    @InjectRepository(TenantEntity)
+    private readonly tenants: Repository<TenantEntity>,
+    @InjectRepository(UserEntity)
+    private readonly users: Repository<UserEntity>,
     private readonly dataSource: DataSource,
     private readonly passwords: PasswordService,
   ) {}
 
   public async create(dto: CreateTenantDto): Promise<OnboardingResult> {
-    if (RESERVED.has(dto.slug)) throw new BadRequestException(`slug "${dto.slug}" is reserved`);
+    if (RESERVED.has(dto.slug))
+      throw new BadRequestException(`slug "${dto.slug}" is reserved`);
 
     const existing = await this.tenants.findOne({ where: { slug: dto.slug } });
-    if (existing) throw new ConflictException(`Tenant ${dto.slug} already exists`);
+    if (existing)
+      throw new ConflictException(`Tenant ${dto.slug} already exists`);
 
     const schemaName = `tenant_${dto.slug.replace(/-/g, '_')}`;
 
-    const tenant = await this.tenants.save({
+    const tenant: TenantEntity = await this.tenants.save({
       slug: dto.slug,
       name: dto.name,
       schemaName,
@@ -50,7 +62,9 @@ export class TenantOnboardingService {
     });
 
     try {
-      await this.dataSource.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+      await this.dataSource.query(
+        `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`,
+      );
       execSync(`npm run migration:tenant ${dto.slug}`, { stdio: 'inherit' });
     } catch (err) {
       this.logger.error(
@@ -62,7 +76,9 @@ export class TenantOnboardingService {
     }
 
     await this.dataSource.transaction(async (em) => {
-      await em.query(`SET LOCAL search_path TO "${schemaName}", shared_catalog, public`);
+      await em.query(
+        `SET LOCAL search_path TO "${schemaName}", shared_catalog, public`,
+      );
       for (const origin of Object.values(CompetitorOrigin)) {
         await em.query(
           `INSERT INTO tenant_competitor_origin (origin, enabled) VALUES ($1, false)

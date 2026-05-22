@@ -10,7 +10,10 @@ export class CompetitorOriginAdminService {
     private readonly tenants: TenantService,
   ) {}
 
-  public async bulkUpdate(slug: string, updates: CompetitorOriginUpdate[]): Promise<void> {
+  public async bulkUpdate(
+    slug: string,
+    updates: CompetitorOriginUpdate[],
+  ): Promise<void> {
     const tenant = await this.tenants.findActive(slug);
     await this.dataSource.transaction(async (em) => {
       await em.query(

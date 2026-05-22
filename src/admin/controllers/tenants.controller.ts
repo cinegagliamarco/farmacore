@@ -30,7 +30,8 @@ export class TenantsController {
     private readonly onboarding: TenantOnboardingService,
     private readonly offboarding: TenantOffboardingService,
     private readonly tenants: TenantService,
-    @InjectRepository(TenantEntity) private readonly repo: Repository<TenantEntity>,
+    @InjectRepository(TenantEntity)
+    private readonly repo: Repository<TenantEntity>,
   ) {}
 
   @Post()
