@@ -18,7 +18,12 @@ describe('LoggerInterceptor', () => {
   let interceptor: LoggerInterceptor;
 
   beforeEach(() => {
-    logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+    logger = {
+      log: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    };
     interceptor = new LoggerInterceptor(logger);
   });
 
@@ -32,7 +37,9 @@ describe('LoggerInterceptor', () => {
       ip: '::ffff:127.0.0.1',
       header: () => 'x',
     });
-    await firstValueFrom(interceptor.intercept(ctx, { handle: () => of(undefined) }));
+    await firstValueFrom(
+      interceptor.intercept(ctx, { handle: () => of(undefined) }),
+    );
     expect(logger.log).toHaveBeenCalledWith(
       expect.objectContaining({
         url: '/things',
@@ -56,7 +63,9 @@ describe('LoggerInterceptor', () => {
       ip: '127.0.0.1',
       header: () => 'x',
     });
-    await firstValueFrom(interceptor.intercept(ctx, { handle: () => of(undefined) }));
+    await firstValueFrom(
+      interceptor.intercept(ctx, { handle: () => of(undefined) }),
+    );
     expect(logger.log).not.toHaveBeenCalled();
   });
 

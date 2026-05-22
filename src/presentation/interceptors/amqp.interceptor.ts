@@ -7,7 +7,14 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Observable, catchError, finalize, from, switchMap, throwError } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  finalize,
+  from,
+  switchMap,
+  throwError,
+} from 'rxjs';
 import type { ConfirmChannel, Message } from 'amqplib';
 import { waitFor } from '../../common/wait-for';
 import { INTERNAL_LOGGER_TOKEN } from '../../interfaces';
@@ -28,10 +35,13 @@ export class AmqpInterceptor implements NestInterceptor {
     @Inject(INTERNAL_LOGGER_TOKEN) private readonly logger: InternalLogger,
   ) {}
 
-  public intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  public intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<unknown> {
     if (context.getType<string>() === 'http') return next.handle();
 
-    const rmqContext = context.getArgByIndex(1) as RmqContextLike | undefined;
+    const rmqContext = context.getArgByIndex<RmqContextLike | undefined>(1);
     if (!rmqContext) return next.handle();
 
     const channel = rmqContext.getChannelRef();
@@ -46,9 +56,9 @@ export class AmqpInterceptor implements NestInterceptor {
           context.getHandler(),
         );
         if (this.shouldRequeue(originalMessage, error, maxRetries)) {
-          return from(this.requeueMessage(maxRetries!, originalMessage, channel)).pipe(
-            switchMap(() => throwError(() => error)),
-          );
+          return from(
+            this.requeueMessage(maxRetries!, originalMessage, channel),
+          ).pipe(switchMap(() => throwError(() => error)));
         }
         return throwError(() => error);
       }),
@@ -70,7 +80,10 @@ export class AmqpInterceptor implements NestInterceptor {
     const nextRetry = this.currentRetry(originalMessage) + 1;
     const isLast = nextRetry === maxRetries;
 
-    const content = JSON.parse(originalMessage.content.toString()) as Record<string, unknown>;
+    const content = JSON.parse(originalMessage.content.toString()) as Record<
+      string,
+      unknown
+    >;
     const body = isLast ? { ...content, lastRetry: true } : content;
     const properties = {
       ...originalMessage.properties,
@@ -93,13 +106,21 @@ export class AmqpInterceptor implements NestInterceptor {
     );
   }
 
-  private shouldRequeue(message: Message, error: Error, maxRetries?: number): boolean {
-    if (!maxRetries || !(error instanceof ServiceUnavailableException)) return false;
+  private shouldRequeue(
+    message: Message,
+    error: Error,
+    maxRetries?: number,
+  ): boolean {
+    if (!maxRetries || !(error instanceof ServiceUnavailableException))
+      return false;
     return this.currentRetry(message) < maxRetries;
   }
 
   private currentRetry(message: Message): number {
-    const headers = (message.properties.headers ?? {}) as Record<string, unknown>;
+    const headers = (message.properties.headers ?? {}) as Record<
+      string,
+      unknown
+    >;
     return Number(headers['x-retry-count'] ?? 0);
   }
 }

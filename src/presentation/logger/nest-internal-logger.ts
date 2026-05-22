@@ -8,7 +8,14 @@ function resolveContext(ctx: unknown): string | undefined {
     const ctor = (ctx as { constructor?: { name?: string } }).constructor;
     return ctor?.name ?? 'Object';
   }
-  return String(ctx);
+  if (
+    typeof ctx === 'number' ||
+    typeof ctx === 'boolean' ||
+    typeof ctx === 'bigint'
+  ) {
+    return String(ctx);
+  }
+  return undefined;
 }
 
 @Injectable()
@@ -16,11 +23,11 @@ export class NestInternalLogger implements InternalLogger {
   constructor(private readonly nest: Logger = new Logger('App')) {}
 
   public log(payload: unknown, ctx?: unknown): void {
-    this.nest.log(payload as never, resolveContext(ctx));
+    this.nest.log(payload, resolveContext(ctx));
   }
 
   public warn(payload: unknown, ctx?: unknown): void {
-    this.nest.warn(payload as never, resolveContext(ctx));
+    this.nest.warn(payload, resolveContext(ctx));
   }
 
   public error(message: string, ctx?: unknown): void {
@@ -28,6 +35,6 @@ export class NestInternalLogger implements InternalLogger {
   }
 
   public debug(payload: unknown, ctx?: unknown): void {
-    this.nest.debug(payload as never, resolveContext(ctx));
+    this.nest.debug(payload, resolveContext(ctx));
   }
 }

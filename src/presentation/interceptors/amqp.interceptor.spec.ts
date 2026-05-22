@@ -1,4 +1,6 @@
-jest.mock('../../common/wait-for', () => ({ waitFor: jest.fn().mockResolvedValue(undefined) }));
+jest.mock('../../common/wait-for', () => ({
+  waitFor: jest.fn().mockResolvedValue(undefined),
+}));
 
 import { ExecutionContext, ServiceUnavailableException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -28,7 +30,12 @@ describe('AmqpInterceptor', () => {
   beforeEach(() => {
     channel = { ack: jest.fn(), nack: jest.fn(), sendToQueue: jest.fn() };
     reflector = new Reflector();
-    logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+    logger = {
+      log: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    };
     interceptor = new AmqpInterceptor(reflector, logger);
   });
 
@@ -38,7 +45,9 @@ describe('AmqpInterceptor', () => {
       properties: { headers: {} },
       content: Buffer.from('{}'),
     });
-    await firstValueFrom(interceptor.intercept(ctx, { handle: () => of(undefined) }));
+    await firstValueFrom(
+      interceptor.intercept(ctx, { handle: () => of(undefined) }),
+    );
     expect(channel.ack).toHaveBeenCalledTimes(1);
     expect(channel.nack).not.toHaveBeenCalled();
   });
@@ -51,7 +60,9 @@ describe('AmqpInterceptor', () => {
     });
     await expect(
       firstValueFrom(
-        interceptor.intercept(ctx, { handle: () => throwError(() => new Error('boom')) }),
+        interceptor.intercept(ctx, {
+          handle: () => throwError(() => new Error('boom')),
+        }),
       ),
     ).rejects.toBeInstanceOf(Error);
     expect(channel.nack).toHaveBeenCalledWith(expect.anything(), false, false);

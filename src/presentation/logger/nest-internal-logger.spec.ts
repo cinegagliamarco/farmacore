@@ -33,6 +33,9 @@ describe('NestInternalLogger', () => {
 
   it('serializes object payloads to JSON for non-string error messages', () => {
     log.warn({ code: 'X', detail: 1 });
-    expect(underlying.warn).toHaveBeenCalledWith({ code: 'X', detail: 1 }, undefined);
+    expect(underlying.warn).toHaveBeenCalledWith(
+      { code: 'X', detail: 1 },
+      undefined,
+    );
   });
 });

@@ -10,7 +10,15 @@ import { Observable, catchError, finalize, throwError } from 'rxjs';
 import { INTERNAL_LOGGER_TOKEN } from '../../interfaces';
 import type { InternalLogger } from '../../interfaces';
 
-const SENSITIVE_PROPERTY_KEYWORDS = ['password', 'pass', 'pwd', 'secret', 'token', 'ssn', 'bank'];
+const SENSITIVE_PROPERTY_KEYWORDS = [
+  'password',
+  'pass',
+  'pwd',
+  'secret',
+  'token',
+  'ssn',
+  'bank',
+];
 const HEALTH_SKIP = [{ method: 'GET', url: '/health' }];
 
 interface HttpRequestLike {
@@ -30,9 +38,14 @@ interface HttpResponseLike {
 
 @Injectable()
 export class LoggerInterceptor implements NestInterceptor {
-  constructor(@Inject(INTERNAL_LOGGER_TOKEN) private readonly logger: InternalLogger) {}
+  constructor(
+    @Inject(INTERNAL_LOGGER_TOKEN) private readonly logger: InternalLogger,
+  ) {}
 
-  public intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  public intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<unknown> {
     const startedAt = Date.now();
     let captured: HttpException | Error | null = null;
 
@@ -86,7 +99,10 @@ export class LoggerInterceptor implements NestInterceptor {
         query: this.obfuscate(req.query),
         ip: this.formatIp(req.ip),
         status_code: this.statusCode(res, exception),
-        user_agent: typeof req.header === 'function' ? req.header('user-agent') : undefined,
+        user_agent:
+          typeof req.header === 'function'
+            ? req.header('user-agent')
+            : undefined,
         host: typeof req.header === 'function' ? req.header('host') : undefined,
         duration,
         error_message: exception?.message ?? null,
@@ -101,7 +117,10 @@ export class LoggerInterceptor implements NestInterceptor {
     duration: number,
     exception: HttpException | Error | null,
   ): void {
-    const [body, second] = context.getArgs() as [unknown, { fields?: Record<string, unknown> }];
+    const [body, second] =
+      context.getArgs<
+        [unknown, { fields?: Record<string, unknown> } | undefined]
+      >();
     this.logger.log(
       {
         ...(second?.fields ?? {}),
@@ -119,7 +138,8 @@ export class LoggerInterceptor implements NestInterceptor {
     duration: number,
     exception: HttpException | Error | null,
   ): void {
-    const [body, rmqContext] = context.getArgs() as [unknown, { getPattern?: () => string }];
+    const [body, rmqContext] =
+      context.getArgs<[unknown, { getPattern?: () => string } | undefined]>();
     this.logger.log(
       {
         routing_key: rmqContext?.getPattern?.() ?? null,
@@ -143,7 +163,9 @@ export class LoggerInterceptor implements NestInterceptor {
   private shouldSkip(req: HttpRequestLike): boolean {
     if (!req?.method || !req.route?.path) return true;
     const path = req.route.path;
-    return HEALTH_SKIP.some((s) => s.method === req.method && path.includes(s.url));
+    return HEALTH_SKIP.some(
+      (s) => s.method === req.method && path.includes(s.url),
+    );
   }
 
   private formatIp(value?: string): string | undefined {
@@ -154,11 +176,14 @@ export class LoggerInterceptor implements NestInterceptor {
     if (depth > 3) return '[max depth]';
     if (value === null || value === undefined) return value;
     if (typeof value !== 'object') return value;
-    if (Array.isArray(value)) return value.map((v) => this.obfuscate(v, depth + 1));
+    if (Array.isArray(value))
+      return value.map((v) => this.obfuscate(v, depth + 1));
 
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      const sensitive = SENSITIVE_PROPERTY_KEYWORDS.some((s) => k.toLowerCase().includes(s));
+      const sensitive = SENSITIVE_PROPERTY_KEYWORDS.some((s) =>
+        k.toLowerCase().includes(s),
+      );
       out[k] = sensitive
         ? '**********'
         : typeof v === 'object'

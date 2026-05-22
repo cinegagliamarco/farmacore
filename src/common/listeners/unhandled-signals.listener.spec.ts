@@ -11,15 +11,22 @@ describe('catchUnhandledSignals', () => {
   };
 
   beforeEach(() => {
-    logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+    logger = {
+      log: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    };
     app = { get: jest.fn().mockReturnValue(logger) };
   });
 
   afterEach(() => {
     process.removeAllListeners('uncaughtException');
     process.removeAllListeners('unhandledRejection');
-    for (const l of originalListeners.uncaughtException) process.on('uncaughtException', l);
-    for (const l of originalListeners.unhandledRejection) process.on('unhandledRejection', l);
+    for (const l of originalListeners.uncaughtException)
+      process.on('uncaughtException', l);
+    for (const l of originalListeners.unhandledRejection)
+      process.on('unhandledRejection', l);
   });
 
   it('resolves logger via INTERNAL_LOGGER_TOKEN', () => {
@@ -38,7 +45,11 @@ describe('catchUnhandledSignals', () => {
 
   it('logs unhandledRejection', () => {
     catchUnhandledSignals(app as unknown as INestApplication);
-    process.emit('unhandledRejection', new Error('nope') as never, Promise.resolve() as never);
+    process.emit(
+      'unhandledRejection',
+      new Error('nope') as never,
+      Promise.resolve() as never,
+    );
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining('unhandledRejection'),
       'GlobalExceptionSignalsHandler',

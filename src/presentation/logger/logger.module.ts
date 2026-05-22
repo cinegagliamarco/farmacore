@@ -7,7 +7,8 @@ import { NestInternalLogger } from './nest-internal-logger';
   providers: [
     {
       provide: INTERNAL_LOGGER_TOKEN,
-      useFactory: (): NestInternalLogger => new NestInternalLogger(new Logger('App')),
+      useFactory: (): NestInternalLogger =>
+        new NestInternalLogger(new Logger('App')),
     },
   ],
   exports: [INTERNAL_LOGGER_TOKEN],
