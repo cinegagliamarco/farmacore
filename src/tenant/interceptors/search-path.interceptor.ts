@@ -3,20 +3,24 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, from } from 'rxjs';
 import type { Request } from 'express';
 import type { EntityManager } from 'typeorm';
 import { IS_PUBLIC_KEY } from '../../auth/decorators/public.decorator';
-import { TenantContext } from '../tenant.context';
+import type { JwtPayload } from '../../auth/jwt-payload.type';
 import { TenantTransactionService } from '../tenant-transaction.service';
+
+function schemaNameFor(slug: string): string {
+  return slug === 'system' ? 'system' : `tenant_${slug.replace(/-/g, '_')}`;
+}
 
 @Injectable()
 export class SearchPathInterceptor implements NestInterceptor {
   constructor(
     private readonly reflector: Reflector,
-    private readonly tenantContext: TenantContext,
     private readonly txService: TenantTransactionService,
   ) {}
 
@@ -33,8 +37,11 @@ export class SearchPathInterceptor implements NestInterceptor {
 
     const req = context
       .switchToHttp()
-      .getRequest<Request & { entityManager?: EntityManager }>();
-    const schemaName = this.tenantContext.schemaName;
+      .getRequest<
+        Request & { user?: JwtPayload; entityManager?: EntityManager }
+      >();
+    if (!req.user) throw new UnauthorizedException('No tenant context');
+    const schemaName = schemaNameFor(req.user.tenantId);
 
     return from(
       this.txService.runWithTenant(schemaName, async (em) => {
