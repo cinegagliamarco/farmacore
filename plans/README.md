@@ -2,6 +2,19 @@
 
 Execution plans for the architecture in [`../arc/`](../arc/). One plan per independently shippable slice. Each plan is self-contained, written so a fresh engineer (or subagent) can execute it without reading the others.
 
+## Legacy reference
+
+[`../legacy-app/`](../legacy-app/) holds the previous implementation. Its files are the source material being **replicated and refactored** into this project — not lift-and-shift. When a plan touches a concept that already exists in legacy (entities, controllers, services, use-cases, cron jobs, integration interfaces, migrations), consult the corresponding legacy file for domain logic, field names, business rules, and edge cases the plan does not spell out. The new structure (per-feature modules, presentation layer, queues/routines, multi-tenancy, internal logger) is defined by the plans and `arc/` — copy *behavior*, not structure.
+
+Notable subtrees under `legacy-app/src/`:
+
+- `controllers/`, `services/`, `use-cases/` — request handlers and domain logic
+- `database/entities/`, `database/integration-entities/` — TypeORM entities (core + per-integration)
+- `database/repositories/`, `database/integration-repositories/` — data access
+- `database/migrations/` — historical migrations (do not copy directly; plan 01 owns the new schema)
+- `interfaces/{drogal,drogasil,michelassi,ikesaki,pague-menos}/` — per-integration adapters; plans 03 and 05 govern how these are reorganized
+- `cron/`, `dto/`, `common/`, `main.ts`, `app.module.ts` — supporting code
+
 ## Conventions (applied across all plans)
 
 - **Package manager:** **npm** (not pnpm).
