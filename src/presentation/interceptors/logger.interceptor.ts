@@ -7,7 +7,8 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { Observable, catchError, finalize, throwError } from 'rxjs';
-import { INTERNAL_LOGGER_TOKEN, InternalLogger } from '../../interfaces';
+import { INTERNAL_LOGGER_TOKEN } from '../../interfaces';
+import type { InternalLogger } from '../../interfaces';
 
 const SENSITIVE_PROPERTY_KEYWORDS = ['password', 'pass', 'pwd', 'secret', 'token', 'ssn', 'bank'];
 const HEALTH_SKIP = [{ method: 'GET', url: '/health' }];
