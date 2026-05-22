@@ -1,5 +1,13 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, IsUrl, MinLength, validateSync } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MinLength,
+  validateSync,
+} from 'class-validator';
 
 enum NodeEnv {
   development = 'development',
@@ -14,19 +22,23 @@ class EnvVars {
   @IsInt()
   PORT!: number;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   WORKER_MODE?: string;
 
-  @IsString() @MinLength(1, { message: 'DATABASE_URL must be set' })
+  @IsString()
+  @MinLength(1, { message: 'DATABASE_URL must be set' })
   DATABASE_URL!: string;
 
-  @IsString() @MinLength(1, { message: 'DATABASE_DIRECT_URL must be set' })
+  @IsString()
+  @MinLength(1, { message: 'DATABASE_DIRECT_URL must be set' })
   DATABASE_DIRECT_URL!: string;
 
   @IsString()
   AMQP_URL!: string;
 
-  @IsString() @MinLength(32, { message: 'JWT_SECRET must be at least 32 chars' })
+  @IsString()
+  @MinLength(32, { message: 'JWT_SECRET must be at least 32 chars' })
   JWT_SECRET!: string;
 
   @IsString()
@@ -58,7 +70,10 @@ export function validateEnv(raw: Record<string, unknown>): EnvVars {
   if (errors.length > 0) {
     throw new Error(
       errors
-        .map((e) => `${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`)
+        .map(
+          (e) =>
+            `${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`,
+        )
         .join('; '),
     );
   }

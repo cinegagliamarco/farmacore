@@ -22,15 +22,20 @@ describe('validateEnv', () => {
   });
 
   it('rejects missing DATABASE_URL', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { DATABASE_URL, ...rest } = base;
     expect(() => validateEnv(rest)).toThrow(/DATABASE_URL/);
   });
 
   it('rejects short JWT_SECRET', () => {
-    expect(() => validateEnv({ ...base, JWT_SECRET: 'short' })).toThrow(/JWT_SECRET/);
+    expect(() => validateEnv({ ...base, JWT_SECRET: 'short' })).toThrow(
+      /JWT_SECRET/,
+    );
   });
 
   it('rejects non-32-byte INTEGRATION_DB_KEY', () => {
-    expect(() => validateEnv({ ...base, INTEGRATION_DB_KEY: 'aaa' })).toThrow(/INTEGRATION_DB_KEY/);
+    expect(() => validateEnv({ ...base, INTEGRATION_DB_KEY: 'aaa' })).toThrow(
+      /INTEGRATION_DB_KEY/,
+    );
   });
 });

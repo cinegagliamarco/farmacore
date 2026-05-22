@@ -3,7 +3,7 @@ import { Controller, Get } from '@nestjs/common';
 @Controller('health')
 export class HealthController {
   @Get()
-  async check(): Promise<{ status: 'ok' }> {
+  check(): { status: 'ok' } {
     return { status: 'ok' };
   }
 }

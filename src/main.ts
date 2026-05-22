@@ -9,11 +9,12 @@ async function bootstrap(): Promise<void> {
 
   if (isWorker) {
     const app = await NestFactory.createApplicationContext(AppModule);
-    catchUnhandledSignals(app);
-    logger.log('Worker started (no consumers registered yet — added in plan 04)');
-    const shutdown = async (): Promise<void> => {
-      await app.close();
-      process.exit(0);
+    catchUnhandledSignals();
+    logger.log(
+      'Worker started (no consumers registered yet — added in plan 04)',
+    );
+    const shutdown = (): void => {
+      void app.close().then(() => process.exit(0));
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
@@ -21,7 +22,7 @@ async function bootstrap(): Promise<void> {
   }
 
   const app = await NestFactory.create(AppModule);
-  catchUnhandledSignals(app);
+  catchUnhandledSignals();
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port, '0.0.0.0');
   logger.log(`API listening on :${port}`);

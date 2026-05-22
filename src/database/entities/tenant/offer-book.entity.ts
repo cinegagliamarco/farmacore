@@ -10,6 +10,12 @@ export class OfferBookEntity extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   public description?: string | null;
 
-  @Column({ name: 'target_price', type: 'numeric', precision: 12, scale: 2, nullable: true })
+  @Column({
+    name: 'target_price',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
   public targetPrice?: string | null;
 }

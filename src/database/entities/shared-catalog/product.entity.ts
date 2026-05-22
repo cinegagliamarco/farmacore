@@ -24,7 +24,13 @@ export class ProductEntity extends BaseEntity {
   @Column({ type: 'numeric', precision: 12, scale: 2, nullable: true })
   public price?: string | null;
 
-  @Column({ name: 'unit_sale_price', type: 'numeric', precision: 12, scale: 2, nullable: true })
+  @Column({
+    name: 'unit_sale_price',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
   public unitSalePrice?: string | null;
 
   @Column({ type: 'jsonb', default: {} })

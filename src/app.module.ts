@@ -10,7 +10,11 @@ import { HealthModule } from './health/health.module';
     {
       provide: APP_PIPE,
       useFactory: (): ValidationPipe =>
-        new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+        new ValidationPipe({
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          transform: true,
+        }),
     },
   ],
 })

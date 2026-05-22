@@ -1,6 +1,6 @@
-import { INestApplicationContext, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 
-export function catchUnhandledSignals(_app: INestApplicationContext): void {
+export function catchUnhandledSignals(): void {
   const logger = new Logger('GlobalExceptionSignalsHandler');
   process.on('uncaughtException', (err: Error) => {
     logger.error(`Received uncaughtException ${err.message}`, err.stack);

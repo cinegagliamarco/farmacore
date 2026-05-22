@@ -10,10 +10,22 @@ export class OfferBookRuleExecutionReportItemEntity extends BaseEntity {
   @Column({ type: 'bigint' })
   public ean!: string;
 
-  @Column({ name: 'old_price', type: 'numeric', precision: 12, scale: 2, nullable: true })
+  @Column({
+    name: 'old_price',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
   public oldPrice?: string | null;
 
-  @Column({ name: 'new_price', type: 'numeric', precision: 12, scale: 2, nullable: true })
+  @Column({
+    name: 'new_price',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
   public newPrice?: string | null;
 
   @Column({ type: 'text', nullable: true })
