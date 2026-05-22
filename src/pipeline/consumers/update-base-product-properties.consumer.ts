@@ -5,8 +5,9 @@ import {
   HandleContext,
   HandleResult,
 } from '../../queue/base-pipeline.consumer';
-import { EXCHANGE_NAME, STEP_PREFETCH } from '../../queue/constants';
-import { PipelineMessage, newPipelineMessage } from '../../queue/types';
+import { EXCHANGE_NAME } from '../../queue/constants';
+import { newPipelineMessage } from '../../queue/types';
+import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import { UpdateBaseProductPropertiesStep } from '../steps/update-base-product-properties.step';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
@@ -38,7 +39,6 @@ export class UpdateBaseProductPropertiesConsumer extends BasePipelineConsumer {
     queue: PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES,
     queueOptions: {
       channel: 'update-base-product-properties',
-      prefetchCount: STEP_PREFETCH[PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES],
     },
   })
   public consume(message: PipelineMessage): Promise<void> {

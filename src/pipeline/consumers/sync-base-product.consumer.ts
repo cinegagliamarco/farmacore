@@ -5,8 +5,9 @@ import {
   HandleContext,
   HandleResult,
 } from '../../queue/base-pipeline.consumer';
-import { EXCHANGE_NAME, STEP_PREFETCH } from '../../queue/constants';
-import { PipelineMessage, newPipelineMessage } from '../../queue/types';
+import { EXCHANGE_NAME } from '../../queue/constants';
+import { newPipelineMessage } from '../../queue/types';
+import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import { SyncBaseProductStep } from '../steps/sync-base-product.step';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
@@ -38,7 +39,6 @@ export class SyncBaseProductConsumer extends BasePipelineConsumer {
     queue: PipelineStep.SYNC_BASE_PRODUCT,
     queueOptions: {
       channel: 'sync-base-product',
-      prefetchCount: STEP_PREFETCH[PipelineStep.SYNC_BASE_PRODUCT],
     },
   })
   public consume(message: PipelineMessage): Promise<void> {

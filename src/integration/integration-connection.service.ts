@@ -28,7 +28,9 @@ export class IntegrationConnectionService {
     const tenant = await this.tenants.findOne({ where: { slug: tenantSlug } });
     if (!tenant) throw new NotFoundException(`Tenant ${tenantSlug} not found`);
 
-    const existing = await this.repo.findOne({ where: { tenantId: tenant.id } });
+    const existing = await this.repo.findOne({
+      where: { tenantId: tenant.id },
+    });
     const payload: Partial<IntegrationDatabaseConnectionEntity> = {
       tenantId: tenant.id,
       name: dto.name,
@@ -70,7 +72,8 @@ export class IntegrationConnectionService {
     const tenant = await this.tenants.findOne({ where: { slug: tenantSlug } });
     if (!tenant) throw new NotFoundException(`Tenant ${tenantSlug} not found`);
     const row = await this.repo.findOne({ where: { tenantId: tenant.id } });
-    if (!row) throw new NotFoundException('No integration connection configured');
+    if (!row)
+      throw new NotFoundException('No integration connection configured');
 
     const password = await this.crypto.decrypt(row.passwordEncrypted);
     const ds = new DataSource({

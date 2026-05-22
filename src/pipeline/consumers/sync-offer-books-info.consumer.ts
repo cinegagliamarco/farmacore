@@ -5,8 +5,9 @@ import {
   HandleContext,
   HandleResult,
 } from '../../queue/base-pipeline.consumer';
-import { EXCHANGE_NAME, STEP_PREFETCH } from '../../queue/constants';
-import { PipelineMessage, newPipelineMessage } from '../../queue/types';
+import { EXCHANGE_NAME } from '../../queue/constants';
+import { newPipelineMessage } from '../../queue/types';
+import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import { SyncOfferBooksInfoStep } from '../steps/sync-offer-books-info.step';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
@@ -38,7 +39,6 @@ export class SyncOfferBooksInfoConsumer extends BasePipelineConsumer {
     queue: PipelineStep.SYNC_OFFER_BOOKS_INFO,
     queueOptions: {
       channel: 'sync-offer-books-info',
-      prefetchCount: STEP_PREFETCH[PipelineStep.SYNC_OFFER_BOOKS_INFO],
     },
   })
   public consume(message: PipelineMessage): Promise<void> {

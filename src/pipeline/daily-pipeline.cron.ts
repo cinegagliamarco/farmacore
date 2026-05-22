@@ -18,7 +18,9 @@ export class DailyPipelineCron {
     const tenants = await this.tenants.listActive();
     for (const t of tenants) {
       if (t.slug === 'system') continue;
-      const runId = await this.publisher.publishStart(t.slug, { reason: 'cron' });
+      const runId = await this.publisher.publishStart(t.slug, {
+        reason: 'cron',
+      });
       this.logger.log(`Published pipeline.start for ${t.slug} run=${runId}`);
     }
   }

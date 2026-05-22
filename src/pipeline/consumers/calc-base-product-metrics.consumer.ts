@@ -5,8 +5,9 @@ import {
   HandleContext,
   HandleResult,
 } from '../../queue/base-pipeline.consumer';
-import { EXCHANGE_NAME, STEP_PREFETCH } from '../../queue/constants';
-import { PipelineMessage, newPipelineMessage } from '../../queue/types';
+import { EXCHANGE_NAME } from '../../queue/constants';
+import { newPipelineMessage } from '../../queue/types';
+import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import { CalcBaseProductMetricsStep } from '../steps/calc-base-product-metrics.step';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
@@ -38,7 +39,6 @@ export class CalcBaseProductMetricsConsumer extends BasePipelineConsumer {
     queue: PipelineStep.CALC_BASE_PRODUCT_METRICS,
     queueOptions: {
       channel: 'calc-base-product-metrics',
-      prefetchCount: STEP_PREFETCH[PipelineStep.CALC_BASE_PRODUCT_METRICS],
     },
   })
   public consume(message: PipelineMessage): Promise<void> {

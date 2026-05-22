@@ -11,7 +11,8 @@ export class CredentialEncryptionService {
 
   constructor(config: AppConfigService) {
     const key = config.integrationDbKey;
-    if (key.length !== 32) throw new Error('INTEGRATION_DB_KEY must decode to 32 bytes');
+    if (key.length !== 32)
+      throw new Error('INTEGRATION_DB_KEY must decode to 32 bytes');
     this.key = key;
   }
 
@@ -33,7 +34,10 @@ export class CredentialEncryptionService {
     try {
       const decipher = crypto.createDecipheriv('aes-256-gcm', this.key, nonce);
       decipher.setAuthTag(tag);
-      const plain = Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
+      const plain = Buffer.concat([
+        decipher.update(ct),
+        decipher.final(),
+      ]).toString('utf8');
       return Promise.resolve(plain);
     } catch (err) {
       return Promise.reject(err as Error);

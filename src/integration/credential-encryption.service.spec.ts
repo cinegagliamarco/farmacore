@@ -2,7 +2,9 @@ import { CredentialEncryptionService } from './credential-encryption.service';
 
 describe('CredentialEncryptionService', () => {
   const key = Buffer.alloc(32);
-  const svc = new CredentialEncryptionService({ integrationDbKey: key } as never);
+  const svc = new CredentialEncryptionService({
+    integrationDbKey: key,
+  } as never);
 
   it('roundtrips plaintext', async () => {
     const cipher = svc.encrypt('hunter2');

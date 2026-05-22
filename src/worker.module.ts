@@ -5,6 +5,7 @@ import { DatabaseModule } from './database/database.module';
 import { TenantModule } from './tenant/tenant.module';
 import { IntegrationModule } from './integration/integration.module';
 import { QueueModule } from './queue/queue.module';
+import { PipelineStepsModule } from './pipeline/pipeline-steps.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { QueueModule } from './queue/queue.module';
     TenantModule,
     IntegrationModule,
     QueueModule,
+    PipelineStepsModule.forRoot({ withConsumers: true }),
   ],
 })
 export class WorkerModule {}

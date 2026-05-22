@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import { EXCHANGE_NAME, PIPELINE_START_QUEUE } from '../../queue/constants';
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
-import { PipelineMessage, newPipelineMessage } from '../../queue/types';
+import { newPipelineMessage } from '../../queue/types';
+import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 
 @Injectable()

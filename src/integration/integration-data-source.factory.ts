@@ -21,11 +21,15 @@ export class IntegrationDataSourceFactory implements OnModuleDestroy {
     const cached = this.cache.get(tenantId);
     if (cached?.isInitialized) return cached;
 
-    const row = await this.repo.findOne({ where: { tenantId, status: 'active' } });
+    const row = await this.repo.findOne({
+      where: { tenantId, status: 'active' },
+    });
     if (!row) return null;
 
     const password = await this.crypto.decrypt(row.passwordEncrypted);
-    const poolSize = Number((row.connectionOptions as { poolSize?: number })?.poolSize ?? 5);
+    const poolSize = Number(
+      (row.connectionOptions as { poolSize?: number })?.poolSize ?? 5,
+    );
 
     const dataSource = new DataSource({
       type: row.type,
@@ -53,7 +57,9 @@ export class IntegrationDataSourceFactory implements OnModuleDestroy {
     }
 
     this.cache.set(tenantId, dataSource);
-    this.logger.log(`Initialized integration DataSource for tenant ${tenantId}`);
+    this.logger.log(
+      `Initialized integration DataSource for tenant ${tenantId}`,
+    );
     return dataSource;
   }
 

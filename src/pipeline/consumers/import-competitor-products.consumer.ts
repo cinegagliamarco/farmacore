@@ -5,8 +5,9 @@ import {
   HandleContext,
   HandleResult,
 } from '../../queue/base-pipeline.consumer';
-import { EXCHANGE_NAME, STEP_PREFETCH } from '../../queue/constants';
-import { PipelineMessage, newPipelineMessage } from '../../queue/types';
+import { EXCHANGE_NAME } from '../../queue/constants';
+import { newPipelineMessage } from '../../queue/types';
+import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import { ImportCompetitorProductsStep } from '../steps/import-competitor-products.step';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
@@ -38,7 +39,6 @@ export class ImportCompetitorProductsConsumer extends BasePipelineConsumer {
     queue: PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     queueOptions: {
       channel: 'import-competitor-products',
-      prefetchCount: STEP_PREFETCH[PipelineStep.IMPORT_COMPETITOR_PRODUCTS],
     },
   })
   public consume(message: PipelineMessage): Promise<void> {

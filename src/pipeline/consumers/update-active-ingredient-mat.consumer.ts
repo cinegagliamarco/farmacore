@@ -5,8 +5,8 @@ import {
   HandleContext,
   HandleResult,
 } from '../../queue/base-pipeline.consumer';
-import { EXCHANGE_NAME, STEP_PREFETCH } from '../../queue/constants';
-import { PipelineMessage } from '../../queue/types';
+import { EXCHANGE_NAME } from '../../queue/constants';
+import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import { UpdateActiveIngredientMatStep } from '../steps/update-active-ingredient-mat.step';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
@@ -38,7 +38,6 @@ export class UpdateActiveIngredientMatConsumer extends BasePipelineConsumer {
     queue: PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT,
     queueOptions: {
       channel: 'update-active-ingredient-mat',
-      prefetchCount: STEP_PREFETCH[PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT],
     },
   })
   public consume(message: PipelineMessage): Promise<void> {

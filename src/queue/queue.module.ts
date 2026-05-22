@@ -9,6 +9,7 @@ import {
   MIGRATE_TENANT_QUEUE,
   PIPELINE_START_QUEUE,
   RETRY_DELAYS_MS,
+  STEP_PREFETCH,
   STEP_QUEUES,
 } from './constants';
 import { delayQueueName } from './retry.service';
@@ -25,6 +26,15 @@ import { RetryService } from './retry.service';
       useFactory: (config: AppConfigService) => ({
         uri: config.amqpUrl,
         connectionInitOptions: { wait: true, timeout: 10_000 },
+        channels: {
+          ...Object.fromEntries(
+            STEP_QUEUES.map((step) => [
+              step,
+              { prefetchCount: STEP_PREFETCH[step] },
+            ]),
+          ),
+          'migrate-tenant': { prefetchCount: 10 },
+        },
         exchanges: [
           { name: EXCHANGE_NAME, type: 'topic', options: { durable: true } },
           { name: DLX_NAME, type: 'topic', options: { durable: true } },

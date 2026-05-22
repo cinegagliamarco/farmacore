@@ -16,10 +16,12 @@ export class MigrateTenantConsumer {
     exchange: EXCHANGE_NAME,
     routingKey: '*.migrate-tenant',
     queue: MIGRATE_TENANT_QUEUE,
-    queueOptions: { channel: 'migrate-tenant', prefetchCount: 10 },
+    queueOptions: { channel: 'migrate-tenant' },
   })
   public handle(message: MigrateTenantMessage): void {
     this.logger.log(`Migrating tenant ${message.tenantSlug}`);
-    execSync(`npm run migration:tenant ${message.tenantSlug}`, { stdio: 'inherit' });
+    execSync(`npm run migration:tenant ${message.tenantSlug}`, {
+      stdio: 'inherit',
+    });
   }
 }

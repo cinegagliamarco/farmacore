@@ -11,12 +11,12 @@ jest.mock('typeorm', () => {
     ...actual,
     DataSource: jest.fn().mockImplementation(() => ({
       isInitialized: false,
-      initialize: jest
-        .fn()
-        .mockImplementation(function (this: { isInitialized: boolean }) {
-          this.isInitialized = true;
-          return Promise.resolve(this);
-        }),
+      initialize: jest.fn().mockImplementation(function (this: {
+        isInitialized: boolean;
+      }) {
+        this.isInitialized = true;
+        return Promise.resolve(this);
+      }),
       query: jest.fn().mockResolvedValue(undefined),
       destroy: jest.fn().mockResolvedValue(undefined),
     })),
