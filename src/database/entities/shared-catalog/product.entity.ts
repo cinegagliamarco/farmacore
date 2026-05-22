@@ -4,16 +4,12 @@ import { CompetitorOrigin } from '../../enums/competitor-origin.enum';
 
 @Entity({ schema: 'shared_catalog', name: 'product' })
 @Index('IX_PRODUCT_EAN_ORIGIN', ['ean', 'origin'])
-@Index('UQ_PRODUCT_EXTERNAL', ['origin', 'externalId'], { unique: true })
 export class ProductEntity extends BaseEntity {
   @Column({ type: 'bigint' })
   public ean!: string;
 
   @Column({ type: 'text', enum: CompetitorOrigin })
   public origin!: CompetitorOrigin;
-
-  @Column({ name: 'external_id', type: 'text' })
-  public externalId!: string;
 
   @Column({ type: 'text', nullable: true })
   public name?: string | null;

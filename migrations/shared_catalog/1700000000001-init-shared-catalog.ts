@@ -27,7 +27,6 @@ export class InitSharedCatalog1700000000001 implements MigrationInterface {
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         ean bigint NOT NULL,
         origin text NOT NULL,
-        external_id text NOT NULL,
         name text,
         url text,
         price numeric(12,2),
@@ -39,7 +38,6 @@ export class InitSharedCatalog1700000000001 implements MigrationInterface {
         CONSTRAINT chk_product_origin CHECK (origin IN ('DROGAL','DROGASIL','PAGUE_MENOS','IKESAKI','MICHELASSI'))
       );
       CREATE INDEX "IX_PRODUCT_EAN_ORIGIN" ON shared_catalog.product(ean, origin);
-      CREATE UNIQUE INDEX "UQ_PRODUCT_EXTERNAL" ON shared_catalog.product(origin, external_id);
     `);
 
     await queryRunner.query(`

@@ -20,6 +20,20 @@ export class InitTenant1700000000002 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
+      CREATE TABLE tenant_base_product (
+        id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+        ean bigint NOT NULL,
+        external_id text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        deleted_at timestamptz
+      );
+      CREATE UNIQUE INDEX "UQ_TENANT_BASE_PRODUCT_EAN" ON tenant_base_product(ean);
+      CREATE UNIQUE INDEX "UQ_TENANT_BASE_PRODUCT_EXTERNAL_ID"
+        ON tenant_base_product(external_id) WHERE external_id IS NOT NULL;
+    `);
+
+    await queryRunner.query(`
       CREATE TABLE tenant_product_override (
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         ean bigint NOT NULL,

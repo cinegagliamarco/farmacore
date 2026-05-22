@@ -26,6 +26,7 @@
   - `shared-catalog/product-image.entity.ts` → `ProductImageEntity`
   - `shared-catalog/product-stock.entity.ts` → `ProductStockEntity`
   - `tenant/tenant-competitor-origin.entity.ts` → `TenantCompetitorOriginEntity`
+  - `tenant/tenant-base-product.entity.ts` → `TenantBaseProductEntity` *(per-tenant ERP code for a shared base_product, keyed by EAN)*
   - `tenant/tenant-product-override.entity.ts` → `TenantProductOverrideEntity`
   - `tenant/active-ingredient.entity.ts` → `ActiveIngredientEntity`
   - `tenant/classification.entity.ts` → `ClassificationEntity`
@@ -75,6 +76,7 @@ src/database/
 │  │   └─ product-stock.entity.ts
 │  └─ tenant/
 │      ├─ tenant-competitor-origin.entity.ts
+│      ├─ tenant-base-product.entity.ts
 │      ├─ tenant-product-override.entity.ts
 │      ├─ active-ingredient.entity.ts
 │      ├─ classification.entity.ts
@@ -478,16 +480,12 @@ import { CompetitorOrigin } from '../../enums/competitor-origin.enum';
 
 @Entity({ schema: 'shared_catalog', name: 'product' })
 @Index('IX_PRODUCT_EAN_ORIGIN', ['ean', 'origin'])
-@Index('UQ_PRODUCT_EXTERNAL', ['origin', 'externalId'], { unique: true })
 export class ProductEntity extends BaseEntity {
   @Column({ type: 'bigint' })
   public ean!: string;
 
   @Column({ type: 'text', enum: CompetitorOrigin })
   public origin!: CompetitorOrigin;
-
-  @Column({ name: 'external_id', type: 'text' })
-  public externalId!: string;
 
   @Column({ type: 'text', nullable: true })
   public name?: string | null;
@@ -557,7 +555,7 @@ git commit -m "feat(db): shared_catalog entities (base_product simplified, produ
 
 ### Task 6: tenant entities (config + overrides)
 
-**Files:** `src/database/entities/tenant/tenant-competitor-origin.entity.ts`, `tenant-product-override.entity.ts`
+**Files:** `src/database/entities/tenant/tenant-competitor-origin.entity.ts`, `tenant-base-product.entity.ts`, `tenant-product-override.entity.ts`
 
 - [ ] **Step 1: tenant-competitor-origin.entity.ts**
 
@@ -583,7 +581,28 @@ export class TenantCompetitorOriginEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 2: tenant-product-override.entity.ts**
+- [ ] **Step 2: tenant-base-product.entity.ts**
+
+```ts
+import { Column, Entity, Index } from 'typeorm';
+import { BaseEntity } from '../base.entity';
+
+// Tenant-side view of a shared `shared_catalog.base_product`. Holds ERP-only
+// fields that don't belong in the shared catalog — most notably `external_id`,
+// each tenant's ERP/POS code for the canonical EAN. One row per EAN per tenant.
+@Entity({ name: 'tenant_base_product' })
+@Index('UQ_TENANT_BASE_PRODUCT_EAN', ['ean'], { unique: true })
+@Index('UQ_TENANT_BASE_PRODUCT_EXTERNAL_ID', ['externalId'], { unique: true, where: '"external_id" IS NOT NULL' })
+export class TenantBaseProductEntity extends BaseEntity {
+  @Column({ type: 'bigint' })
+  public ean!: string;
+
+  @Column({ name: 'external_id', type: 'text', nullable: true })
+  public externalId?: string | null;
+}
+```
+
+- [ ] **Step 3: tenant-product-override.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -611,12 +630,13 @@ export class TenantProductOverrideEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/database/entities/tenant/tenant-competitor-origin.entity.ts \
+        src/database/entities/tenant/tenant-base-product.entity.ts \
         src/database/entities/tenant/tenant-product-override.entity.ts
-git commit -m "feat(db): tenant origin config + product override entities"
+git commit -m "feat(db): tenant origin config + base-product + product override entities"
 ```
 
 ---
@@ -1145,7 +1165,6 @@ export class InitSharedCatalog1700000000001 implements MigrationInterface {
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         ean bigint NOT NULL,
         origin text NOT NULL,
-        external_id text NOT NULL,
         name text,
         url text,
         price numeric(12,2),
@@ -1157,7 +1176,6 @@ export class InitSharedCatalog1700000000001 implements MigrationInterface {
         CONSTRAINT chk_product_origin CHECK (origin IN ('DROGAL','DROGASIL','PAGUE_MENOS','IKESAKI','MICHELASSI'))
       );
       CREATE INDEX "IX_PRODUCT_EAN_ORIGIN" ON shared_catalog.product(ean, origin);
-      CREATE UNIQUE INDEX "UQ_PRODUCT_EXTERNAL" ON shared_catalog.product(origin, external_id);
     `);
 
     await queryRunner.query(`
@@ -1231,6 +1249,20 @@ export class InitTenant1700000000002 implements MigrationInterface {
         CONSTRAINT chk_tco_origin CHECK (origin IN ('DROGAL','DROGASIL','PAGUE_MENOS','IKESAKI','MICHELASSI'))
       );
       CREATE UNIQUE INDEX "UQ_TENANT_COMP_ORIGIN" ON tenant_competitor_origin(origin);
+    `);
+
+    await queryRunner.query(`
+      CREATE TABLE tenant_base_product (
+        id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+        ean bigint NOT NULL,
+        external_id text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        deleted_at timestamptz
+      );
+      CREATE UNIQUE INDEX "UQ_TENANT_BASE_PRODUCT_EAN" ON tenant_base_product(ean);
+      CREATE UNIQUE INDEX "UQ_TENANT_BASE_PRODUCT_EXTERNAL_ID"
+        ON tenant_base_product(external_id) WHERE external_id IS NOT NULL;
     `);
 
     await queryRunner.query(`
