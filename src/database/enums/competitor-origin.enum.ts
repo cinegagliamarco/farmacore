@@ -1,0 +1,7 @@
+export enum CompetitorOrigin {
+  DROGAL = 'DROGAL',
+  DROGASIL = 'DROGASIL',
+  PAGUE_MENOS = 'PAGUE_MENOS',
+  IKESAKI = 'IKESAKI',
+  MICHELASSI = 'MICHELASSI',
+}
