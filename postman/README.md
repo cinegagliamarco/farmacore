@@ -40,9 +40,13 @@ Then import `postman/farmacore.postman_collection.json` into Postman and run:
 Currently covers:
 
 - `GET /health` (Plan 00 / 07)
-- `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` (Plan 02)
+- Auth (Plan 02): `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`
+- Admin tenants (Plan 06): `POST /admin/tenants`, `GET /admin/tenants`, `GET /admin/tenants/:slug`, `PATCH /admin/tenants/:slug/status`, `DELETE /admin/tenants/:slug`
+- Admin integration (Plan 06): `PUT /admin/tenants/:slug/integration`, `POST /admin/tenants/:slug/integration/test`, `DELETE /admin/tenants/:slug/integration`
+- Admin competitor origins (Plan 06): `PUT /admin/tenants/:slug/competitor-origins`
+- Admin pipeline (Plan 06): `POST /admin/tenants/:slug/pipeline/start`
+- Admin DLQ (Plan 06): `GET /admin/dlq/:step`, `POST /admin/dlq/:step/replay`
 
 Pending plans that will add requests:
 
-- **Plan 06** — admin API (tenant CRUD, user CRUD, integration upsert, pipeline trigger)
 - **Plan 07** — extended health/observability endpoints (readiness, metrics) if applicable
