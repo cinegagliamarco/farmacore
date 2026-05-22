@@ -19,7 +19,14 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts",
+    "migration:create": "typeorm-ts-node-commonjs migration:create",
+    "migration:run:app": "ts-node scripts/migrate-app.ts",
+    "migration:revert:app": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
+    "migration:tenant": "ts-node scripts/migrate-tenant.ts",
+    "migration:tenant:all": "ts-node scripts/migrate-all-tenants.ts",
+    "tenant:create": "ts-node scripts/create-tenant-schema.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -30,6 +37,7 @@
     "@nestjs/typeorm": "^11.0.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "dotenv": "^17.4.2",
     "pg": "^8.21.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -69,7 +77,9 @@
     ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
-    "setupFiles": ["reflect-metadata"],
+    "setupFiles": [
+      "reflect-metadata"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
