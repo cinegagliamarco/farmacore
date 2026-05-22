@@ -15,6 +15,7 @@ export class PipelineStartConsumer {
   @RabbitSubscribe({
     exchange: EXCHANGE_NAME,
     routingKey: '*.pipeline.start',
+    createQueueIfNotExists: false,
     queue: PIPELINE_START_QUEUE,
   })
   public async handle(message: PipelineMessage): Promise<void> {

@@ -36,6 +36,7 @@ export class CalcBaseProductMetricsConsumer extends BasePipelineConsumer {
   @RabbitSubscribe({
     exchange: EXCHANGE_NAME,
     routingKey: `*.${PipelineStep.CALC_BASE_PRODUCT_METRICS}`,
+    createQueueIfNotExists: false,
     queue: PipelineStep.CALC_BASE_PRODUCT_METRICS,
     queueOptions: {
       channel: 'calc-base-product-metrics',

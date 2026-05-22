@@ -36,6 +36,7 @@ export class UpdateBaseProductPropertiesConsumer extends BasePipelineConsumer {
   @RabbitSubscribe({
     exchange: EXCHANGE_NAME,
     routingKey: `*.${PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES}`,
+    createQueueIfNotExists: false,
     queue: PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES,
     queueOptions: {
       channel: 'update-base-product-properties',

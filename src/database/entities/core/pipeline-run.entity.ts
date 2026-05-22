@@ -10,7 +10,7 @@ export class PipelineRunEntity extends BaseEntity {
   @Column({ name: 'pipeline_run_id', type: 'uuid' })
   public pipelineRunId!: string;
 
-  @Column({ name: 'tenant_id', type: 'uuid' })
+  @Column({ name: 'tenant_id', type: 'text' })
   public tenantId!: string;
 
   @Column({ type: 'text' })

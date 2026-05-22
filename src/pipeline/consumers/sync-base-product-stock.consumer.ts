@@ -38,6 +38,7 @@ export class SyncBaseProductStockConsumer extends BasePipelineConsumer {
   @RabbitSubscribe({
     exchange: EXCHANGE_NAME,
     routingKey: `*.${PipelineStep.SYNC_BASE_PRODUCT_STOCK}`,
+    createQueueIfNotExists: false,
     queue: PipelineStep.SYNC_BASE_PRODUCT_STOCK,
     queueOptions: {
       channel: 'sync-base-product-stock',

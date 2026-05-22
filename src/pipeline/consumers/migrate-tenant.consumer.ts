@@ -15,6 +15,7 @@ export class MigrateTenantConsumer {
   @RabbitSubscribe({
     exchange: EXCHANGE_NAME,
     routingKey: '*.migrate-tenant',
+    createQueueIfNotExists: false,
     queue: MIGRATE_TENANT_QUEUE,
     queueOptions: { channel: 'migrate-tenant' },
   })

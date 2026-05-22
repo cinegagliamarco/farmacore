@@ -42,7 +42,12 @@ export class AmqpInterceptor implements NestInterceptor {
     if (context.getType<string>() === 'http') return next.handle();
 
     const rmqContext = context.getArgByIndex<RmqContextLike | undefined>(1);
-    if (!rmqContext) return next.handle();
+    // @golevelup/nestjs-rabbitmq does its own ack/nack — the second arg is the
+    // raw amqplib Message, not a context wrapper. Only intercept when running
+    // under @nestjs/microservices (whose RmqContext exposes getChannelRef).
+    if (!rmqContext || typeof rmqContext.getChannelRef !== 'function') {
+      return next.handle();
+    }
 
     const channel = rmqContext.getChannelRef();
     const originalMessage = rmqContext.getMessage();

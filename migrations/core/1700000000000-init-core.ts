@@ -82,7 +82,7 @@ export class InitCore1700000000000 implements MigrationInterface {
       CREATE TABLE core.pipeline_run (
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         pipeline_run_id uuid NOT NULL,
-        tenant_id uuid NOT NULL,
+        tenant_id text NOT NULL,
         step text NOT NULL,
         status text NOT NULL,
         attempt int NOT NULL DEFAULT 1,

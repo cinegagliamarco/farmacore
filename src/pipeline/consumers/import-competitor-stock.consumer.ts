@@ -38,6 +38,7 @@ export class ImportCompetitorStockConsumer extends BasePipelineConsumer {
   @RabbitSubscribe({
     exchange: EXCHANGE_NAME,
     routingKey: `*.${PipelineStep.IMPORT_COMPETITOR_STOCK}`,
+    createQueueIfNotExists: false,
     queue: PipelineStep.IMPORT_COMPETITOR_STOCK,
     queueOptions: {
       channel: 'import-competitor-stock',

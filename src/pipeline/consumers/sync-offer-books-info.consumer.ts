@@ -36,6 +36,7 @@ export class SyncOfferBooksInfoConsumer extends BasePipelineConsumer {
   @RabbitSubscribe({
     exchange: EXCHANGE_NAME,
     routingKey: `*.${PipelineStep.SYNC_OFFER_BOOKS_INFO}`,
+    createQueueIfNotExists: false,
     queue: PipelineStep.SYNC_OFFER_BOOKS_INFO,
     queueOptions: {
       channel: 'sync-offer-books-info',

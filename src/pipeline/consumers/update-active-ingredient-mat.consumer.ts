@@ -35,6 +35,7 @@ export class UpdateActiveIngredientMatConsumer extends BasePipelineConsumer {
   @RabbitSubscribe({
     exchange: EXCHANGE_NAME,
     routingKey: `*.${PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT}`,
+    createQueueIfNotExists: false,
     queue: PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT,
     queueOptions: {
       channel: 'update-active-ingredient-mat',
