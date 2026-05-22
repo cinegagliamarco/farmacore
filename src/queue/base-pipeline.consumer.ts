@@ -56,11 +56,13 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
       }
 
       const tenant = await this.tenants.findActive(message.tenantId);
-      const integrationDs = await this.integrationFactory.forTenantSlug(tenant.slug);
+      const integrationDs = await this.integrationFactory.forTenantSlug(
+        tenant.slug,
+      );
 
       const result = await this.tx.runWithTenant(tenant.schemaName, (em) =>
         this.handle({
-          message: message as PipelineMessage<unknown>,
+          message: message,
           em,
           integrationDs,
         }),

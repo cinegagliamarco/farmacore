@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { WorkerModule } from './worker.module';
 import { catchUnhandledSignals } from './common';
 
 async function bootstrap(): Promise<void> {
@@ -8,11 +9,9 @@ async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
 
   if (isWorker) {
-    const app = await NestFactory.createApplicationContext(AppModule);
+    const app = await NestFactory.createApplicationContext(WorkerModule);
     catchUnhandledSignals(app);
-    logger.log(
-      'Worker started (no consumers registered yet — added in plan 04)',
-    );
+    logger.log('Worker started — RMQ topology declared');
     const shutdown = (): void => {
       void app.close().then(() => process.exit(0));
     };

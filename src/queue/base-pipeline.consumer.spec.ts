@@ -38,8 +38,9 @@ describe('BasePipelineConsumer', () => {
     };
     retry = { republishOnFailure: jest.fn().mockResolvedValue('retried') };
     tx = {
-      runWithTenant: jest.fn((_s: string, fn: (em: EntityManager) => Promise<unknown>) =>
-        fn({} as EntityManager),
+      runWithTenant: jest.fn(
+        (_s: string, fn: (em: EntityManager) => Promise<unknown>) =>
+          fn({} as EntityManager),
       ),
     };
     tenants = {
@@ -78,7 +79,10 @@ describe('BasePipelineConsumer', () => {
   it('runs handle when start returns started', async () => {
     await consumer.process(msg);
     expect(consumer.lastInvoked).toBe(1);
-    expect(runs.complete).toHaveBeenCalledWith('run1', PipelineStep.SYNC_BASE_PRODUCT);
+    expect(runs.complete).toHaveBeenCalledWith(
+      'run1',
+      PipelineStep.SYNC_BASE_PRODUCT,
+    );
   });
 
   it('skips handle when start returns already-completed', async () => {
@@ -108,8 +112,8 @@ describe('BasePipelineConsumer', () => {
       publishedAt: 'now',
       payload: {},
     };
-    (consumer as unknown as { handle: () => Promise<HandleResult> }).handle = () =>
-      Promise.resolve({ successors: [successor] });
+    (consumer as unknown as { handle: () => Promise<HandleResult> }).handle =
+      () => Promise.resolve({ successors: [successor] });
     await consumer.process(msg);
     expect(publisher.publishStep).toHaveBeenCalledWith(successor);
   });

@@ -10,7 +10,10 @@ describe('PipelinePublisher', () => {
   beforeEach(async () => {
     amqp = { publish: jest.fn().mockResolvedValue(undefined) };
     const mod = await Test.createTestingModule({
-      providers: [PipelinePublisher, { provide: AmqpConnection, useValue: amqp }],
+      providers: [
+        PipelinePublisher,
+        { provide: AmqpConnection, useValue: amqp },
+      ],
     }).compile();
     svc = mod.get(PipelinePublisher);
   });

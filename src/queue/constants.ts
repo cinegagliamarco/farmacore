@@ -3,7 +3,11 @@ import { PipelineStep } from '../database/enums/pipeline-step.enum';
 export const EXCHANGE_NAME = `pipeline.${process.env.NODE_ENV ?? 'development'}`;
 export const DLX_NAME = `${EXCHANGE_NAME}.dlx`;
 
-export const RETRY_DELAYS_MS: ReadonlyArray<number> = [60_000, 5 * 60_000, 30 * 60_000];
+export const RETRY_DELAYS_MS: ReadonlyArray<number> = [
+  60_000,
+  5 * 60_000,
+  30 * 60_000,
+];
 export const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
 
 export const STEP_QUEUES: ReadonlyArray<PipelineStep> = [

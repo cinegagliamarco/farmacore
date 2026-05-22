@@ -20,8 +20,11 @@ export class PipelineRunService {
     step: PipelineStep,
     attempt: number,
   ): Promise<StartOutcome> {
-    const existing = await this.repo.findOne({ where: { pipelineRunId, step } });
-    if (existing?.status === PipelineRunStatus.COMPLETED) return 'already-completed';
+    const existing = await this.repo.findOne({
+      where: { pipelineRunId, step },
+    });
+    if (existing?.status === PipelineRunStatus.COMPLETED)
+      return 'already-completed';
     if (existing?.status === PipelineRunStatus.RUNNING) return 'in-progress';
     await this.repo.save({
       pipelineRunId,
@@ -34,21 +37,35 @@ export class PipelineRunService {
     return 'started';
   }
 
-  public async complete(pipelineRunId: string, step: PipelineStep): Promise<void> {
+  public async complete(
+    pipelineRunId: string,
+    step: PipelineStep,
+  ): Promise<void> {
     await this.repo.update(
       { pipelineRunId, step },
       { status: PipelineRunStatus.COMPLETED, finishedAt: new Date() },
     );
   }
 
-  public async fail(pipelineRunId: string, step: PipelineStep, error: string): Promise<void> {
+  public async fail(
+    pipelineRunId: string,
+    step: PipelineStep,
+    error: string,
+  ): Promise<void> {
     await this.repo.update(
       { pipelineRunId, step },
-      { status: PipelineRunStatus.FAILED, finishedAt: new Date(), error: error.slice(0, 4000) },
+      {
+        status: PipelineRunStatus.FAILED,
+        finishedAt: new Date(),
+        error: error.slice(0, 4000),
+      },
     );
   }
 
-  public async isCompleted(pipelineRunId: string, step: PipelineStep): Promise<boolean> {
+  public async isCompleted(
+    pipelineRunId: string,
+    step: PipelineStep,
+  ): Promise<boolean> {
     const row = await this.repo.findOne({
       where: { pipelineRunId, step, status: PipelineRunStatus.COMPLETED },
     });
