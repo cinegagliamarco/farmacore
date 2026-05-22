@@ -26,7 +26,8 @@
     "migration:revert:app": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "migration:tenant": "ts-node scripts/migrate-tenant.ts",
     "migration:tenant:all": "ts-node scripts/migrate-all-tenants.ts",
-    "tenant:create": "ts-node scripts/create-tenant-schema.ts"
+    "tenant:create": "ts-node scripts/create-tenant-schema.ts",
+    "seed:system-admin": "ts-node scripts/seed-system-admin.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
