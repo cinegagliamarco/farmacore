@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Amendment (post-execution):** The original plan specified a single `src/main.ts` that switches roles via `WORKER_MODE=1`. After execution this was split into two entry files — `src/main.http.ts` (API) and `src/main.worker.ts` (worker). Both still ship in the same Docker image; the worker Fly app overrides `CMD` to `node dist/main.worker.js`. `main.worker.ts` sets `process.env.WORKER_MODE='1'` at the top so the `DailyPipelineCron` (plan 05) guard keeps the cron API-only. References below to "single `main.ts`" and "`WORKER_MODE=1 node dist/main.js`" should be read with this change in mind. See `plans/README.md` for the current convention.
+
 **Goal:** Bootstrap the NestJS project with config, health endpoint, Dockerfile, single entry point that switches between API and worker roles via `WORKER_MODE`, and TypeORM scaffolding so every later plan has a stable base. Logger + interceptors + signal listener are added in plan 09.
 
 **Architecture:** Single Docker image with one entry file `src/main.ts`. When `WORKER_MODE=1`, it creates a `NestApplicationContext` (no HTTP) and the worker module's consumers attach themselves to RMQ. Otherwise it creates a full `NestApplication`, listens on `PORT`, and serves HTTP. A `ConfigModule` reads typed env vars; a `DatabaseModule` registers the root TypeORM `DataSource`; a `HealthModule` exposes `/health`.

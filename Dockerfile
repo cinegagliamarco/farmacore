@@ -17,5 +17,6 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/package.json ./
 EXPOSE 3000
-# Same image for API and worker; the worker Fly app sets WORKER_MODE=1.
-CMD ["node", "dist/main.js"]
+# Same image, two entry points. Default boots the HTTP API; the worker Fly app
+# overrides CMD to ["node", "dist/main.worker.js"].
+CMD ["node", "dist/main.http.js"]

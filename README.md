@@ -8,10 +8,10 @@ Multi-tenant NestJS backend. See [`arc/`](./arc/) for architecture and [`plans/`
 npm install
 cp .env.example .env
 docker compose up -d        # postgres on :5433, rabbitmq on :5673 / mgmt :15673
-npm run start:dev           # API
+npm run start:dev           # API (main.http)
 
 # in another shell:
-npm run build && WORKER_MODE=1 node dist/main.js   # worker
+npm run start:worker:dev    # worker (main.worker)
 ```
 
 Health check: `curl http://localhost:3000/health`.
@@ -20,8 +20,12 @@ Health check: `curl http://localhost:3000/health`.
 
 ## Scripts
 
-- `npm run start:dev` — API in watch mode
+- `npm run start:dev` — API in watch mode (`main.http`)
+- `npm run start:worker:dev` — worker in watch mode (`main.worker`)
 - `npm run build` — compile to `dist/`
 - `npm test` — unit tests
-- `node dist/main.js` — production API entry
-- `WORKER_MODE=1 node dist/main.js` — production worker entry
+- `npm run test:e2e` — e2e tests (requires running postgres)
+- `node dist/main.http.js` — production API entry
+- `node dist/main.worker.js` — production worker entry
+
+The Docker image's default `CMD` is `node dist/main.http.js`. The worker Fly app overrides `CMD` to `node dist/main.worker.js`.

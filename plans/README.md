@@ -18,7 +18,7 @@ Notable subtrees under `legacy-app/src/`:
 ## Conventions (applied across all plans)
 
 - **Package manager:** **npm** (not pnpm).
-- **Entry file:** single `src/main.ts`. The role is selected by env var `WORKER_MODE=1`. The API role creates a full Nest app and listens on HTTP; the worker role creates an `ApplicationContext` (no HTTP) and runs RMQ consumers.
+- **Entry files:** two files — `src/main.http.ts` (API: full Nest app, listens on HTTP) and `src/main.worker.ts` (worker: `ApplicationContext`, no HTTP, runs RMQ consumers). Same Docker image; the worker Fly app overrides `CMD` to `node dist/main.worker.js`. `main.worker.ts` sets `process.env.WORKER_MODE='1'` so the `DailyPipelineCron` guard keeps the cron API-only.
 - **Logger:** internal abstraction `InternalLogger` (interface + DI token `INTERNAL_LOGGER_TOKEN`) backed by Nest's built-in `Logger`. No third-party logger lib for v1.
 - **Core schema name:** `core` (replaces `arc/` doc's `app_meta`). All references in the plans use `core`.
 - **No `tenant_schema_version` table** — TypeORM's per-schema `migrations_tenant` table tracks applied migrations.
