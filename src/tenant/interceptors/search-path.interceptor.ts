@@ -20,7 +20,10 @@ export class SearchPathInterceptor implements NestInterceptor {
     private readonly txService: TenantTransactionService,
   ) {}
 
-  public intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  public intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<unknown> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),

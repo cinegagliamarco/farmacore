@@ -15,7 +15,9 @@ export class TenantTransactionService {
       throw new Error(`invalid schema name: ${schemaName}`);
     }
     return this.dataSource.transaction(async (em) => {
-      await em.query(`SET LOCAL search_path TO "${schemaName}", shared_catalog, public`);
+      await em.query(
+        `SET LOCAL search_path TO "${schemaName}", shared_catalog, public`,
+      );
       return fn(em);
     });
   }

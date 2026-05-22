@@ -1,4 +1,9 @@
-import { Inject, Injectable, Scope, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Scope,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import type { Request } from 'express';
 import type { JwtPayload } from '../auth/jwt-payload.type';

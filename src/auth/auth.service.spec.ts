@@ -25,12 +25,15 @@ describe('AuthService.login', () => {
         PasswordService,
         { provide: getRepositoryToken(UserEntity), useValue: users },
         { provide: getRepositoryToken(TenantEntity), useValue: tenants },
-        { provide: getRepositoryToken(RefreshTokenEntity), useValue: refreshTokens },
+        {
+          provide: getRepositoryToken(RefreshTokenEntity),
+          useValue: refreshTokens,
+        },
         {
           provide: JwtService,
           useValue: {
             sign: () => 'token',
-            verifyAsync: async (): Promise<unknown> => ({}),
+            verifyAsync: (): Promise<unknown> => Promise.resolve({}),
           },
         },
       ],

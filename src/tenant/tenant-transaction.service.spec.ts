@@ -12,8 +12,9 @@ describe('TenantTransactionService.runWithTenant', () => {
     }),
   };
   const fakeDataSource = {
-    transaction: jest.fn(async (cb: (em: typeof fakeManager) => Promise<unknown>) =>
-      cb(fakeManager),
+    transaction: jest.fn(
+      async (cb: (em: typeof fakeManager) => Promise<unknown>) =>
+        cb(fakeManager),
     ),
   } as unknown as DataSource;
 
@@ -33,13 +34,15 @@ describe('TenantTransactionService.runWithTenant', () => {
     await svc.runWithTenant('tenant_acme', async (em) => {
       await em.query('SELECT 1');
     });
-    expect(queries[0]).toMatch(/SET LOCAL search_path TO "tenant_acme", shared_catalog, public/);
+    expect(queries[0]).toMatch(
+      /SET LOCAL search_path TO "tenant_acme", shared_catalog, public/,
+    );
     expect(queries[1]).toBe('SELECT 1');
   });
 
   it('quotes the schema name to defend against injection', async () => {
-    await expect(svc.runWithTenant('bad"; DROP --', async () => undefined)).rejects.toThrow(
-      /invalid schema/,
-    );
+    await expect(
+      svc.runWithTenant('bad"; DROP --', () => Promise.resolve(undefined)),
+    ).rejects.toThrow(/invalid schema/);
   });
 });

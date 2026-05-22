@@ -7,7 +7,8 @@ import { TenantStatus } from '../database/enums/tenant-status.enum';
 @Injectable()
 export class TenantService {
   constructor(
-    @InjectRepository(TenantEntity) private readonly repo: Repository<TenantEntity>,
+    @InjectRepository(TenantEntity)
+    private readonly repo: Repository<TenantEntity>,
   ) {}
 
   public async findBySlug(slug: string): Promise<TenantEntity> {

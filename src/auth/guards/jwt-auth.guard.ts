@@ -9,7 +9,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     super();
   }
 
-  public override canActivate(context: ExecutionContext): boolean | Promise<boolean> {
+  public override canActivate(
+    context: ExecutionContext,
+  ): boolean | Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),

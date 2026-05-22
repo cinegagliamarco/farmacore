@@ -5,6 +5,7 @@ import { LessThan, Repository } from 'typeorm';
 import * as crypto from 'node:crypto';
 import { UserEntity, UserRole } from '../database/entities/core/user.entity';
 import { TenantEntity } from '../database/entities/core/tenant.entity';
+import { TenantStatus } from '../database/enums/tenant-status.enum';
 import { RefreshTokenEntity } from '../database/entities/core/refresh-token.entity';
 import { PasswordService } from './password.service';
 import { LoginDto } from './dto/login.dto';
@@ -17,8 +18,10 @@ const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 14;
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
-    @InjectRepository(TenantEntity) private readonly tenants: Repository<TenantEntity>,
+    @InjectRepository(UserEntity)
+    private readonly users: Repository<UserEntity>,
+    @InjectRepository(TenantEntity)
+    private readonly tenants: Repository<TenantEntity>,
     @InjectRepository(RefreshTokenEntity)
     private readonly refreshTokens: Repository<RefreshTokenEntity>,
     private readonly passwords: PasswordService,
@@ -26,8 +29,10 @@ export class AuthService {
   ) {}
 
   public async login(dto: LoginDto): Promise<LoginResponseDto> {
-    const tenant = await this.tenants.findOne({ where: { slug: dto.tenantSlug } });
-    if (!tenant || tenant.status === 'suspended') {
+    const tenant = await this.tenants.findOne({
+      where: { slug: dto.tenantSlug },
+    });
+    if (!tenant || tenant.status === TenantStatus.SUSPENDED) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -46,7 +51,9 @@ export class AuthService {
 
   public async refresh(refreshToken: string): Promise<LoginResponseDto> {
     const hash = this.hashToken(refreshToken);
-    const row = await this.refreshTokens.findOne({ where: { tokenHash: hash } });
+    const row = await this.refreshTokens.findOne({
+      where: { tokenHash: hash },
+    });
     if (!row || row.revokedAt || row.expiresAt < new Date()) {
       throw new UnauthorizedException('Invalid refresh token');
     }
@@ -63,7 +70,12 @@ export class AuthService {
 
   public async logout(userId: string): Promise<void> {
     await this.refreshTokens.update(
-      { userId, expiresAt: LessThan(new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000)) },
+      {
+        userId,
+        expiresAt: LessThan(
+          new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000),
+        ),
+      },
       { revokedAt: new Date() },
     );
   }
@@ -74,7 +86,9 @@ export class AuthService {
     role: UserRole,
   ): Promise<LoginResponseDto> {
     const payload: JwtPayload = { sub: userId, tenantId, role };
-    const accessToken = this.jwt.sign(payload, { expiresIn: ACCESS_TOKEN_TTL_SECONDS });
+    const accessToken = this.jwt.sign(payload, {
+      expiresIn: ACCESS_TOKEN_TTL_SECONDS,
+    });
     const refreshToken = crypto.randomBytes(48).toString('base64url');
     await this.refreshTokens.save({
       userId,

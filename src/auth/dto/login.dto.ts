@@ -9,6 +9,8 @@ export class LoginDto {
   password!: string;
 
   @IsString()
-  @Matches(/^[a-z][a-z0-9-]{2,31}$/, { message: 'tenantSlug must be a valid slug' })
+  @Matches(/^[a-z][a-z0-9-]{2,31}$/, {
+    message: 'tenantSlug must be a valid slug',
+  })
   tenantSlug!: string;
 }

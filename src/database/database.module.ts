@@ -23,7 +23,9 @@ const CORE_ENTITIES = [
         type: 'postgres',
         url: config.databaseUrl,
         ssl:
-          config.nodeEnv === 'production' ? { rejectUnauthorized: false } : false,
+          config.nodeEnv === 'production'
+            ? { rejectUnauthorized: false }
+            : false,
         entities: CORE_ENTITIES,
         synchronize: false,
       }),
