@@ -15,5 +15,15 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
 
+  erp:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp
+      POSTGRES_DB: erp
+    ports: ["5435:5432"]
+    volumes: ["erpdata:/var/lib/postgresql/data"]
+
 volumes:
   pgdata:
+  erpdata:
