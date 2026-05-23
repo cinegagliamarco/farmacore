@@ -2,7 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Status: ⚙️ Artifacts committed; operator must execute the cloud steps.** All in-repo files are in place — `tsconfig.scripts.json`, `Dockerfile` (with `npm run build:scripts`), `fly.api.toml`, `fly.worker.toml`, `.github/workflows/deploy.yml`, `.github/workflows/pr-preview.yml`, and `docs/provisioning/{first-deploy,teardown}.md`. The cloud-side steps (creating R2 token, Neon project, CloudAMQP instance, Fly apps; setting secrets; first deploy; CI token) are documented in `docs/provisioning/first-deploy.md` and have not been run yet — they require operator credentials.
+> **Status: ⚙️ Artifacts committed; cloud execution deferred to LAST.** All in-repo files are in place — `tsconfig.scripts.json`, `Dockerfile` (with `npm run build:scripts`), `fly.api.toml`, `fly.worker.toml`, `.github/workflows/deploy.yml`, `.github/workflows/pr-preview.yml`, and `docs/provisioning/{first-deploy,teardown}.md`. The cloud-side steps (R2 token, Neon project, CloudAMQP instance, Fly apps; secrets; first deploy; CI token) are documented in `docs/provisioning/first-deploy.md` and **must not be executed until every other plan is done locally**.
+>
+> **Do not run any task in this plan until both are true:**
+> 1. **Plan 05 v2 is complete** — the dispatcher/batch design from [`notes/pipeline-throughput.md`](./notes/pipeline-throughput.md) replaces the stub consumers, ported from the legacy synchronizers. Deploying with v1 stubs means a paid cloud environment that does no real work.
+> 2. **Plan 07 is complete** — observability (OTEL traces, queue depth metrics, structured logs). Deploying without it means flying blind on prod throughput tuning, and the prefetch numbers in plan 05 v2 stay un-measured.
+>
+> Rationale: every Fly/Neon/CloudAMQP day costs money. Burning cycles on a deployment we'll redeploy a dozen times as v2 lands is wasted spend. Keep development local (`docker compose up -d`) until the app does the real work, then push once.
 
 **Goal:** Bring up every cloud resource the app needs (Cloudflare R2, Neon, CloudAMQP, two Fly apps) and wire CI/CD via GitHub Actions. Output: a production environment that runs the same Docker image on `farmacore-api` (HTTP) and `farmacore-worker` (`WORKER_MODE=1`), backed by Neon + CloudAMQP + R2.
 

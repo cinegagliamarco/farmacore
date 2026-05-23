@@ -35,7 +35,7 @@ Notable subtrees under `legacy-app/src/`:
 | 05 | [05-pipeline-steps.md](./05-pipeline-steps.md) | ✅ v1 stubs executed (e2e green — 10 rows per run, join fires once). ⚠ **v2 pending**: replace stub `handle()` bodies with the real legacy work using the **dispatcher/batch** pattern from [`notes/pipeline-throughput.md`](./notes/pipeline-throughput.md) (per-origin scrape queues; fan-in counter replaces two-branch join). | `02-queue-and-routines.md` (§3 graph, §5, §6) | 03, 04 |
 | 06 | [06-admin-api.md](./06-admin-api.md) | ✅ executed (e2e green) | `03-auth-and-tenancy.md` (§6, §7), `04-integration-data-source.md` (§5) | 02, 03, 04 |
 | 07 | [07-observability.md](./07-observability.md) | ⏳ pending | `02-queue-and-routines.md` (§9) | 05, 09 |
-| 08 | [08-provisioning.md](./08-provisioning.md) | ⚙️ artifacts committed; operator must run cloud steps (see [`docs/provisioning/first-deploy.md`](../docs/provisioning/first-deploy.md)) | `00-architecture.md`, `05-provisioning-tutorial.md` | — (parallel) |
+| 08 | [08-provisioning.md](./08-provisioning.md) | ⚙️ artifacts committed; **cloud execution deferred to LAST** — do not run until plan 05 v2 + plan 07 are done (see [`docs/provisioning/first-deploy.md`](../docs/provisioning/first-deploy.md)) | `00-architecture.md`, `05-provisioning-tutorial.md` | **last** (after 05 v2 + 07) |
 | 09 | [09-presentation-layer.md](./09-presentation-layer.md) | ✅ executed (`AmqpInterceptor` later guarded for `@golevelup`) | (cross-cutting: interceptors, internal logger, signal listener, layering) | 00 |
 
 ## Dependency Graph
@@ -53,18 +53,22 @@ Notable subtrees under `legacy-app/src/`:
                                        │
                                        └──► 07-observability
 
-08-provisioning  (parallel; required before first deploy)
+08-provisioning  (LAST — do not execute cloud steps until everything else is done locally)
 ```
 
 ## Suggested Order
 
+> **Cloud comes last.** Fly.io, CloudAMQP, and Neon — all the paying-cloud-vendor work in plan 08 — is deferred until every other plan is green locally. The plan 08 in-repo artifacts (`fly.api.toml`, `fly.worker.toml`, `.github/workflows/*`, `docs/provisioning/*`, `tsconfig.scripts.json`) are already committed and code-reviewable; only the cloud-side execution (account setup, secrets, first `fly deploy`, GitHub `FLY_API_TOKEN`) is held back. Push to remote only after plan 05 v2 + plan 07 land.
+
 1. **00-foundation** (solo, blocks everything code-side)
-2. **09-presentation-layer** and **01-database** in parallel; **08-provisioning** can start any time
+2. **09-presentation-layer** and **01-database** in parallel
 3. **02-auth-tenancy** and **04-queue-infrastructure** in parallel
 4. **03-integration-data-source**
-5. **05-pipeline-steps**
+5. **05-pipeline-steps v1** (stub consumers, queue topology proven end-to-end)
 6. **06-admin-api**
-7. **07-observability**
+7. **05-pipeline-steps v2** — port real legacy work using the dispatcher/batch design ([`notes/pipeline-throughput.md`](./notes/pipeline-throughput.md))
+8. **07-observability**
+9. **08-provisioning** — execute the cloud steps (see [`docs/provisioning/first-deploy.md`](../docs/provisioning/first-deploy.md))
 
 ## Execution
 
