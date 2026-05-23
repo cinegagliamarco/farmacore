@@ -1,6 +1,8 @@
 # 02 — Auth & Tenancy Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+> **Status: ✅ Executed.** Plan 02 was executed. Deviation: `SearchPathInterceptor` no longer injects `TenantContext` (Nest 11 fails to resolve `Reflector` when a global `APP_INTERCEPTOR` depends on a `Scope.REQUEST` provider); it reads `JwtPayload` directly off `req.user`. `TenantContext` is still exported for services/controllers.
 
 **Goal:** Implement JWT auth + multi-tenant request routing. Every authenticated request lands in a transaction with `search_path = tenant_<slug>, shared_catalog, public` so unqualified table references resolve to the tenant's schema. Workers do the same per message handler.
 
@@ -71,14 +73,14 @@ src/tenant/
 
 ### Task 1: Install auth deps
 
-- [ ] **Step 1: Install**
+- [x] **Step 1: Install**
 
 ```bash
 npm install @nestjs/passport @nestjs/jwt passport passport-jwt argon2
 npm install -D @types/passport-jwt
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add package.json package-lock.json
@@ -91,7 +93,7 @@ git commit -m "chore(auth): install passport-jwt + argon2"
 
 **Files:** `src/database/database.module.ts` modify; `src/tenant/tenant.module.ts` create.
 
-- [ ] **Step 1: Register entities with TypeOrmModule.forFeature**
+- [x] **Step 1: Register entities with TypeOrmModule.forFeature**
 
 Modify `src/database/database.module.ts` to expose a feature module for core entities:
 
@@ -129,7 +131,7 @@ const CORE_ENTITIES = [
 export class DatabaseModule {}
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/database/database.module.ts
@@ -142,7 +144,7 @@ git commit -m "feat(db): register core entities for DI"
 
 **Files:** `src/auth/password.service.ts`, `src/auth/password.service.spec.ts`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { PasswordService } from './password.service';
@@ -168,12 +170,12 @@ describe('PasswordService', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/auth/password.service.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -195,12 +197,12 @@ export class PasswordService {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/auth/password.service.spec.ts`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/auth/password.service.ts src/auth/password.service.spec.ts
@@ -213,7 +215,7 @@ git commit -m "feat(auth): argon2id PasswordService"
 
 **Files:** `src/auth/dto/`, `src/auth/jwt-payload.type.ts`
 
-- [ ] **Step 1: jwt-payload.type.ts**
+- [x] **Step 1: jwt-payload.type.ts**
 
 ```ts
 import type { UserRole } from '../database/entities/core/user.entity';
@@ -227,7 +229,7 @@ export interface JwtPayload {
 }
 ```
 
-- [ ] **Step 2: dto/login.dto.ts**
+- [x] **Step 2: dto/login.dto.ts**
 
 ```ts
 import { IsEmail, IsString, Length, Matches } from 'class-validator';
@@ -246,7 +248,7 @@ export class LoginDto {
 }
 ```
 
-- [ ] **Step 3: dto/login-response.dto.ts**
+- [x] **Step 3: dto/login-response.dto.ts**
 
 ```ts
 export class LoginResponseDto {
@@ -256,7 +258,7 @@ export class LoginResponseDto {
 }
 ```
 
-- [ ] **Step 4: dto/refresh.dto.ts**
+- [x] **Step 4: dto/refresh.dto.ts**
 
 ```ts
 import { IsString } from 'class-validator';
@@ -267,7 +269,7 @@ export class RefreshDto {
 }
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/auth/dto/ src/auth/jwt-payload.type.ts
@@ -280,7 +282,7 @@ git commit -m "feat(auth): DTOs and JwtPayload type"
 
 **Files:** `src/auth/auth.service.ts`, `src/auth/auth.service.spec.ts`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { Test } from '@nestjs/testing';
@@ -348,12 +350,12 @@ describe('AuthService.login', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/auth/auth.service.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable, UnauthorizedException } from '@nestjs/common';
@@ -431,12 +433,12 @@ export class AuthService {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/auth/auth.service.spec.ts`
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/auth/auth.service.ts src/auth/auth.service.spec.ts
@@ -449,7 +451,7 @@ git commit -m "feat(auth): AuthService with login/refresh/logout"
 
 **Files:** `src/auth/jwt.strategy.ts`, `src/auth/guards/jwt-auth.guard.ts`, `src/auth/decorators/public.decorator.ts`
 
-- [ ] **Step 1: Public decorator**
+- [x] **Step 1: Public decorator**
 
 ```ts
 import { SetMetadata } from '@nestjs/common';
@@ -457,7 +459,7 @@ export const IS_PUBLIC_KEY = 'isPublic';
 export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUBLIC_KEY, true);
 ```
 
-- [ ] **Step 2: JWT strategy**
+- [x] **Step 2: JWT strategy**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -483,7 +485,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 }
 ```
 
-- [ ] **Step 3: Guard with @Public() bypass**
+- [x] **Step 3: Guard with @Public() bypass**
 
 ```ts
 import { ExecutionContext, Injectable } from '@nestjs/common';
@@ -506,7 +508,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/auth/jwt.strategy.ts src/auth/guards/jwt-auth.guard.ts src/auth/decorators/public.decorator.ts
@@ -519,7 +521,7 @@ git commit -m "feat(auth): JWT strategy + global guard with @Public bypass"
 
 **Files:** `src/auth/decorators/roles.decorator.ts`, `src/auth/guards/roles.guard.ts`
 
-- [ ] **Step 1: Decorator**
+- [x] **Step 1: Decorator**
 
 ```ts
 import { SetMetadata } from '@nestjs/common';
@@ -529,7 +531,7 @@ export const ROLES_KEY = 'roles';
 export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
 ```
 
-- [ ] **Step 2: Guard**
+- [x] **Step 2: Guard**
 
 ```ts
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
@@ -557,7 +559,7 @@ export class RolesGuard implements CanActivate {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/auth/decorators/roles.decorator.ts src/auth/guards/roles.guard.ts
@@ -570,7 +572,7 @@ git commit -m "feat(auth): @Roles decorator + RolesGuard"
 
 **Files:** `src/auth/decorators/current-user.decorator.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
@@ -584,7 +586,7 @@ export const CurrentUser = createParamDecorator(
 );
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/auth/decorators/current-user.decorator.ts
@@ -597,7 +599,7 @@ git commit -m "feat(auth): @CurrentUser param decorator"
 
 **Files:** `src/auth/auth.controller.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
@@ -640,7 +642,7 @@ export class AuthController {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/auth/auth.controller.ts
@@ -653,7 +655,7 @@ git commit -m "feat(auth): AuthController endpoints"
 
 **Files:** `src/auth/auth.module.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -697,7 +699,7 @@ import { RolesGuard } from './guards/roles.guard';
 export class AuthModule {}
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/auth/auth.module.ts
@@ -710,7 +712,7 @@ git commit -m "feat(auth): AuthModule with global JWT + Roles guards"
 
 **Files:** `src/tenant/tenant.service.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Injectable, NotFoundException } from '@nestjs/common';
@@ -743,7 +745,7 @@ export class TenantService {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/tenant/tenant.service.ts
@@ -758,7 +760,7 @@ git commit -m "feat(tenant): TenantService lookup helpers"
 
 The `TenantContext` is request-scoped — Nest will create a new instance per HTTP request. It reads the JWT payload that `JwtStrategy.validate()` attached to `req.user`.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Inject, Injectable, Scope, UnauthorizedException } from '@nestjs/common';
@@ -790,7 +792,7 @@ export class TenantContext {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/tenant/tenant.context.ts
@@ -805,7 +807,7 @@ git commit -m "feat(tenant): request-scoped TenantContext"
 
 This service is the single point of truth for "run something inside a transaction with the correct `search_path`". Both the HTTP interceptor and the queue consumers go through it.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { Test } from '@nestjs/testing';
@@ -841,12 +843,12 @@ describe('TenantTransactionService.runWithTenant', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/tenant/tenant-transaction.service.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -870,12 +872,12 @@ export class TenantTransactionService {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/tenant/tenant-transaction.service.spec.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tenant/tenant-transaction.service.ts src/tenant/tenant-transaction.service.spec.ts
@@ -892,7 +894,7 @@ The interceptor wraps each request in `runWithTenant`, then attaches the `Entity
 
 > **Trade-off:** Wrapping the whole HTTP request in one TypeORM transaction means request-level rollback on error. This matches the arc spec (`arc/03 §5 "NestJS wiring"`). The interceptor SKIPS routes marked `@Public()` (login/refresh don't have a tenant context yet).
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
@@ -935,7 +937,7 @@ export class SearchPathInterceptor implements NestInterceptor {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/tenant/interceptors/search-path.interceptor.ts
@@ -948,7 +950,7 @@ git commit -m "feat(tenant): SearchPathInterceptor — per-request tx + search_p
 
 **Files:** `src/tenant/tenant.module.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Global, Module } from '@nestjs/common';
@@ -974,7 +976,7 @@ import { SearchPathInterceptor } from './interceptors/search-path.interceptor';
 export class TenantModule {}
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/tenant/tenant.module.ts
@@ -987,7 +989,7 @@ git commit -m "feat(tenant): TenantModule wires context, service, interceptor"
 
 **Files:** `src/app.module.ts`
 
-- [ ] **Step 1: Add new modules**
+- [x] **Step 1: Add new modules**
 
 ```ts
 import { Module, ValidationPipe } from '@nestjs/common';
@@ -1008,7 +1010,7 @@ import { TenantModule } from './tenant/tenant.module';
 export class AppModule {}
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/app.module.ts
@@ -1023,7 +1025,7 @@ git commit -m "feat: compose AuthModule + TenantModule into AppModule"
 
 Useful for local dev so admin endpoints (plan 06) can be exercised before any tenants exist.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import 'dotenv/config';
@@ -1057,11 +1059,11 @@ async function main(): Promise<void> {
 main().catch((err) => { console.error(err); process.exit(1); });
 ```
 
-- [ ] **Step 2: Add script alias**
+- [x] **Step 2: Add script alias**
 
 In `package.json` `scripts`: `"seed:system-admin": "ts-node scripts/seed-system-admin.ts"`
 
-- [ ] **Step 3: Run it locally**
+- [x] **Step 3: Run it locally**
 
 ```bash
 SEED_ADMIN_EMAIL=admin@system.local SEED_ADMIN_PASSWORD=devpassword-please-change \
@@ -1070,7 +1072,7 @@ SEED_ADMIN_EMAIL=admin@system.local SEED_ADMIN_PASSWORD=devpassword-please-chang
 
 Expected: prints `System admin upserted: admin@system.local`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/seed-system-admin.ts package.json
@@ -1083,7 +1085,7 @@ git commit -m "feat(auth): seed system admin script for dev"
 
 **Files:** `test/auth-tenant.e2e-spec.ts`, `test/jest-e2e.json`
 
-- [ ] **Step 1: Confirm `test/jest-e2e.json` exists**
+- [x] **Step 1: Confirm `test/jest-e2e.json` exists**
 
 If not, scaffold it (from the Nest defaults):
 
@@ -1097,7 +1099,7 @@ If not, scaffold it (from the Nest defaults):
 }
 ```
 
-- [ ] **Step 2: Write the test**
+- [x] **Step 2: Write the test**
 
 ```ts
 import { Test, TestingModule } from '@nestjs/testing';
@@ -1162,11 +1164,11 @@ describe('Auth + tenant isolation (e2e)', () => {
 });
 ```
 
-- [ ] **Step 3: Add e2e script**
+- [x] **Step 3: Add e2e script**
 
 In `package.json` `scripts`: `"test:e2e": "jest --config test/jest-e2e.json"`
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 
 ```bash
 docker compose up -d postgres
@@ -1177,7 +1179,7 @@ npm run test:e2e -- --testNamePattern='Auth'
 
 Expected: 3 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add test/auth-tenant.e2e-spec.ts test/jest-e2e.json package.json
@@ -1188,11 +1190,11 @@ git commit -m "test(auth): e2e — login, /me, tenant rejection"
 
 ## Exit Criteria
 
-- [ ] `POST /auth/login` returns `{ accessToken, refreshToken, expiresIn }` for valid credentials.
-- [ ] Unauthenticated calls to non-`@Public()` endpoints return 401.
-- [ ] `GET /auth/me` returns `{ sub, tenantId, role }` matching the token.
-- [ ] `SearchPathInterceptor` wraps every request in a transaction with `SET LOCAL search_path = <schema>, shared_catalog, public`.
-- [ ] `TenantTransactionService.runWithTenant()` is the worker-side equivalent (used by plans 04–06).
-- [ ] Suspended tenants can never log in.
-- [ ] `@Roles('admin')` blocks `viewer`/`operator` callers (verified by RolesGuard in unit test of an `@Roles`-protected endpoint, exercised in plan 06).
-- [ ] Schema names are validated against `^[a-z_][a-z0-9_]{0,62}$` before being interpolated into SQL.
+- [x] `POST /auth/login` returns `{ accessToken, refreshToken, expiresIn }` for valid credentials.
+- [x] Unauthenticated calls to non-`@Public()` endpoints return 401.
+- [x] `GET /auth/me` returns `{ sub, tenantId, role }` matching the token.
+- [x] `SearchPathInterceptor` wraps every request in a transaction with `SET LOCAL search_path = <schema>, shared_catalog, public`.
+- [x] `TenantTransactionService.runWithTenant()` is the worker-side equivalent (used by plans 04–06).
+- [x] Suspended tenants can never log in.
+- [x] `@Roles('admin')` blocks `viewer`/`operator` callers (verified by RolesGuard in unit test of an `@Roles`-protected endpoint, exercised in plan 06).
+- [x] Schema names are validated against `^[a-z_][a-z0-9_]{0,62}$` before being interpolated into SQL.

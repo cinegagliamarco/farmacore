@@ -25,18 +25,18 @@ Notable subtrees under `legacy-app/src/`:
 
 ## Plans
 
-| # | Plan | Implements (arc doc) | Depends on |
-|---|---|---|---|
-| 00 | [00-foundation.md](./00-foundation.md) | — (project scaffold) | — |
-| 01 | [01-database.md](./01-database.md) | `01-database-schema.md` | 00 |
-| 02 | [02-auth-tenancy.md](./02-auth-tenancy.md) | `03-auth-and-tenancy.md` | 00, 01, 09 |
-| 03 | [03-integration-data-source.md](./03-integration-data-source.md) | `04-integration-data-source.md` | 00, 01, 02 |
-| 04 | [04-queue-infrastructure.md](./04-queue-infrastructure.md) | `02-queue-and-routines.md` (§3, §7) | 00, 01, 09 |
-| 05 | [05-pipeline-steps.md](./05-pipeline-steps.md) | `02-queue-and-routines.md` (§3 graph, §5, §6) | 03, 04 |
-| 06 | [06-admin-api.md](./06-admin-api.md) | `03-auth-and-tenancy.md` (§6, §7), `04-integration-data-source.md` (§5) | 02, 03, 04 |
-| 07 | [07-observability.md](./07-observability.md) | `02-queue-and-routines.md` (§9) | 05, 09 |
-| 08 | [08-provisioning.md](./08-provisioning.md) | `00-architecture.md`, `05-provisioning-tutorial.md` | — (parallel) |
-| 09 | [09-presentation-layer.md](./09-presentation-layer.md) | (cross-cutting: interceptors, internal logger, signal listener, layering) | 00 |
+| # | Plan | Status | Implements (arc doc) | Depends on |
+|---|---|---|---|---|
+| 00 | [00-foundation.md](./00-foundation.md) | ✅ executed (amended: split `main.ts` → `main.http.ts` + `main.worker.ts`) | — (project scaffold) | — |
+| 01 | [01-database.md](./01-database.md) | ✅ executed (amended: `external_id` moved to `tenant_base_product`; `pipeline_run.tenant_id` → text) | `01-database-schema.md` | 00 |
+| 02 | [02-auth-tenancy.md](./02-auth-tenancy.md) | ✅ executed (deviation: `SearchPathInterceptor` no longer injects request-scoped `TenantContext`) | `03-auth-and-tenancy.md` | 00, 01, 09 |
+| 03 | [03-integration-data-source.md](./03-integration-data-source.md) | ✅ executed (ERP compose port remapped to `5435`) | `04-integration-data-source.md` | 00, 01, 02 |
+| 04 | [04-queue-infrastructure.md](./04-queue-infrastructure.md) | ✅ executed (prefetch moved to `channels:`; `import type` for `PipelineMessage`; `createQueueIfNotExists:false`) | `02-queue-and-routines.md` (§3, §7) | 00, 01, 09 |
+| 05 | [05-pipeline-steps.md](./05-pipeline-steps.md) | ✅ executed (e2e green — 10 rows per run, join fires once) | `02-queue-and-routines.md` (§3 graph, §5, §6) | 03, 04 |
+| 06 | [06-admin-api.md](./06-admin-api.md) | ✅ executed (e2e green) | `03-auth-and-tenancy.md` (§6, §7), `04-integration-data-source.md` (§5) | 02, 03, 04 |
+| 07 | [07-observability.md](./07-observability.md) | ⏳ pending | `02-queue-and-routines.md` (§9) | 05, 09 |
+| 08 | [08-provisioning.md](./08-provisioning.md) | ⚙️ artifacts committed; operator must run cloud steps (see [`docs/provisioning/first-deploy.md`](../docs/provisioning/first-deploy.md)) | `00-architecture.md`, `05-provisioning-tutorial.md` | — (parallel) |
+| 09 | [09-presentation-layer.md](./09-presentation-layer.md) | ✅ executed (`AmqpInterceptor` later guarded for `@golevelup`) | (cross-cutting: interceptors, internal logger, signal listener, layering) | 00 |
 
 ## Dependency Graph
 

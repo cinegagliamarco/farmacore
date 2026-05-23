@@ -1,6 +1,8 @@
 # 06 — Admin API Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+> **Status: ✅ Executed.** Plan 06 was executed. `AdminModule` imports `PipelineStepsModule.forRoot({ withConsumers: false })` for `AdminPipelineService`. E2E tests run with `NODE_ENV=development` via `test/setup-e2e-env.ts` so the local broker queue topology matches.
 
 **Goal:** Cross-cutting admin endpoints — tenant onboarding/offboarding, integration-connection management, competitor-origin toggles, DLQ inspection, and manual pipeline triggering. All admin endpoints require an `admin` role token issued for the **`system`** tenant.
 
@@ -71,7 +73,7 @@ src/admin/
 
 **Files:** `src/admin/guards/system-admin.guard.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
@@ -92,7 +94,7 @@ export class SystemAdminGuard implements CanActivate {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/admin/guards/system-admin.guard.ts
@@ -105,7 +107,7 @@ git commit -m "feat(admin): SystemAdminGuard"
 
 **Files:** `src/admin/dto/`
 
-- [ ] **Step 1: create-tenant.dto.ts**
+- [x] **Step 1: create-tenant.dto.ts**
 
 ```ts
 import { IsEmail, IsString, Length, Matches } from 'class-validator';
@@ -122,7 +124,7 @@ export class CreateTenantDto {
 }
 ```
 
-- [ ] **Step 2: update-tenant-status.dto.ts**
+- [x] **Step 2: update-tenant-status.dto.ts**
 
 ```ts
 import { IsIn } from 'class-validator';
@@ -134,7 +136,7 @@ export class UpdateTenantStatusDto {
 }
 ```
 
-- [ ] **Step 3: update-competitor-origins.dto.ts**
+- [x] **Step 3: update-competitor-origins.dto.ts**
 
 ```ts
 import { Type } from 'class-transformer';
@@ -161,7 +163,7 @@ export class UpdateCompetitorOriginsDto {
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/admin/dto/
@@ -174,7 +176,7 @@ git commit -m "feat(admin): DTOs"
 
 **Files:** `src/admin/services/tenant-onboarding.service.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
@@ -264,7 +266,7 @@ export class TenantOnboardingService {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/admin/services/tenant-onboarding.service.ts
@@ -279,7 +281,7 @@ git commit -m "feat(admin): TenantOnboardingService — schema + migrations + se
 
 > **Scope:** The full 30-day grace + R2 dump is documented in `arc/03 §7`. For v1 the soft-delete is implemented in code; the **scheduled drop after 30 days** is a follow-up that lives outside this plan (Open Question, see end of file). Here we just set `status=suspended` and stamp `deleted_at`.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Injectable, NotFoundException } from '@nestjs/common';
@@ -304,7 +306,7 @@ export class TenantOffboardingService {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/admin/services/tenant-offboarding.service.ts
@@ -317,7 +319,7 @@ git commit -m "feat(admin): TenantOffboardingService.softDelete"
 
 **Files:** `src/admin/services/competitor-origin-admin.service.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Injectable, NotFoundException } from '@nestjs/common';
@@ -349,7 +351,7 @@ export class CompetitorOriginAdminService {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/admin/services/competitor-origin-admin.service.ts
@@ -364,7 +366,7 @@ git commit -m "feat(admin): CompetitorOriginAdminService.bulkUpdate"
 
 DLQ peek uses a non-blocking `basicGet` loop with `requeue=true` so we don't consume the messages — only inspect. Replay uses `basicGet` with `requeue=false` + republish.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Injectable, NotFoundException } from '@nestjs/common';
@@ -425,7 +427,7 @@ export class DlqService {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/admin/services/dlq.service.ts
@@ -438,7 +440,7 @@ git commit -m "feat(admin): DlqService — peek + replay"
 
 **Files:** `src/admin/controllers/tenants.controller.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
@@ -493,7 +495,7 @@ export class TenantsController {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/admin/controllers/tenants.controller.ts
@@ -506,7 +508,7 @@ git commit -m "feat(admin): tenants controller (CRUD)"
 
 **Files:** `src/admin/controllers/integration.controller.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Body, Controller, Delete, Param, Post, Put, UseGuards } from '@nestjs/common';
@@ -539,7 +541,7 @@ export class IntegrationController {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/admin/controllers/integration.controller.ts
@@ -552,7 +554,7 @@ git commit -m "feat(admin): integration controller"
 
 **Files:** `src/admin/controllers/competitor-origins.controller.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Body, Controller, Param, Put, UseGuards } from '@nestjs/common';
@@ -574,7 +576,7 @@ export class CompetitorOriginsController {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/admin/controllers/competitor-origins.controller.ts
@@ -587,7 +589,7 @@ git commit -m "feat(admin): competitor origins bulk update"
 
 **Files:** `src/admin/controllers/pipeline.controller.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Controller, Param, Post, UseGuards } from '@nestjs/common';
@@ -610,7 +612,7 @@ export class PipelineController {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/admin/controllers/pipeline.controller.ts
@@ -623,7 +625,7 @@ git commit -m "feat(admin): pipeline manual trigger"
 
 **Files:** `src/admin/controllers/dlq.controller.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Controller, DefaultValuePipe, Get, Param, ParseEnumPipe, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
@@ -656,7 +658,7 @@ export class DlqController {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/admin/controllers/dlq.controller.ts
@@ -669,7 +671,7 @@ git commit -m "feat(admin): DLQ peek + replay endpoints"
 
 **Files:** `src/admin/admin.module.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -706,13 +708,13 @@ import { PipelineStepsModule } from '../pipeline/pipeline-steps.module';
 export class AdminModule {}
 ```
 
-- [ ] **Step 2: Add to AppModule**
+- [x] **Step 2: Add to AppModule**
 
 Import `AdminModule` in `src/app.module.ts`.
 
 > Note: `AppModule` already imports `PipelineStepsModule.forRoot({ withConsumers: false })` from plan 05; if so, you can drop the import here (Nest dedupes by module identity). If duplication causes issues, hoist `PipelineStepsModule` into a single import inside `AppModule` only.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/admin/admin.module.ts src/app.module.ts
@@ -725,7 +727,7 @@ git commit -m "feat(admin): AdminModule wired into AppModule"
 
 **Files:** `test/admin-onboarding.e2e-spec.ts`
 
-- [ ] **Step 1: Test**
+- [x] **Step 1: Test**
 
 ```ts
 import { Test, TestingModule } from '@nestjs/testing';
@@ -806,7 +808,7 @@ describe('Admin tenant onboarding (e2e)', () => {
 });
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 ```bash
 docker compose up -d postgres rabbitmq
@@ -816,7 +818,7 @@ npm run test:e2e -- --testNamePattern='Admin'
 
 Expected: 2 tests pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add test/admin-onboarding.e2e-spec.ts
@@ -827,14 +829,14 @@ git commit -m "test(admin): e2e — onboarding + non-system rejection"
 
 ## Exit Criteria
 
-- [ ] `POST /admin/tenants` creates tenant row + schema + tenant migrations + competitor-origin seed + admin user; returns the slug, schema name, and a one-time password for the new admin.
-- [ ] `SystemAdminGuard` rejects any token whose `tenantId !== 'system'` or `role !== 'admin'`.
-- [ ] `PUT /admin/tenants/:slug/integration` upserts encrypted credentials and invalidates the integration data-source cache.
-- [ ] `POST /admin/tenants/:slug/integration/test` runs `SELECT 1` against the ERP and persists `last_verified_at` or `last_error`.
-- [ ] `PUT /admin/tenants/:slug/competitor-origins` updates `tenant_competitor_origin` in the right tenant schema.
-- [ ] `POST /admin/tenants/:slug/pipeline:start` returns a `pipelineRunId` and an end-to-end run reaches `update-active-ingredient-mat` (verified via plan 05's smoke test).
-- [ ] `GET /admin/dlq/:step` returns DLQ messages without consuming them; `POST /admin/dlq/:step/replay` republishes with `attempt=1`.
-- [ ] All admin endpoints rejected from non-system tokens.
+- [x] `POST /admin/tenants` creates tenant row + schema + tenant migrations + competitor-origin seed + admin user; returns the slug, schema name, and a one-time password for the new admin.
+- [x] `SystemAdminGuard` rejects any token whose `tenantId !== 'system'` or `role !== 'admin'`.
+- [x] `PUT /admin/tenants/:slug/integration` upserts encrypted credentials and invalidates the integration data-source cache.
+- [x] `POST /admin/tenants/:slug/integration/test` runs `SELECT 1` against the ERP and persists `last_verified_at` or `last_error`.
+- [x] `PUT /admin/tenants/:slug/competitor-origins` updates `tenant_competitor_origin` in the right tenant schema.
+- [x] `POST /admin/tenants/:slug/pipeline:start` returns a `pipelineRunId` and an end-to-end run reaches `update-active-ingredient-mat` (verified via plan 05's smoke test).
+- [x] `GET /admin/dlq/:step` returns DLQ messages without consuming them; `POST /admin/dlq/:step/replay` republishes with `attempt=1`.
+- [x] All admin endpoints rejected from non-system tokens.
 
 ---
 

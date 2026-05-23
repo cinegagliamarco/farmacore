@@ -1,6 +1,8 @@
 # 04 — Queue Infrastructure Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+> **Status: ✅ Executed.** Plan 04 was executed. Three deviations: (1) `prefetchCount` moved from `queueOptions` to module-level `channels:` config (the @golevelup type does not accept it under queueOptions); (2) all consumers add `import type { PipelineMessage }` for `isolatedModules` + `emitDecoratorMetadata`; (3) consumers set `createQueueIfNotExists: false` so they bind to the queues QueueModule already declared.
 
 **Goal:** Stand up the RabbitMQ layer — topic exchange, per-step queues, DLQs, a `PipelinePublisher` used by the API to enqueue work, a delayed-retry helper, and a generic `BasePipelineConsumer` that every step in plan 05 extends.
 
@@ -50,14 +52,14 @@ src/queue/
 
 ### Task 1: Install RMQ deps
 
-- [ ] **Step 1: Install**
+- [x] **Step 1: Install**
 
 ```bash
 npm install @golevelup/nestjs-rabbitmq amqplib
 npm install -D @types/amqplib
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add package.json package-lock.json
@@ -70,7 +72,7 @@ git commit -m "chore(queue): install @golevelup/nestjs-rabbitmq + amqplib"
 
 **Files:** `src/queue/constants.ts`, `src/queue/types.ts`
 
-- [ ] **Step 1: constants.ts**
+- [x] **Step 1: constants.ts**
 
 ```ts
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
@@ -110,7 +112,7 @@ export const STEP_PREFETCH: Readonly<Record<PipelineStep, number>> = {
 };
 ```
 
-- [ ] **Step 2: types.ts**
+- [x] **Step 2: types.ts**
 
 ```ts
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
@@ -134,7 +136,7 @@ export function newPipelineMessage<P>(args: Omit<PipelineMessage<P>, 'attempt' |
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/queue/constants.ts src/queue/types.ts
@@ -149,7 +151,7 @@ git commit -m "feat(queue): constants + PipelineMessage type"
 
 This service writes/queries `core.pipeline_run` rows. Used by the base consumer to enforce single-flight per `(pipelineRunId, step)` and by the join logic (chain join — plan 05).
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { Test } from '@nestjs/testing';
@@ -198,12 +200,12 @@ describe('PipelineRunService', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/queue/pipeline-run.service.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -260,12 +262,12 @@ export class PipelineRunService {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/queue/pipeline-run.service.spec.ts`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/queue/pipeline-run.service.ts src/queue/pipeline-run.service.spec.ts
@@ -278,7 +280,7 @@ git commit -m "feat(queue): PipelineRunService — start/complete/fail/isComplet
 
 **Files:** `src/queue/pipeline-publisher.service.ts`, `.spec.ts`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { Test } from '@nestjs/testing';
@@ -321,12 +323,12 @@ describe('PipelinePublisher', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/queue/pipeline-publisher.service.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -363,12 +365,12 @@ export class PipelinePublisher {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/queue/pipeline-publisher.service.spec.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/queue/pipeline-publisher.service.ts src/queue/pipeline-publisher.service.spec.ts
@@ -383,7 +385,7 @@ git commit -m "feat(queue): PipelinePublisher.publishStart/publishStep"
 
 The retry strategy: when a consumer fails, it publishes the SAME message (with `attempt+1`) into a delay queue (`pipeline.<env>.retry.<delayMs>`). That queue has no consumers and an `x-message-ttl` equal to the delay; expired messages dead-letter into the main exchange with the original routing key, so they re-arrive at the step queue after the delay. After `MAX_ATTEMPTS`, the message is published directly to the step's DLQ.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { Test } from '@nestjs/testing';
@@ -427,12 +429,12 @@ describe('RetryService', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/queue/retry.service.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -508,7 +510,7 @@ export class RetryService {
 
 (Drop the earlier `DELAY_QUEUE(delay)` helper from `constants.ts` if you added it; the new helper is colocated with the service.)
 
-- [ ] **Step 4: Adjust the test to match the new `delayQueueName`**
+- [x] **Step 4: Adjust the test to match the new `delayQueueName`**
 
 In the test, update the assertion for the retry-queue routing key:
 
@@ -521,12 +523,12 @@ expect(call[2].attempt).toBe(2);
 
 Remove the `expiration` assertion (the broker enforces TTL on the queue declaration, not per message — declared in Task 7).
 
-- [ ] **Step 5: Run, expect pass**
+- [x] **Step 5: Run, expect pass**
 
 Run: `npm test -- src/queue/retry.service.spec.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/queue/retry.service.ts src/queue/retry.service.spec.ts src/queue/constants.ts
@@ -547,7 +549,7 @@ Subclasses (in plan 05) extend this and implement `handle(msg, em, integrationDs
 4. On success → `complete()` + publish successor(s) (subclass returns them).
 5. On failure → `RetryService.republishOnFailure()`.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { Test } from '@nestjs/testing';
@@ -641,12 +643,12 @@ describe('BasePipelineConsumer', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/queue/base-pipeline.consumer.spec.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable, Logger } from '@nestjs/common';
@@ -720,12 +722,12 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/queue/base-pipeline.consumer.spec.ts`
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/queue/base-pipeline.consumer.ts src/queue/base-pipeline.consumer.spec.ts
@@ -740,7 +742,7 @@ git commit -m "feat(queue): BasePipelineConsumer with idempotency + retry + succ
 
 Declares the topic exchange, every step queue + DLQ, every (step × delay) retry queue, and the pipeline.start / migrate-tenant queues. Auto-declared by `@golevelup/nestjs-rabbitmq` when its config lists them.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Global, Module } from '@nestjs/common';
@@ -837,11 +839,11 @@ import { RetryService } from './retry.service';
 export class QueueModule {}
 ```
 
-- [ ] **Step 2: Wire into AppModule and WorkerModule**
+- [x] **Step 2: Wire into AppModule and WorkerModule**
 
 Modify both to import `QueueModule`. Publisher is used by both API (publishing) and worker (republishing on success → successors).
 
-- [ ] **Step 3: Smoke test the topology**
+- [x] **Step 3: Smoke test the topology**
 
 ```bash
 docker compose up -d rabbitmq postgres
@@ -856,7 +858,7 @@ sleep 4
 kill %1
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/queue/queue.module.ts src/app.module.ts src/worker.module.ts
@@ -871,7 +873,7 @@ Adds a temporary consumer that simply logs to verify the topology end-to-end. We
 
 **Files:** `src/queue/stub-consumer.ts` (temporary)
 
-- [ ] **Step 1: Stub consumer**
+- [x] **Step 1: Stub consumer**
 
 ```ts
 import { Injectable, Logger } from '@nestjs/common';
@@ -906,7 +908,7 @@ import { StubPipelineStartConsumer } from './queue/stub-consumer';
 export class WorkerModule {}
 ```
 
-- [ ] **Step 2: Roundtrip**
+- [x] **Step 2: Roundtrip**
 
 ```bash
 # Terminal 1: worker
@@ -932,14 +934,14 @@ ts-node /tmp/pub.ts
 
 Expected: worker logs `[stub] pipeline.start received: { ... tenantId: 'acme' ... }`.
 
-- [ ] **Step 3: Delete the stub (cleanup)**
+- [x] **Step 3: Delete the stub (cleanup)**
 
 ```bash
 rm src/queue/stub-consumer.ts
 # remove the import + providers entry from src/worker.module.ts
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/worker.module.ts
@@ -950,10 +952,10 @@ git commit -m "chore(queue): verify topology end-to-end (stub removed)"
 
 ## Exit Criteria
 
-- [ ] `npm run start:dev` declares exchange `pipeline.<env>` + 8 step queues + 8 DLQs + 24 retry queues + `pipeline.start` + `migrate-tenant`.
-- [ ] `PipelinePublisher.publishStart('acme', {...})` publishes a `PipelineMessage` to routing key `acme.pipeline.start`.
-- [ ] `BasePipelineConsumer.process()` skips already-completed work, runs new work inside a tenant-scoped transaction, and on failure calls `RetryService.republishOnFailure()`.
-- [ ] After `MAX_ATTEMPTS` failures, the message lands in `<step>.dlq`.
-- [ ] `pipeline_run` rows track `(pipelineRunId, step) -> status, attempt, started_at, finished_at, error`.
-- [ ] `import_process` is not referenced anywhere in the codebase.
-- [ ] `QueueModule` is `@Global()` — accessible to all feature modules (incl. plan 05's pipeline-steps module).
+- [x] `npm run start:dev` declares exchange `pipeline.<env>` + 8 step queues + 8 DLQs + 24 retry queues + `pipeline.start` + `migrate-tenant`.
+- [x] `PipelinePublisher.publishStart('acme', {...})` publishes a `PipelineMessage` to routing key `acme.pipeline.start`.
+- [x] `BasePipelineConsumer.process()` skips already-completed work, runs new work inside a tenant-scoped transaction, and on failure calls `RetryService.republishOnFailure()`.
+- [x] After `MAX_ATTEMPTS` failures, the message lands in `<step>.dlq`.
+- [x] `pipeline_run` rows track `(pipelineRunId, step) -> status, attempt, started_at, finished_at, error`.
+- [x] `import_process` is not referenced anywhere in the codebase.
+- [x] `QueueModule` is `@Global()` — accessible to all feature modules (incl. plan 05's pipeline-steps module).

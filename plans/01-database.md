@@ -1,6 +1,8 @@
 # 01 — Database Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+> **Status: ✅ Executed.** Plan 01 was executed. Post-execution amendments: (1) `external_id` moved from `shared_catalog.product` to a new `tenant_base_product` table per the arc doc (commit `41b2c81`); (2) `pipeline_run.tenant_id` changed from `uuid` to `text` to match the message-carried slug (commit `3ce3c0a`).
 
 **Goal:** Build the database layer — three Postgres schemas (`core`, `shared_catalog`, `tenant_<slug>`), all TypeORM entities, migrations, and a migration runner that targets per-tenant schemas.
 
@@ -122,7 +124,7 @@ scripts/
 **Files:**
 - Modify: `package.json`
 
-- [ ] **Step 1: Add scripts**
+- [x] **Step 1: Add scripts**
 
 ```json
 "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts",
@@ -134,7 +136,7 @@ scripts/
 "tenant:create": "ts-node scripts/create-tenant-schema.ts"
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add package.json
@@ -148,7 +150,7 @@ git commit -m "chore: add migration scripts"
 **Files:**
 - Create: `src/database/entities/base.entity.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { CreateDateColumn, DeleteDateColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
@@ -168,7 +170,7 @@ export abstract class BaseEntity {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/database/entities/base.entity.ts
@@ -182,7 +184,7 @@ git commit -m "feat(db): base entity with timestamps and soft delete"
 **Files:**
 - Create: all four files under `src/database/enums/`
 
-- [ ] **Step 1: competitor-origin.enum.ts**
+- [x] **Step 1: competitor-origin.enum.ts**
 
 ```ts
 export enum CompetitorOrigin {
@@ -194,7 +196,7 @@ export enum CompetitorOrigin {
 }
 ```
 
-- [ ] **Step 2: tenant-status.enum.ts**
+- [x] **Step 2: tenant-status.enum.ts**
 
 ```ts
 export enum TenantStatus {
@@ -204,7 +206,7 @@ export enum TenantStatus {
 }
 ```
 
-- [ ] **Step 3: pipeline-step.enum.ts**
+- [x] **Step 3: pipeline-step.enum.ts**
 
 ```ts
 export enum PipelineStep {
@@ -219,7 +221,7 @@ export enum PipelineStep {
 }
 ```
 
-- [ ] **Step 4: pipeline-run-status.enum.ts**
+- [x] **Step 4: pipeline-run-status.enum.ts**
 
 ```ts
 export enum PipelineRunStatus {
@@ -229,7 +231,7 @@ export enum PipelineRunStatus {
 }
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/database/enums/
@@ -242,7 +244,7 @@ git commit -m "feat(db): shared enums"
 
 **Files:** all under `src/database/entities/core/`
 
-- [ ] **Step 1: tenant.entity.ts**
+- [x] **Step 1: tenant.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -267,7 +269,7 @@ export class TenantEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 2: integration-database-connection.entity.ts**
+- [x] **Step 2: integration-database-connection.entity.ts**
 
 ```ts
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
@@ -332,7 +334,7 @@ export class IntegrationDatabaseConnectionEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 3: user.entity.ts**
+- [x] **Step 3: user.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -362,7 +364,7 @@ export class UserEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 4: refresh-token.entity.ts**
+- [x] **Step 4: refresh-token.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -385,7 +387,7 @@ export class RefreshTokenEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 5: pipeline-run.entity.ts**
+- [x] **Step 5: pipeline-run.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -423,7 +425,7 @@ export class PipelineRunEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/database/entities/core/
@@ -436,7 +438,7 @@ git commit -m "feat(db): core entities"
 
 **Files:** all under `src/database/entities/shared-catalog/`
 
-- [ ] **Step 1: base-product.entity.ts**
+- [x] **Step 1: base-product.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -471,7 +473,7 @@ export class BaseProductEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 2: product.entity.ts**
+- [x] **Step 2: product.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -504,7 +506,7 @@ export class ProductEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 3: product-image.entity.ts**
+- [x] **Step 3: product-image.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -524,7 +526,7 @@ export class ProductImageEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 4: product-stock.entity.ts**
+- [x] **Step 4: product-stock.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -544,7 +546,7 @@ export class ProductStockEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/database/entities/shared-catalog/
@@ -557,7 +559,7 @@ git commit -m "feat(db): shared_catalog entities (base_product simplified, produ
 
 **Files:** `src/database/entities/tenant/tenant-competitor-origin.entity.ts`, `tenant-base-product.entity.ts`, `tenant-product-override.entity.ts`
 
-- [ ] **Step 1: tenant-competitor-origin.entity.ts**
+- [x] **Step 1: tenant-competitor-origin.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -581,7 +583,7 @@ export class TenantCompetitorOriginEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 2: tenant-base-product.entity.ts**
+- [x] **Step 2: tenant-base-product.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -602,7 +604,7 @@ export class TenantBaseProductEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 3: tenant-product-override.entity.ts**
+- [x] **Step 3: tenant-product-override.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -630,7 +632,7 @@ export class TenantProductOverrideEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/database/entities/tenant/tenant-competitor-origin.entity.ts \
@@ -645,7 +647,7 @@ git commit -m "feat(db): tenant origin config + base-product + product override 
 
 **Files:** `src/database/entities/tenant/active-ingredient.entity.ts`, `classification.entity.ts`
 
-- [ ] **Step 1: active-ingredient.entity.ts**
+- [x] **Step 1: active-ingredient.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -665,7 +667,7 @@ export class ActiveIngredientEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 2: classification.entity.ts**
+- [x] **Step 2: classification.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -685,7 +687,7 @@ export class ClassificationEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/database/entities/tenant/active-ingredient.entity.ts \
@@ -699,7 +701,7 @@ git commit -m "feat(db): tenant taxonomy entities"
 
 **Files:** `offer-book.entity.ts`, `offer-book-info.entity.ts`, `offer-book-pricing-rule.entity.ts`, `offer-book-price-lock.entity.ts`, `offer-book-rule.entity.ts`, `offer-book-rule-product.entity.ts`, `offer-book-rule-execution-report.entity.ts`, `offer-book-rule-execution-report-item.entity.ts`
 
-- [ ] **Step 1: offer-book.entity.ts**
+- [x] **Step 1: offer-book.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -719,7 +721,7 @@ export class OfferBookEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 2: offer-book-info.entity.ts**
+- [x] **Step 2: offer-book-info.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -736,7 +738,7 @@ export class OfferBookInfoEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 3: offer-book-pricing-rule.entity.ts**
+- [x] **Step 3: offer-book-pricing-rule.entity.ts**
 
 ```ts
 import { Column, Entity } from 'typeorm';
@@ -755,7 +757,7 @@ export class OfferBookPricingRuleEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 4: offer-book-price-lock.entity.ts**
+- [x] **Step 4: offer-book-price-lock.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -775,7 +777,7 @@ export class OfferBookPriceLockEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 5: offer-book-rule.entity.ts**
+- [x] **Step 5: offer-book-rule.entity.ts**
 
 ```ts
 import { Column, Entity } from 'typeorm';
@@ -797,7 +799,7 @@ export class OfferBookRuleEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 6: offer-book-rule-product.entity.ts**
+- [x] **Step 6: offer-book-rule-product.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -814,7 +816,7 @@ export class OfferBookRuleProductEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 7: offer-book-rule-execution-report.entity.ts**
+- [x] **Step 7: offer-book-rule-execution-report.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -840,7 +842,7 @@ export class OfferBookRuleExecutionReportEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 8: offer-book-rule-execution-report-item.entity.ts**
+- [x] **Step 8: offer-book-rule-execution-report-item.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -866,7 +868,7 @@ export class OfferBookRuleExecutionReportItemEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/database/entities/tenant/offer-book*.entity.ts
@@ -879,7 +881,7 @@ git commit -m "feat(db): tenant offer-book entities"
 
 **Files:** `price-rounding-rule.entity.ts`, `price-rounding-decimal-range.entity.ts`, `scheduling.entity.ts`, `status-settings.entity.ts`
 
-- [ ] **Step 1: price-rounding-rule.entity.ts**
+- [x] **Step 1: price-rounding-rule.entity.ts**
 
 ```ts
 import { Column, Entity } from 'typeorm';
@@ -898,7 +900,7 @@ export class PriceRoundingRuleEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 2: price-rounding-decimal-range.entity.ts**
+- [x] **Step 2: price-rounding-decimal-range.entity.ts**
 
 ```ts
 import { Column, Entity, Index } from 'typeorm';
@@ -921,7 +923,7 @@ export class PriceRoundingDecimalRangeEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 3: scheduling.entity.ts**
+- [x] **Step 3: scheduling.entity.ts**
 
 ```ts
 import { Column, Entity } from 'typeorm';
@@ -943,7 +945,7 @@ export class SchedulingEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 4: status-settings.entity.ts**
+- [x] **Step 4: status-settings.entity.ts**
 
 ```ts
 import { Column, Entity } from 'typeorm';
@@ -956,7 +958,7 @@ export class StatusSettingsEntity extends BaseEntity {
 }
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/database/entities/tenant/price-rounding*.entity.ts \
@@ -971,7 +973,7 @@ git commit -m "feat(db): tenant rounding + scheduling + status entities"
 
 **Files:** `src/database/data-source.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import 'dotenv/config';
@@ -991,7 +993,7 @@ export default new DataSource({
 });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/database/data-source.ts
@@ -1004,7 +1006,7 @@ git commit -m "feat(db): CLI DataSource for migrations"
 
 **Files:** `migrations/core/1700000000000-init-core.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { MigrationInterface, QueryRunner } from 'typeorm';
@@ -1120,7 +1122,7 @@ export class InitAppMeta1700000000000 implements MigrationInterface {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add migrations/core/
@@ -1133,7 +1135,7 @@ git commit -m "feat(db): initial core migration"
 
 **Files:** `migrations/shared_catalog/1700000000001-init-shared-catalog.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { MigrationInterface, QueryRunner } from 'typeorm';
@@ -1211,7 +1213,7 @@ export class InitSharedCatalog1700000000001 implements MigrationInterface {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add migrations/shared_catalog/
@@ -1226,7 +1228,7 @@ git commit -m "feat(db): initial shared_catalog migration"
 
 This migration is **templated** — the runner sets `search_path = <tenant_schema>` before applying it, so all unqualified table names land in the right schema.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { MigrationInterface, QueryRunner } from 'typeorm';
@@ -1470,7 +1472,7 @@ export class InitTenant1700000000002 implements MigrationInterface {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add migrations/tenant/
@@ -1483,7 +1485,7 @@ git commit -m "feat(db): initial tenant template migration"
 
 **Files:** `scripts/migrate-app.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import dataSource from '../src/database/data-source';
@@ -1505,7 +1507,7 @@ main().catch((err) => {
 });
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `npm run migration:run:app`
 Expected: schemas + extensions created; 2 migrations applied; reserved `system` tenant inserted.
@@ -1518,7 +1520,7 @@ SELECT slug FROM core.tenant;
 -- expect schemas: core, shared_catalog, public
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add scripts/migrate-app.ts
@@ -1531,7 +1533,7 @@ git commit -m "feat(db): migrate-app script"
 
 **Files:** `scripts/migrate-tenant.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import 'dotenv/config';
@@ -1576,7 +1578,7 @@ if (!slug) {
 migrateOne(slug).catch((err) => { console.error(err); process.exit(1); });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add scripts/migrate-tenant.ts
@@ -1589,7 +1591,7 @@ git commit -m "feat(db): migrate-tenant script (one tenant)"
 
 **Files:** `scripts/create-tenant-schema.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import 'dotenv/config';
@@ -1640,7 +1642,7 @@ async function main(): Promise<void> {
 main().catch((err) => { console.error(err); process.exit(1); });
 ```
 
-- [ ] **Step 2: Test against local docker compose**
+- [x] **Step 2: Test against local docker compose**
 
 ```bash
 docker compose up -d postgres
@@ -1650,7 +1652,7 @@ psql postgres://app:app@localhost:5432/app -c "SET search_path TO tenant_acme; \
 # expect to see tenant tables
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add scripts/create-tenant-schema.ts
@@ -1663,7 +1665,7 @@ git commit -m "feat(db): tenant:create script — provisions schema + migrations
 
 **Files:** `scripts/migrate-all-tenants.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import 'dotenv/config';
@@ -1719,7 +1721,7 @@ async function main(): Promise<void> {
 main().catch((err) => { console.error(err); process.exit(1); });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add scripts/migrate-all-tenants.ts
@@ -1730,14 +1732,14 @@ git commit -m "feat(db): migrate-all-tenants with concurrency cap"
 
 ### Task 18: End-to-end smoke test
 
-- [ ] **Step 1: Clean local DB**
+- [x] **Step 1: Clean local DB**
 
 ```bash
 docker compose down -v && docker compose up -d postgres
 sleep 3
 ```
 
-- [ ] **Step 2: Apply migrations**
+- [x] **Step 2: Apply migrations**
 
 ```bash
 npm run migration:run:app
@@ -1746,7 +1748,7 @@ npm run tenant:create brand-x
 npm run migration:tenant:all
 ```
 
-- [ ] **Step 3: Verify cross-schema join works**
+- [x] **Step 3: Verify cross-schema join works**
 
 ```bash
 psql postgres://app:app@localhost:5432/app <<'SQL'
@@ -1763,7 +1765,7 @@ SQL
 
 Expected: one row with `(7891234567890, 'Test', 'DROGAL')`.
 
-- [ ] **Step 4: Commit (no code changes; just verification step)**
+- [x] **Step 4: Commit (no code changes; just verification step)**
 
 No commit needed.
 
@@ -1771,11 +1773,11 @@ No commit needed.
 
 ## Exit Criteria
 
-- [ ] `npm run migration:run:app` creates `core` + `shared_catalog`, inserts the `system` tenant.
-- [ ] `npm run tenant:create <slug>` creates a `tenant_<slug>` schema, inserts the tenant row, runs tenant template migrations.
-- [ ] `npm run migration:tenant:all` iterates active tenants and migrates each (concurrency 10).
-- [ ] Cross-schema query (`SELECT bp.ean FROM shared_catalog.base_product bp` inside a `search_path = tenant_x, shared_catalog, public` session) works.
-- [ ] `import_process` does not exist anywhere.
-- [ ] Simplified `base_product` has only: `id, ean, description, active_ingredient, generic, height, length, width, weight, created_at, updated_at, deleted_at`.
-- [ ] All entities live under `src/database/entities/{core,shared-catalog,tenant}/`.
-- [ ] All entity files compile (`npm run build`).
+- [x] `npm run migration:run:app` creates `core` + `shared_catalog`, inserts the `system` tenant.
+- [x] `npm run tenant:create <slug>` creates a `tenant_<slug>` schema, inserts the tenant row, runs tenant template migrations.
+- [x] `npm run migration:tenant:all` iterates active tenants and migrates each (concurrency 10).
+- [x] Cross-schema query (`SELECT bp.ean FROM shared_catalog.base_product bp` inside a `search_path = tenant_x, shared_catalog, public` session) works.
+- [x] `import_process` does not exist anywhere.
+- [x] Simplified `base_product` has only: `id, ean, description, active_ingredient, generic, height, length, width, weight, created_at, updated_at, deleted_at`.
+- [x] All entities live under `src/database/entities/{core,shared-catalog,tenant}/`.
+- [x] All entity files compile (`npm run build`).

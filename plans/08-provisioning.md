@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status: ⚙️ Artifacts committed; operator must execute the cloud steps.** All in-repo files are in place — `tsconfig.scripts.json`, `Dockerfile` (with `npm run build:scripts`), `fly.api.toml`, `fly.worker.toml`, `.github/workflows/deploy.yml`, `.github/workflows/pr-preview.yml`, and `docs/provisioning/{first-deploy,teardown}.md`. The cloud-side steps (creating R2 token, Neon project, CloudAMQP instance, Fly apps; setting secrets; first deploy; CI token) are documented in `docs/provisioning/first-deploy.md` and have not been run yet — they require operator credentials.
+
 **Goal:** Bring up every cloud resource the app needs (Cloudflare R2, Neon, CloudAMQP, two Fly apps) and wire CI/CD via GitHub Actions. Output: a production environment that runs the same Docker image on `farmacore-api` (HTTP) and `farmacore-worker` (`WORKER_MODE=1`), backed by Neon + CloudAMQP + R2.
 
 **Architecture:** **One Dockerfile, two Fly apps.** Both deploy from `Dockerfile` in the repo; the worker app's `fly.toml` sets `WORKER_MODE=1` as an env override. Each app has its own secrets but they're identical. Migrations run as a Fly `release_command` on the **API** app only — the release script applies app-level migrations and enqueues per-tenant migrations via RMQ (`scripts/enqueue-migrate-all.ts` from plan 05). Neon branches are created by GitHub Actions per PR (optional). Terraform is a follow-up — the plan ships CLI walkthroughs first.

@@ -1,6 +1,8 @@
 # 03 — Integration Data Source Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+> **Status: ✅ Executed.** Plan 03 was executed. Deviation: docker-compose ERP service uses host port `5435` (plan said `5433`) to avoid collision with our farmacore postgres.
 
 **Goal:** Per-tenant, runtime-configurable ERP database connections. Replaces the prototype's hardcoded `INTEGRATION_DATABASE_URL` with rows in `core.integration_database_connection` (entity already created in plan 01) and a factory that builds and caches `DataSource`s per tenant. Passwords are encrypted at rest with AES-256-GCM.
 
@@ -48,7 +50,7 @@ src/integration/
 
 **Files:** `src/integration/credential-encryption.service.ts`, `.spec.ts`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { CredentialEncryptionService } from './credential-encryption.service';
@@ -79,12 +81,12 @@ describe('CredentialEncryptionService', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/integration/credential-encryption.service.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -124,12 +126,12 @@ export class CredentialEncryptionService {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/integration/credential-encryption.service.spec.ts`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/integration/credential-encryption.service.ts src/integration/credential-encryption.service.spec.ts
@@ -142,7 +144,7 @@ git commit -m "feat(integration): AES-256-GCM CredentialEncryptionService"
 
 **Files:** `src/integration/entities/index.ts`, `src/integration/entities/integration-erp-product.entity.ts`
 
-- [ ] **Step 1: Example ERP entity (placeholder; refine in plan 05)**
+- [x] **Step 1: Example ERP entity (placeholder; refine in plan 05)**
 
 ```ts
 // Example shape — the real ERP columns are added in plan 05 when individual steps need them.
@@ -162,7 +164,7 @@ export class IntegrationErpProductEntity {
 }
 ```
 
-- [ ] **Step 2: Index**
+- [x] **Step 2: Index**
 
 ```ts
 import { IntegrationErpProductEntity } from './integration-erp-product.entity';
@@ -170,7 +172,7 @@ import { IntegrationErpProductEntity } from './integration-erp-product.entity';
 export const INTEGRATION_ENTITIES = [IntegrationErpProductEntity];
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/integration/entities/
@@ -183,7 +185,7 @@ git commit -m "feat(integration): entity list (placeholder ERP product)"
 
 **Files:** `src/integration/integration-data-source.factory.ts`, `.spec.ts`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { Test } from '@nestjs/testing';
@@ -261,12 +263,12 @@ describe('IntegrationDataSourceFactory', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/integration/integration-data-source.factory.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
@@ -343,12 +345,12 @@ export class IntegrationDataSourceFactory implements OnModuleDestroy {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/integration/integration-data-source.factory.spec.ts`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/integration/integration-data-source.factory.ts src/integration/integration-data-source.factory.spec.ts
@@ -361,7 +363,7 @@ git commit -m "feat(integration): IntegrationDataSourceFactory with cache + inva
 
 **Files:** `src/integration/dto/upsert-integration.dto.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Length, Max, Min } from 'class-validator';
@@ -400,7 +402,7 @@ export class UpsertIntegrationDto {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/integration/dto/
@@ -413,7 +415,7 @@ git commit -m "feat(integration): UpsertIntegrationDto"
 
 **Files:** `src/integration/integration-connection.service.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
@@ -513,7 +515,7 @@ export class IntegrationConnectionService {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/integration/integration-connection.service.ts
@@ -526,7 +528,7 @@ git commit -m "feat(integration): IntegrationConnectionService (upsert/disable/t
 
 **Files:** `src/integration/integration.module.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Global, Module } from '@nestjs/common';
@@ -546,11 +548,11 @@ import { IntegrationConnectionService } from './integration-connection.service';
 export class IntegrationModule {}
 ```
 
-- [ ] **Step 2: Wire into AppModule and WorkerModule**
+- [x] **Step 2: Wire into AppModule and WorkerModule**
 
 Modify both `src/app.module.ts` and `src/worker.module.ts` — add `IntegrationModule` to `imports`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/integration/integration.module.ts src/app.module.ts src/worker.module.ts
@@ -565,7 +567,7 @@ git commit -m "feat(integration): IntegrationModule wired into API + worker"
 
 > **Decision:** Keep `TenantContext` storing only JWT claims; integration lookups happen by calling `integrationFactory.forTenant(tenantId)` directly from services. Avoids coupling the request-scoped provider to async initialization. The arc doc (`arc/03 §5`) mentions a convenience accessor — we leave that as a documented service method `IntegrationDataSourceFactory.forTenantSlug(slug)`.
 
-- [ ] **Step 1: Add a slug → uuid lookup**
+- [x] **Step 1: Add a slug → uuid lookup**
 
 Append to `IntegrationDataSourceFactory`:
 
@@ -580,7 +582,7 @@ public async forTenantSlug(tenantSlug: string): Promise<DataSource | null> {
 
 Add the `TenantEntity` import. (Calling sites can use either uuid or slug; both go through the same cache because keys are the uuid.)
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/integration/integration-data-source.factory.ts
@@ -593,7 +595,7 @@ git commit -m "feat(integration): forTenantSlug() convenience accessor"
 
 **Files:** `docker-compose.yml` (modify — add an "erp" service)
 
-- [ ] **Step 1: Add ERP service**
+- [x] **Step 1: Add ERP service**
 
 Append to `docker-compose.yml`:
 
@@ -613,7 +615,7 @@ Append to `docker-compose.yml`:
 
 (Adjust the existing `volumes:` block to include `erpdata:`.)
 
-- [ ] **Step 2: Bring it up and seed**
+- [x] **Step 2: Bring it up and seed**
 
 ```bash
 docker compose up -d erp
@@ -624,7 +626,7 @@ INSERT INTO erp_product VALUES ('1', '7891111111111', 'Sample');
 SQL
 ```
 
-- [ ] **Step 3: Manual integration test script**
+- [x] **Step 3: Manual integration test script**
 
 Create `scripts/smoke-integration.ts`:
 
@@ -665,7 +667,7 @@ async function main(): Promise<void> {
 main().catch((err) => { console.error(err); process.exit(1); });
 ```
 
-- [ ] **Step 4: Run it**
+- [x] **Step 4: Run it**
 
 ```bash
 npm run migration:run:app
@@ -679,7 +681,7 @@ test: { ok: true }
 rows: [ { id: '1', ean: '7891111111111', name: 'Sample' } ]
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docker-compose.yml scripts/smoke-integration.ts
@@ -690,10 +692,10 @@ git commit -m "test(integration): docker erp + smoke script"
 
 ## Exit Criteria
 
-- [ ] `IntegrationDataSourceFactory.forTenant(tenantId)` returns `DataSource` for active rows and `null` for missing/disabled tenants.
-- [ ] Two tenants pointing at two different ERPs get two independent `DataSource`s, both cached.
-- [ ] `IntegrationConnectionService.upsert()` followed by `forTenant()` returns the new credentials (cache invalidated on upsert).
-- [ ] `IntegrationConnectionService.test()` updates `last_verified_at` / `last_error`.
-- [ ] Passwords stored as `bytea` (AES-256-GCM); plaintext never logged.
-- [ ] `process.env.INTEGRATION_DATABASE_URL` is referenced nowhere in the codebase (`grep -r INTEGRATION_DATABASE_URL src/ test/ scripts/` returns nothing).
-- [ ] Smoke script reads rows from the local ERP container.
+- [x] `IntegrationDataSourceFactory.forTenant(tenantId)` returns `DataSource` for active rows and `null` for missing/disabled tenants.
+- [x] Two tenants pointing at two different ERPs get two independent `DataSource`s, both cached.
+- [x] `IntegrationConnectionService.upsert()` followed by `forTenant()` returns the new credentials (cache invalidated on upsert).
+- [x] `IntegrationConnectionService.test()` updates `last_verified_at` / `last_error`.
+- [x] Passwords stored as `bytea` (AES-256-GCM); plaintext never logged.
+- [x] `process.env.INTEGRATION_DATABASE_URL` is referenced nowhere in the codebase (`grep -r INTEGRATION_DATABASE_URL src/ test/ scripts/` returns nothing).
+- [x] Smoke script reads rows from the local ERP container.

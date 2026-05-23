@@ -1,6 +1,8 @@
 # 09 — Presentation Layer Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+> **Status: ✅ Executed.** Plan 09 was executed. The `AmqpInterceptor` was later guarded against `@golevelup/nestjs-rabbitmq` consumers (commit `3ce3c0a`) — it only intercepts when the second handler arg looks like a `@nestjs/microservices` `RmqContext`.
 
 **Goal:** Set up the cross-cutting code conventions every other plan depends on — internal logger abstraction, request/RMQ logger interceptor, RMQ retry interceptor with ack/nack semantics, unhandled-signal listener, and the layered `presentation/` + `common/` + `interfaces/` directory structure.
 
@@ -74,7 +76,7 @@ src/
 
 **Files:** `src/interfaces/internal-logger.ts`, `src/interfaces/index.ts`
 
-- [ ] **Step 1: Define interface and token**
+- [x] **Step 1: Define interface and token**
 
 `src/interfaces/internal-logger.ts`:
 
@@ -95,7 +97,7 @@ export interface InternalLogger {
 export * from './internal-logger';
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/interfaces/
@@ -108,7 +110,7 @@ git commit -m "feat(interfaces): InternalLogger contract + DI token"
 
 **Files:** `src/presentation/logger/nest-internal-logger.ts`, `.spec.ts`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { Logger } from '@nestjs/common';
@@ -146,12 +148,12 @@ describe('NestInternalLogger', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/presentation/logger/nest-internal-logger.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable, Logger } from '@nestjs/common';
@@ -183,12 +185,12 @@ export class NestInternalLogger implements InternalLogger {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/presentation/logger/nest-internal-logger.spec.ts`
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/presentation/logger/nest-internal-logger.ts src/presentation/logger/nest-internal-logger.spec.ts
@@ -201,7 +203,7 @@ git commit -m "feat(logger): NestInternalLogger wrapping Nest's Logger"
 
 **Files:** `src/presentation/logger/logger.module.ts`, `src/presentation/logger/index.ts`
 
-- [ ] **Step 1: Module**
+- [x] **Step 1: Module**
 
 ```ts
 import { Global, Logger, Module } from '@nestjs/common';
@@ -221,7 +223,7 @@ import { NestInternalLogger } from './nest-internal-logger';
 export class LoggerModule {}
 ```
 
-- [ ] **Step 2: Barrel**
+- [x] **Step 2: Barrel**
 
 `src/presentation/logger/index.ts`:
 
@@ -230,7 +232,7 @@ export * from './logger.module';
 export * from './nest-internal-logger';
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/presentation/logger/
@@ -243,7 +245,7 @@ git commit -m "feat(logger): LoggerModule provides InternalLogger globally"
 
 **Files:** `src/common/wait-for.ts`, `src/common/index.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 export function waitFor(ms: number): Promise<void> {
@@ -258,7 +260,7 @@ export * from './wait-for';
 export * from './listeners';
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/common/wait-for.ts src/common/index.ts
@@ -271,7 +273,7 @@ git commit -m "feat(common): waitFor utility"
 
 **Files:** `src/common/listeners/unhandled-signals.listener.ts`, `.spec.ts`, `src/common/listeners/index.ts`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { INestApplication } from '@nestjs/common';
@@ -317,12 +319,12 @@ describe('catchUnhandledSignals', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/common/listeners/unhandled-signals.listener.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { INestApplication, INestApplicationContext } from '@nestjs/common';
@@ -346,12 +348,12 @@ export function catchUnhandledSignals(app: INestApplication | INestApplicationCo
 export * from './unhandled-signals.listener';
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/common/listeners/unhandled-signals.listener.spec.ts`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/common/listeners/
@@ -364,7 +366,7 @@ git commit -m "feat(common): catchUnhandledSignals listener"
 
 **Files:** `src/presentation/decorators/amqp-retry.decorator.ts`, `src/presentation/decorators/index.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { SetMetadata } from '@nestjs/common';
@@ -385,7 +387,7 @@ export const AmqpRetry = (maxRetries: number): MethodDecorator =>
 export * from './amqp-retry.decorator';
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/presentation/decorators/
@@ -400,7 +402,7 @@ git commit -m "feat(presentation): @AmqpRetry decorator"
 
 Logs duration + redacted body for HTTP and RMQ requests. RMQ context detection works with both `@golevelup/nestjs-rabbitmq` (`'rmq'` type) and `@nestjs/microservices` (`'rpc'` type).
 
-- [ ] **Step 1: Failing test (minimal HTTP shape)**
+- [x] **Step 1: Failing test (minimal HTTP shape)**
 
 ```ts
 import { ExecutionContext, HttpException } from '@nestjs/common';
@@ -474,12 +476,12 @@ describe('LoggerInterceptor', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/presentation/interceptors/logger.interceptor.spec.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { CallHandler, ExecutionContext, HttpException, Inject, Injectable, NestInterceptor } from '@nestjs/common';
@@ -613,12 +615,12 @@ export class LoggerInterceptor implements NestInterceptor {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/presentation/interceptors/logger.interceptor.spec.ts`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/presentation/interceptors/logger.interceptor.ts src/presentation/interceptors/logger.interceptor.spec.ts
@@ -633,7 +635,7 @@ git commit -m "feat(presentation): LoggerInterceptor (HTTP + RMQ + RPC)"
 
 ACK on success, NACK on uncaught error. Optional retry via `@AmqpRetry(N)` re-enqueues after a fixed delay (30s) with an `x-retry-count` header. Inspiration: handler must throw `ServiceUnavailableException` to opt into retry; any other exception is a hard fail.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { ExecutionContext, ServiceUnavailableException } from '@nestjs/common';
@@ -703,12 +705,12 @@ describe('AmqpInterceptor', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/presentation/interceptors/amqp.interceptor.spec.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { CallHandler, ExecutionContext, Inject, Injectable, NestInterceptor, ServiceUnavailableException } from '@nestjs/common';
@@ -788,7 +790,7 @@ export class AmqpInterceptor implements NestInterceptor {
 }
 ```
 
-- [ ] **Step 4: Run, expect pass**
+- [x] **Step 4: Run, expect pass**
 
 Run: `npm test -- src/presentation/interceptors/amqp.interceptor.spec.ts`
 Expected: PASS (4 tests).
@@ -803,7 +805,7 @@ jest.mock('../../common/wait-for', () => ({ waitFor: jest.fn().mockResolvedValue
 
 Re-run; should still pass without the 30s wait.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/presentation/interceptors/amqp.interceptor.ts src/presentation/interceptors/amqp.interceptor.spec.ts
@@ -816,7 +818,7 @@ git commit -m "feat(presentation): AmqpInterceptor (ack/nack + @AmqpRetry)"
 
 **Files:** `src/presentation/interceptors/interceptor.module.ts`, `src/presentation/interceptors/index.ts`
 
-- [ ] **Step 1: Module**
+- [x] **Step 1: Module**
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -833,7 +835,7 @@ import { LoggerInterceptor } from './logger.interceptor';
 export class InterceptorModule {}
 ```
 
-- [ ] **Step 2: Barrel**
+- [x] **Step 2: Barrel**
 
 `src/presentation/interceptors/index.ts`:
 
@@ -843,7 +845,7 @@ export * from './logger.interceptor';
 export * from './interceptor.module';
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/presentation/interceptors/interceptor.module.ts src/presentation/interceptors/index.ts
@@ -856,7 +858,7 @@ git commit -m "feat(presentation): InterceptorModule registers interceptors glob
 
 **Files:** `src/presentation/presentation.module.ts`, `src/presentation/index.ts`
 
-- [ ] **Step 1: Module**
+- [x] **Step 1: Module**
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -870,7 +872,7 @@ import { InterceptorModule } from './interceptors/interceptor.module';
 export class PresentationModule {}
 ```
 
-- [ ] **Step 2: Barrel**
+- [x] **Step 2: Barrel**
 
 `src/presentation/index.ts`:
 
@@ -881,7 +883,7 @@ export * from './interceptors';
 export * from './decorators';
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/presentation/
@@ -894,7 +896,7 @@ git commit -m "feat(presentation): PresentationModule aggregates logger + interc
 
 **Files:** modify `src/app.module.ts`, `src/main.ts` (already updated to single entry in plan 00 revision).
 
-- [ ] **Step 1: Add PresentationModule to AppModule imports**
+- [x] **Step 1: Add PresentationModule to AppModule imports**
 
 ```ts
 import { Module, ValidationPipe } from '@nestjs/common';
@@ -913,7 +915,7 @@ import { HealthModule } from './health/health.module';
 export class AppModule {}
 ```
 
-- [ ] **Step 2: Call catchUnhandledSignals from main.ts**
+- [x] **Step 2: Call catchUnhandledSignals from main.ts**
 
 In `src/main.ts`, after `await app.init()` (API role) or `app = await NestFactory.createApplicationContext(...)` (worker role), add:
 
@@ -924,11 +926,11 @@ import { catchUnhandledSignals } from './common';
 catchUnhandledSignals(app);
 ```
 
-- [ ] **Step 3: Smoke check — booting the app no longer crashes the process on unhandled rejection**
+- [x] **Step 3: Smoke check — booting the app no longer crashes the process on unhandled rejection**
 
 Add a temporary throw inside any startup-time async (e.g. a `setTimeout(() => { throw new Error('test') }, 0)` in `main.ts`), boot the app, observe the log line, then revert. Don't commit the temporary throw.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/app.module.ts src/main.ts
@@ -939,9 +941,9 @@ git commit -m "feat: wire PresentationModule + unhandled-signals handler"
 
 ## Exit Criteria
 
-- [ ] `INTERNAL_LOGGER_TOKEN` is injectable anywhere; `InternalLogger` interface has `log/warn/error/debug`.
-- [ ] `LoggerInterceptor` registered globally; logs every HTTP request (except `/health`) and every RMQ handler with duration + redacted body.
-- [ ] `AmqpInterceptor` acks on success, nacks (no requeue) on hard error, and reenqueues with `x-retry-count` when the handler is annotated `@AmqpRetry(N)` and throws `ServiceUnavailableException`.
-- [ ] `catchUnhandledSignals(app)` installs handlers that log via `InternalLogger` instead of letting the process crash silently.
-- [ ] No third-party logger lib is installed (no pino, winston, bunyan).
-- [ ] `src/presentation/`, `src/common/`, `src/interfaces/` directories exist with the file structure above.
+- [x] `INTERNAL_LOGGER_TOKEN` is injectable anywhere; `InternalLogger` interface has `log/warn/error/debug`.
+- [x] `LoggerInterceptor` registered globally; logs every HTTP request (except `/health`) and every RMQ handler with duration + redacted body.
+- [x] `AmqpInterceptor` acks on success, nacks (no requeue) on hard error, and reenqueues with `x-retry-count` when the handler is annotated `@AmqpRetry(N)` and throws `ServiceUnavailableException`.
+- [x] `catchUnhandledSignals(app)` installs handlers that log via `InternalLogger` instead of letting the process crash silently.
+- [x] No third-party logger lib is installed (no pino, winston, bunyan).
+- [x] `src/presentation/`, `src/common/`, `src/interfaces/` directories exist with the file structure above.

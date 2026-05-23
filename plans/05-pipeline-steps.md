@@ -1,6 +1,8 @@
 # 05 — Pipeline Steps Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+> **Status: ✅ Executed.** Plan 05 was executed. Bundled fixes: `core.pipeline_run.tenant_id` changed to `text`; `Plan 09 AmqpInterceptor` guarded against `@golevelup` shape (passes through when `getChannelRef` is absent). End-to-end smoke confirmed: 8 step rows + 2 `branch.*` rows, all `completed`, join fires exactly once.
 
 **Goal:** Implement the 8 step consumers from `arc/02 §3` plus the `pipeline.start` fan-out consumer, the parallel-branch join, the daily cron publisher, and the post-deploy `migrate-tenant` job.
 
@@ -107,7 +109,7 @@ The join uses a row in `core.pipeline_run` with `step = 'branch.<name>'` as the 
 
 **Schema note:** the existing `CHECK (status IN ('running','completed','failed'))` and `(pipelineRunId, step) UNIQUE` constraints from plan 01 already accommodate arbitrary step strings. We use synthetic step names `'branch.stock-a'` and `'branch.stock-b'`. To allow these, the migration's `pipeline_step` enum doesn't constrain the `step` column at the DB level (we kept it as `text` in plan 01 §15) — confirm by re-reading the migration.
 
-- [ ] **Step 1: Confirm step column is text without enum check**
+- [x] **Step 1: Confirm step column is text without enum check**
 
 Open `migrations/core/1700000000000-init-core.ts` and verify the `pipeline_run.step` column is `text` with no `CHECK` constraint. If a check was added, drop it in a new migration.
 
@@ -124,7 +126,7 @@ export class AllowSyntheticPipelineSteps1700000000003 implements MigrationInterf
 }
 ```
 
-- [ ] **Step 2: Failing test**
+- [x] **Step 2: Failing test**
 
 ```ts
 import { Test } from '@nestjs/testing';
@@ -159,12 +161,12 @@ describe('PipelineJoinService.markBranchComplete', () => {
 });
 ```
 
-- [ ] **Step 3: Run, expect fail**
+- [x] **Step 3: Run, expect fail**
 
 Run: `npm test -- src/pipeline/pipeline-join.service.spec.ts`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -208,12 +210,12 @@ export class PipelineJoinService {
 }
 ```
 
-- [ ] **Step 5: Run, expect pass**
+- [x] **Step 5: Run, expect pass**
 
 Run: `npm test -- src/pipeline/pipeline-join.service.spec.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/pipeline/pipeline-join.service.ts src/pipeline/pipeline-join.service.spec.ts migrations/
@@ -243,7 +245,7 @@ export class XxxStep {
 }
 ```
 
-- [ ] **Step 1: Create all 8 step stubs**
+- [x] **Step 1: Create all 8 step stubs**
 
 `src/pipeline/steps/sync-base-product.step.ts`:
 ```ts
@@ -270,7 +272,7 @@ Repeat the same pattern for:
 
 Each is identical except for the class name + log message.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/pipeline/steps/
@@ -285,7 +287,7 @@ git commit -m "feat(pipeline): stub step implementations"
 
 This is **not** a `BasePipelineConsumer` (no idempotency/retry concerns — it just fans out). It's a plain `@RabbitSubscribe` handler.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Injectable, Logger } from '@nestjs/common';
@@ -324,7 +326,7 @@ export class PipelineStartConsumer {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/pipeline/consumers/pipeline-start.consumer.ts
@@ -342,7 +344,7 @@ Each step consumer:
 2. Calls its `XxxStep.run(em, integrationDs, tenantId)`.
 3. Returns successors.
 
-- [ ] **Step 1: SyncBaseProductConsumer**
+- [x] **Step 1: SyncBaseProductConsumer**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -397,7 +399,7 @@ export class SyncBaseProductConsumer extends BasePipelineConsumer {
 }
 ```
 
-- [ ] **Step 2: SyncBaseProductStockConsumer (calls join, branch=stock-a)**
+- [x] **Step 2: SyncBaseProductStockConsumer (calls join, branch=stock-a)**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -456,7 +458,7 @@ export class SyncBaseProductStockConsumer extends BasePipelineConsumer {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/pipeline/consumers/sync-base-product.consumer.ts \
@@ -472,7 +474,7 @@ git commit -m "feat(pipeline): chain A consumers (sync-base-product + stock with
 
 Follow the same template as Task 4. The third one calls `markBranchComplete(..., 'stock-b')` and publishes `calc-base-product-metrics` only on `fire`.
 
-- [ ] **Step 1: SyncOfferBooksInfoConsumer**
+- [x] **Step 1: SyncOfferBooksInfoConsumer**
 
 Successor: `IMPORT_COMPETITOR_PRODUCTS`.
 
@@ -525,11 +527,11 @@ export class SyncOfferBooksInfoConsumer extends BasePipelineConsumer {
 }
 ```
 
-- [ ] **Step 2: ImportCompetitorProductsConsumer**
+- [x] **Step 2: ImportCompetitorProductsConsumer**
 
 Same template; successor `IMPORT_COMPETITOR_STOCK`; use `ImportCompetitorProductsStep`.
 
-- [ ] **Step 3: ImportCompetitorStockConsumer (calls join, branch=stock-b)**
+- [x] **Step 3: ImportCompetitorStockConsumer (calls join, branch=stock-b)**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -586,7 +588,7 @@ export class ImportCompetitorStockConsumer extends BasePipelineConsumer {
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/pipeline/consumers/sync-offer-books-info.consumer.ts \
@@ -603,7 +605,7 @@ git commit -m "feat(pipeline): chain B consumers"
 
 These three are sequential with no joins. Use the same template as `SyncOfferBooksInfoConsumer`.
 
-- [ ] **Step 1: Three consumers**
+- [x] **Step 1: Three consumers**
 
 - `CalcBaseProductMetricsConsumer` → successor `UPDATE_BASE_PRODUCT_PROPERTIES`.
 - `UpdateBaseProductPropertiesConsumer` → successor `UPDATE_ACTIVE_INGREDIENT_MAT`.
@@ -611,7 +613,7 @@ These three are sequential with no joins. Use the same template as `SyncOfferBoo
 
 Adapt the `SyncOfferBooksInfoConsumer` template for each — change step name, step impl class, and successor list.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/pipeline/consumers/calc-base-product-metrics.consumer.ts \
@@ -628,7 +630,7 @@ git commit -m "feat(pipeline): terminal chain consumers (calc-metrics → props 
 
 Per `arc/02 §8`: after deploy, iterate active tenants and apply tenant template migrations. Concurrency cap is 10 (handled by the RMQ prefetch on this queue + `concurrency: 10` consumer option).
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Injectable, Logger } from '@nestjs/common';
@@ -658,7 +660,7 @@ export class MigrateTenantConsumer {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/pipeline/consumers/migrate-tenant.consumer.ts
@@ -673,7 +675,7 @@ git commit -m "feat(pipeline): MigrateTenantConsumer (post-deploy migrator)"
 
 This script runs the app + shared migrations directly (in-process), then enqueues `migrate-tenant` messages for every active tenant. It's the release_command on both Fly apps.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import 'dotenv/config';
@@ -713,11 +715,11 @@ async function main(): Promise<void> {
 main().catch((err) => { console.error(err); process.exit(1); });
 ```
 
-- [ ] **Step 2: Wire as release_command in fly.toml (plan 08 picks this up)**
+- [x] **Step 2: Wire as release_command in fly.toml (plan 08 picks this up)**
 
 Document the path for plan 08: `[deploy] release_command = "node dist/scripts/enqueue-migrate-all.js"`. No code change here.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add scripts/enqueue-migrate-all.ts
@@ -732,13 +734,13 @@ git commit -m "feat(pipeline): release_command script — migrate app + enqueue 
 
 Cron lives in the **API** service only (per `arc/02 §6`) — guard with an env check so the worker doesn't double-publish.
 
-- [ ] **Step 1: Install scheduler**
+- [x] **Step 1: Install scheduler**
 
 ```bash
 npm install @nestjs/schedule
 ```
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
 
 ```ts
 import { Injectable, Logger } from '@nestjs/common';
@@ -768,7 +770,7 @@ export class DailyPipelineCron {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/pipeline/daily-pipeline.cron.ts package.json
@@ -783,7 +785,7 @@ git commit -m "feat(pipeline): DailyPipelineCron (API-only)"
 
 Used by plan 06 to expose `POST /admin/tenants/:slug/pipeline:start`.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -805,7 +807,7 @@ export class AdminPipelineService {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/pipeline/admin-pipeline.service.ts
@@ -818,7 +820,7 @@ git commit -m "feat(pipeline): AdminPipelineService.startForTenant"
 
 **Files:** `src/pipeline/pipeline-steps.module.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -881,14 +883,14 @@ const CONSUMERS = [
 export class PipelineStepsModule {}
 ```
 
-- [ ] **Step 2: Wire into WorkerModule and AppModule**
+- [x] **Step 2: Wire into WorkerModule and AppModule**
 
 - `WorkerModule` imports `PipelineStepsModule` so it runs the consumers + cron's underlying providers.
 - `AppModule` imports it too so `AdminPipelineService` is available to plan 06's controllers, and the cron runs there (but is guarded by `WORKER_MODE !== '1'`).
 
 > **Note:** `@RabbitSubscribe` decorators only register consumers when the module that contains them is loaded *and* there is an active RMQ connection. The API will declare topology + register consumers, but real consumer work mostly happens on the worker. To avoid duplicate consumption from API + worker, we keep all consumer registration in `PipelineStepsModule` but rely on Fly to split: only the worker app has high concurrency, the API has 1 instance and prefetch is bounded. Acceptable for v1 — see Task 13.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/pipeline/pipeline-steps.module.ts src/app.module.ts src/worker.module.ts
@@ -903,7 +905,7 @@ To prevent the API from also pulling jobs (which would race the worker and break
 
 The cleanest way: in `pipeline-steps.module.ts` build two providers arrays and use a conditional `providers:`.
 
-- [ ] **Step 1: Replace module providers with a factory**
+- [x] **Step 1: Replace module providers with a factory**
 
 ```ts
 import { DynamicModule, Module } from '@nestjs/common';
@@ -931,12 +933,12 @@ export class PipelineStepsModule {
 }
 ```
 
-- [ ] **Step 2: Use it in worker vs api**
+- [x] **Step 2: Use it in worker vs api**
 
 - `WorkerModule`: `PipelineStepsModule.forRoot({ withConsumers: true })`
 - `AppModule`: `PipelineStepsModule.forRoot({ withConsumers: false })`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/pipeline/pipeline-steps.module.ts src/app.module.ts src/worker.module.ts
@@ -947,7 +949,7 @@ git commit -m "refactor(pipeline): consumers register on worker only via forRoot
 
 ### Task 13: End-to-end pipeline smoke test
 
-- [ ] **Step 1: Boot the local stack**
+- [x] **Step 1: Boot the local stack**
 
 ```bash
 docker compose up -d postgres rabbitmq erp
@@ -956,12 +958,12 @@ npm run tenant:create acme || true
 npm run seed:system-admin
 ```
 
-- [ ] **Step 2: Run worker + API in parallel terminals**
+- [x] **Step 2: Run worker + API in parallel terminals**
 
 Terminal 1: `npm run start:dev`
 Terminal 2: `npm run build && WORKER_MODE=1 node dist/main.js`
 
-- [ ] **Step 3: Trigger a run via the publisher**
+- [x] **Step 3: Trigger a run via the publisher**
 
 Quick REPL trigger:
 ```bash
@@ -981,7 +983,7 @@ EOF
 ts-node /tmp/trigger.ts
 ```
 
-- [ ] **Step 4: Verify completion in psql**
+- [x] **Step 4: Verify completion in psql**
 
 ```bash
 psql postgres://app:app@localhost:5432/app -c "
@@ -1005,17 +1007,17 @@ update-base-product-properties
 update-active-ingredient-mat
 ```
 
-- [ ] **Step 5: Commit (no code changes — verification)**
+- [x] **Step 5: Commit (no code changes — verification)**
 
 ---
 
 ## Exit Criteria
 
-- [ ] All 8 step queues + their consumers are registered on the worker only.
-- [ ] `pipeline.start` fans out into `sync-base-product` and `sync-offer-books-info`.
-- [ ] `sync-base-product-stock` and `import-competitor-stock` join via `PipelineJoinService` — `calc-base-product-metrics` runs exactly once when both complete.
-- [ ] `MigrateTenantConsumer` runs `npm run migration:tenant <slug>` on each `*.migrate-tenant` message; the release_command enqueues one per active tenant.
-- [ ] `DailyPipelineCron` (UTC midnight) publishes a `pipeline.start` for every active tenant on the **API** node only.
-- [ ] `AdminPipelineService.startForTenant(slug, userId)` returns a `pipelineRunId` and a full pipeline run completes end-to-end against the docker-compose stack.
-- [ ] No `import_process` row anywhere; `pipeline_run` is the single audit source of truth.
-- [ ] A retry attempt eventually lands in `<step>.dlq` after `MAX_ATTEMPTS` failures (verified manually by making `SyncBaseProductStep.run` throw and watching CloudAMQP's management UI).
+- [x] All 8 step queues + their consumers are registered on the worker only.
+- [x] `pipeline.start` fans out into `sync-base-product` and `sync-offer-books-info`.
+- [x] `sync-base-product-stock` and `import-competitor-stock` join via `PipelineJoinService` — `calc-base-product-metrics` runs exactly once when both complete.
+- [x] `MigrateTenantConsumer` runs `npm run migration:tenant <slug>` on each `*.migrate-tenant` message; the release_command enqueues one per active tenant.
+- [x] `DailyPipelineCron` (UTC midnight) publishes a `pipeline.start` for every active tenant on the **API** node only.
+- [x] `AdminPipelineService.startForTenant(slug, userId)` returns a `pipelineRunId` and a full pipeline run completes end-to-end against the docker-compose stack.
+- [x] No `import_process` row anywhere; `pipeline_run` is the single audit source of truth.
+- [x] A retry attempt eventually lands in `<step>.dlq` after `MAX_ATTEMPTS` failures (verified manually by making `SyncBaseProductStep.run` throw and watching CloudAMQP's management UI).

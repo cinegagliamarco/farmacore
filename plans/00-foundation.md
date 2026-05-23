@@ -1,6 +1,8 @@
 # 00 — Foundation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+> **Status: ✅ Executed.** Plan 00 was executed (see `c873d83..d6d85b3`). The single `main.ts` was later split into `main.http.ts` + `main.worker.ts` (see amendment note below).
 
 > **Amendment (post-execution):** The original plan specified a single `src/main.ts` that switches roles via `WORKER_MODE=1`. After execution this was split into two entry files — `src/main.http.ts` (API) and `src/main.worker.ts` (worker). Both still ship in the same Docker image; the worker Fly app overrides `CMD` to `node dist/main.worker.js`. `main.worker.ts` sets `process.env.WORKER_MODE='1'` at the top so the `DailyPipelineCron` (plan 05) guard keeps the cron API-only. References below to "single `main.ts`" and "`WORKER_MODE=1 node dist/main.js`" should be read with this change in mind. See `plans/README.md` for the current convention.
 
@@ -63,12 +65,12 @@ The scaffold files `src/app.controller.*`, `src/app.service.*`, `src/main.ts` (t
 - Modify: `package.json`
 - Create: `package-lock.json` (npm)
 
-- [ ] **Step 1: Confirm working tree is clean and using npm**
+- [x] **Step 1: Confirm working tree is clean and using npm**
 
 Run: `ls package-lock.json` — should exist (npm default).
 Run: `npm --version` — should print v9+.
 
-- [ ] **Step 2: Install runtime deps**
+- [x] **Step 2: Install runtime deps**
 
 ```bash
 npm install @nestjs/config @nestjs/typeorm typeorm pg \
@@ -76,18 +78,18 @@ npm install @nestjs/config @nestjs/typeorm typeorm pg \
   @nestjs/terminus
 ```
 
-- [ ] **Step 3: Install dev deps**
+- [x] **Step 3: Install dev deps**
 
 ```bash
 npm install -D @types/pg
 ```
 
-- [ ] **Step 4: Verify install + build**
+- [x] **Step 4: Verify install + build**
 
 Run: `npm install && npm run build`
 Expected: build succeeds; `dist/` populated.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add package.json package-lock.json
@@ -101,13 +103,13 @@ git commit -m "chore: install foundation deps"
 **Files:**
 - Delete: `src/app.controller.ts`, `src/app.controller.spec.ts`, `src/app.service.ts`, `src/main.ts`
 
-- [ ] **Step 1: Remove files**
+- [x] **Step 1: Remove files**
 
 ```bash
 rm src/app.controller.ts src/app.controller.spec.ts src/app.service.ts src/main.ts
 ```
 
-- [ ] **Step 2: Strip imports from app.module.ts**
+- [x] **Step 2: Strip imports from app.module.ts**
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -116,7 +118,7 @@ import { Module } from '@nestjs/common';
 export class AppModule {}
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/
@@ -133,7 +135,7 @@ git commit -m "chore: remove nest-new scaffold files"
 - Create: `src/config/config.module.ts`
 - Create: `.env.example`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Create `src/config/env.validation.spec.ts`:
 
@@ -176,12 +178,12 @@ describe('validateEnv', () => {
 });
 ```
 
-- [ ] **Step 2: Run test, expect fail**
+- [x] **Step 2: Run test, expect fail**
 
 Run: `npm test -- src/config/env.validation.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement env.validation.ts**
+- [x] **Step 3: Implement env.validation.ts**
 
 ```ts
 import { plainToInstance } from 'class-transformer';
@@ -252,12 +254,12 @@ export function validateEnv(raw: Record<string, unknown>): EnvVars {
 }
 ```
 
-- [ ] **Step 4: Run test, expect pass**
+- [x] **Step 4: Run test, expect pass**
 
 Run: `npm test -- src/config/env.validation.spec.ts`
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: AppConfigService**
+- [x] **Step 5: AppConfigService**
 
 ```ts
 import { Injectable } from '@nestjs/common';
@@ -287,7 +289,7 @@ export class AppConfigService {
 }
 ```
 
-- [ ] **Step 6: ConfigModule wrapper**
+- [x] **Step 6: ConfigModule wrapper**
 
 ```ts
 import { Global, Module } from '@nestjs/common';
@@ -311,7 +313,7 @@ import { AppConfigService } from './app-config.service';
 export class AppConfigModule {}
 ```
 
-- [ ] **Step 7: .env.example**
+- [x] **Step 7: .env.example**
 
 ```dotenv
 NODE_ENV=development
@@ -329,7 +331,7 @@ R2_BUCKET=farmacore-dev
 R2_KEY_PREFIX=dev/
 ```
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/config/ .env.example
@@ -343,7 +345,7 @@ git commit -m "feat(config): validated env + typed AppConfigService"
 **Files:**
 - Create: `src/database/database.module.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -370,7 +372,7 @@ export class DatabaseModule {}
 
 > Plan 01 extends this with the core entities and switches off `autoLoadEntities` once entities are listed explicitly.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/database/
@@ -386,7 +388,7 @@ git commit -m "feat(db): TypeORM root module"
 - Create: `src/health/health.module.ts`
 - Create: `src/health/health.controller.spec.ts`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { Test } from '@nestjs/testing';
@@ -401,12 +403,12 @@ describe('HealthController', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/health/health.controller.spec.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement controller**
+- [x] **Step 3: Implement controller**
 
 ```ts
 import { Controller, Get } from '@nestjs/common';
@@ -420,7 +422,7 @@ export class HealthController {
 }
 ```
 
-- [ ] **Step 4: Implement module**
+- [x] **Step 4: Implement module**
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -430,12 +432,12 @@ import { HealthController } from './health.controller';
 export class HealthModule {}
 ```
 
-- [ ] **Step 5: Run, expect pass**
+- [x] **Step 5: Run, expect pass**
 
 Run: `npm test -- src/health/health.controller.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/health/
@@ -449,7 +451,7 @@ git commit -m "feat(health): /health endpoint (stub)"
 **Files:**
 - Modify: `src/app.module.ts`
 
-- [ ] **Step 1: Replace content**
+- [x] **Step 1: Replace content**
 
 ```ts
 import { Module, ValidationPipe } from '@nestjs/common';
@@ -469,7 +471,7 @@ export class AppModule {}
 
 > Plan 09 adds `PresentationModule` to the imports list.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/app.module.ts
@@ -483,7 +485,7 @@ git commit -m "feat: compose AppModule"
 **Files:**
 - Create: `src/main.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Logger } from '@nestjs/common';
@@ -520,11 +522,11 @@ bootstrap().catch((err) => {
 > Plan 04 updates this file to import `WorkerModule` for the worker role.
 > Plan 09 adds `catchUnhandledSignals(app)` after construction.
 
-- [ ] **Step 2: Update nest-cli.json entryFile**
+- [x] **Step 2: Update nest-cli.json entryFile**
 
 Set `"entryFile": "main"` in `nest-cli.json`.
 
-- [ ] **Step 3: Smoke test API**
+- [x] **Step 3: Smoke test API**
 
 ```bash
 npm run start:dev
@@ -535,7 +537,7 @@ curl http://localhost:3000/health
 
 Stop the dev server.
 
-- [ ] **Step 4: Smoke test worker**
+- [x] **Step 4: Smoke test worker**
 
 ```bash
 npm run build
@@ -544,7 +546,7 @@ WORKER_MODE=1 node dist/main.js
 # Ctrl+C exits cleanly
 ```
 
-- [ ] **Step 5: Update scripts**
+- [x] **Step 5: Update scripts**
 
 In `package.json`:
 
@@ -555,7 +557,7 @@ In `package.json`:
 "start:worker": "WORKER_MODE=1 node dist/main.js"
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main.ts nest-cli.json package.json
@@ -570,7 +572,7 @@ git commit -m "feat: single entry point with WORKER_MODE switch"
 - Create: `Dockerfile`
 - Create: `.dockerignore`
 
-- [ ] **Step 1: Multi-stage Dockerfile**
+- [x] **Step 1: Multi-stage Dockerfile**
 
 ```dockerfile
 # syntax=docker/dockerfile:1.7
@@ -596,7 +598,7 @@ EXPOSE 3000
 CMD ["node", "dist/main.js"]
 ```
 
-- [ ] **Step 2: .dockerignore**
+- [x] **Step 2: .dockerignore**
 
 ```
 node_modules
@@ -610,12 +612,12 @@ coverage
 .DS_Store
 ```
 
-- [ ] **Step 3: Build image locally**
+- [x] **Step 3: Build image locally**
 
 Run: `docker build -t farmacore:dev .`
 Expected: build succeeds.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Dockerfile .dockerignore
@@ -629,7 +631,7 @@ git commit -m "feat: multi-stage Dockerfile (single image for API + worker)"
 **Files:**
 - Create: `docker-compose.yml`
 
-- [ ] **Step 1: Compose file**
+- [x] **Step 1: Compose file**
 
 ```yaml
 services:
@@ -653,7 +655,7 @@ volumes:
   pgdata:
 ```
 
-- [ ] **Step 2: Bring up and verify**
+- [x] **Step 2: Bring up and verify**
 
 ```bash
 docker compose up -d
@@ -662,7 +664,7 @@ docker compose ps
 psql postgres://app:app@localhost:5432/app -c 'SELECT 1'
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docker-compose.yml
@@ -676,7 +678,7 @@ git commit -m "feat: docker-compose for local postgres + rabbitmq"
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: Replace contents**
+- [x] **Step 1: Replace contents**
 
 ```markdown
 # Farmacore
@@ -706,7 +708,7 @@ Health check: `curl http://localhost:3000/health`.
 - `WORKER_MODE=1 node dist/main.js` — production worker entry
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add README.md
@@ -717,11 +719,11 @@ git commit -m "docs: README quickstart"
 
 ## Exit Criteria
 
-- [ ] `npm test` passes.
-- [ ] `npm run start:dev` boots, `GET /health` returns 200.
-- [ ] `WORKER_MODE=1 node dist/main.js` starts (no consumers yet) and exits cleanly on SIGTERM.
-- [ ] `docker build` succeeds; container starts.
-- [ ] `.env.example` documents every required var; `validateEnv` rejects missing/invalid ones.
-- [ ] `docker compose up` brings up postgres + rabbitmq locally.
-- [ ] **No pino, no winston, no third-party logger dep** — logging arrives in plan 09 via the internal logger abstraction.
-- [ ] **Single `src/main.ts`** — no `main.api.ts` / `main.worker.ts`.
+- [x] `npm test` passes.
+- [x] `npm run start:dev` boots, `GET /health` returns 200.
+- [x] `WORKER_MODE=1 node dist/main.js` starts (no consumers yet) and exits cleanly on SIGTERM.
+- [x] `docker build` succeeds; container starts.
+- [x] `.env.example` documents every required var; `validateEnv` rejects missing/invalid ones.
+- [x] `docker compose up` brings up postgres + rabbitmq locally.
+- [x] **No pino, no winston, no third-party logger dep** — logging arrives in plan 09 via the internal logger abstraction.
+- [x] **Single `src/main.ts`** — no `main.api.ts` / `main.worker.ts`.
