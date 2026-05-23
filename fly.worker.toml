@@ -1,0 +1,28 @@
+# farmacore-worker — RMQ consumers, runs main.worker.ts. Same Docker image
+# as the API app; CMD is overridden via [processes]. No public services.
+#
+# IMPORTANT: JWT_SECRET and INTEGRATION_DB_KEY must match the API app's
+# values — the worker decrypts integration credentials with the same key.
+
+app = "farmacore-worker"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  OTEL_SERVICE_NAME = "farmacore-worker"
+
+[processes]
+  app = "node dist/main.worker.js"
+
+# No [deploy] release_command — migrations only run from the API app to
+# avoid races. The worker comes up after the API release_command finishes.
+
+# No [[services]] block — workers don't accept HTTP.
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 2
+  memory_mb = 2048

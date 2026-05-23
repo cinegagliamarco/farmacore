@@ -1,0 +1,49 @@
+# farmacore-api — public HTTP, runs main.http.ts.
+# Same Docker image as the worker app; CMD is overridden via [processes].
+
+app = "farmacore-api"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  OTEL_SERVICE_NAME = "farmacore-api"
+
+[processes]
+  app = "node dist/main.http.js"
+
+# Release: applies app-level migrations and enqueues per-tenant migrations
+# via RMQ. Runs once per deploy before HTTP traffic is routed to new VMs.
+[deploy]
+  release_command = "node dist/scripts/enqueue-migrate-all.js"
+
+[[services]]
+  internal_port = 3000
+  protocol = "tcp"
+  processes = ["app"]
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+    force_https = true
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.http_checks]]
+    interval = "10s"
+    timeout = "2s"
+    path = "/health"
+    method = "get"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024
