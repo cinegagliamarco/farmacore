@@ -2,7 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-> **Status: ✅ Executed.** Plan 05 was executed. Bundled fixes: `core.pipeline_run.tenant_id` changed to `text`; `Plan 09 AmqpInterceptor` guarded against `@golevelup` shape (passes through when `getChannelRef` is absent). End-to-end smoke confirmed: 8 step rows + 2 `branch.*` rows, all `completed`, join fires exactly once.
+> **Status: ✅ Executed (v1 stubs).** Plan 05 was executed: 8 step consumers + `pipeline.start` fan-out + 2-branch join all in place and green end-to-end (8 step rows + 2 `branch.*` rows per run, `completed`, join fires once). Bundled fixes: `core.pipeline_run.tenant_id` changed to `text`; `Plan 09 AmqpInterceptor` guarded against `@golevelup` shape (passes through when `getChannelRef` is absent).
+>
+> **⚠ Plan 05 v2 — pending.** The step `handle()` methods are still stubs that log and return. Porting the real legacy work needs a different message shape than what v1 ships: the hot steps (`sync-base-product`, `sync-base-product-stock`, `import-competitor-products`, `import-competitor-stock`, `calc-base-product-metrics`, `update-base-product-properties`) fan out over ~36k base_products × 2–3 competitor origins. Legacy keeps that all in one Node process with `global.gc()` calls every 30-50 items — we won't.
+>
+> The v2 design is in [`notes/pipeline-throughput.md`](./notes/pipeline-throughput.md). Summary:
+> - Each heavy step becomes **two queues**: `<step>.dispatch` (one message per run, scans the source, emits N batch messages) and `<step>.batch` (one message per ~500 IDs, does the work and ack's).
+> - The two-branch join in v1 is replaced by a **fan-in counter** on `pipeline_run` (`batches_planned` vs `batches_done` on the dispatch row; the batch that closes the gap publishes the successor).
+> - Scrape steps split **per origin** — `import-competitor-products.drogal`, `…drogasil`, `…michelassi` — so a slow vendor can't head-of-line block the others. Per-origin prefetch is the rate-limit knob: Drogal/Drogasil = 8, Michelassi = 2 (legacy ran Michelassi at batch=1, delay=350ms).
+> - Dispatcher idempotency: the unique index on `pipeline_run` extends to `(runId, step, batch_seq)`. A redelivered dispatcher sees an existing row and exits without double-publishing.
+>
+> See the notes file for the full topology table, message-volume estimates (~108k msgs/run/tenant — dominated by scrape queues), and the rationale on batch size + prefetch.
 
 **Goal:** Implement the 8 step consumers from `arc/02 §3` plus the `pipeline.start` fan-out consumer, the parallel-branch join, the daily cron publisher, and the post-deploy `migrate-tenant` job.
 
