@@ -6,7 +6,7 @@ import { TenantEntity } from '../database/entities/core/tenant.entity';
 import { CredentialEncryptionService } from './credential-encryption.service';
 import { IntegrationDataSourceFactory } from './integration-data-source.factory';
 import { UpsertIntegrationDto } from './dto/upsert-integration.dto';
-import { INTEGRATION_ENTITIES } from './entities';
+import { entitiesForOrigin } from './entities';
 
 @Injectable()
 export class IntegrationConnectionService {
@@ -91,7 +91,7 @@ export class IntegrationConnectionService {
               rejectUnauthorized: row.sslMode === 'verify-full',
               ca: row.sslCaCert ?? undefined,
             },
-      entities: INTEGRATION_ENTITIES,
+      entities: [...entitiesForOrigin(row.origin)],
       synchronize: false,
     });
     try {

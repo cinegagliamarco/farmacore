@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { IntegrationDataSourceFactory } from './integration-data-source.factory';
 import { CredentialEncryptionService } from './credential-encryption.service';
 import { IntegrationDatabaseConnectionEntity } from '../database/entities/core/integration-database-connection.entity';
+import { A7PHARMA_ENTITIES } from './entities';
 
 jest.mock('typeorm', () => {
   const actual = jest.requireActual<typeof import('typeorm')>('typeorm');
@@ -54,6 +55,7 @@ describe('IntegrationDataSourceFactory', () => {
   it('initializes and caches the DataSource', async () => {
     repo.findOne.mockResolvedValue({
       tenantId: 'tid',
+      origin: 'a7pharma',
       host: 'h',
       port: 5432,
       database: 'd',
@@ -73,9 +75,36 @@ describe('IntegrationDataSourceFactory', () => {
     expect(DataSource).toHaveBeenCalledTimes(1);
   });
 
+  it('loads the entity set for the row.origin (a7pharma)', async () => {
+    repo.findOne.mockResolvedValue({
+      tenantId: 'tid',
+      origin: 'a7pharma',
+      host: 'h',
+      port: 5432,
+      database: 'd',
+      username: 'u',
+      passwordEncrypted: cipher,
+      sslMode: 'disable',
+      sslCaCert: null,
+      type: 'postgres',
+      readOnly: false,
+      connectionOptions: {},
+      status: 'active',
+    });
+    await factory.forTenant('tid');
+    const ctorArg = (DataSource as unknown as jest.Mock).mock.calls[0][0] as {
+      entities: unknown[];
+    };
+    expect(ctorArg.entities).toHaveLength(A7PHARMA_ENTITIES.length);
+    expect(ctorArg.entities).toEqual(
+      expect.arrayContaining([...A7PHARMA_ENTITIES]),
+    );
+  });
+
   it('invalidate destroys and removes from cache', async () => {
     repo.findOne.mockResolvedValue({
       tenantId: 'tid',
+      origin: 'a7pharma',
       host: 'h',
       port: 5432,
       database: 'd',

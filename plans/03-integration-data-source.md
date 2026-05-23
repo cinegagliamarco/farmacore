@@ -23,7 +23,7 @@
   - `IntegrationConnectionService` — admin-side CRUD on the row (upsert, disable, test). Consumed by plan 06.
 - **DTOs:**
   - `UpsertIntegrationDto { origin, name, host, port, database, username, password, sslMode?, sslCaCert?, readOnly?, connectionOptions? }` — `origin` is the integration vendor (`IntegrationOrigin.A7PHARMA` in v1).
-- **Integration entities array:** `src/integration/entities/index.ts` exports `INTEGRATION_ENTITIES` — the union of per-vendor entity sets. v1 ships **A7Pharma** only (14 entities ported from `legacy-app/src/database/integration-entities/`); future vendors get their own folder + entity set + enum value.
+- **Integration entities — per tenant, by origin:** each tenant's integration row carries an `origin` (the vendor), and `IntegrationDataSourceFactory` loads only that vendor's entity set into the tenant's `DataSource`. `src/integration/entities/index.ts` exposes `entitiesForOrigin(origin)`; v1 maps `IntegrationOrigin.A7PHARMA → A7PHARMA_ENTITIES` (14 entities ported from `legacy-app/src/database/integration-entities/`). Adding a new vendor = new folder + new enum value + new entry in the `ENTITIES_BY_ORIGIN` map. The previous "union" `INTEGRATION_ENTITIES` was removed because it would have loaded foreign tables into every tenant's connection.
 
 ---
 
@@ -33,7 +33,7 @@
 src/integration/
 ├─ integration.module.ts
 ├─ entities/
-│  ├─ index.ts                              # INTEGRATION_ENTITIES (union)
+│  ├─ index.ts                              # entitiesForOrigin(origin) — per-tenant entity set
 │  ├─ numeric-column.decorator.ts           # shared @NumericColumn (used by all vendor folders)
 │  └─ a7pharma/                             # ported from legacy integration-entities/
 │     ├─ index.ts                           # A7PHARMA_ENTITIES (14 entities)
@@ -162,7 +162,7 @@ git commit -m "feat(integration): AES-256-GCM CredentialEncryptionService"
 - `src/integration/entities/numeric-column.decorator.ts` (shared)
 - `src/integration/entities/a7pharma/*.entity.ts` (14 entities)
 - `src/integration/entities/a7pharma/index.ts` (`A7PHARMA_ENTITIES`)
-- `src/integration/entities/index.ts` (`INTEGRATION_ENTITIES` union)
+- `src/integration/entities/index.ts` (`entitiesForOrigin(origin)` — per-tenant entity set selector)
 
 > **Post-execution amendment:** the original plan punted on real ERP columns with a single placeholder `IntegrationErpProductEntity`. That was replaced by porting the 14 legacy `integration-entities/*.entity.ts` files into `src/integration/entities/a7pharma/`, with a per-vendor folder structure so future ERPs land cleanly. See commit `6ef211a`.
 
@@ -190,14 +190,27 @@ export const A7PHARMA_ENTITIES = [
 ];
 ```
 
-- [x] **Step 4: Top-level union**
+- [x] **Step 4: Per-origin selector**
 
-`src/integration/entities/index.ts`:
+`src/integration/entities/index.ts` — the factory loads the entity set matching the tenant row's `origin`. A new vendor adds one line to `ENTITIES_BY_ORIGIN`.
+
 ```ts
+import { IntegrationOrigin } from '../../database/enums/integration-origin.enum';
 import { A7PHARMA_ENTITIES } from './a7pharma';
-export { A7PHARMA_ENTITIES };
+
+export { A7PHARMA_ENTITIES } from './a7pharma';
 export { NumericColumn, numericTransformer } from './numeric-column.decorator';
-export const INTEGRATION_ENTITIES = [...A7PHARMA_ENTITIES];
+
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+type EntityList = ReadonlyArray<Function>;
+
+const ENTITIES_BY_ORIGIN: Record<IntegrationOrigin, EntityList> = {
+  [IntegrationOrigin.A7PHARMA]: A7PHARMA_ENTITIES,
+};
+
+export function entitiesForOrigin(origin: IntegrationOrigin): EntityList {
+  return ENTITIES_BY_ORIGIN[origin];
+}
 ```
 
 - [x] **Step 5: Commit**
@@ -304,7 +317,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { IntegrationDatabaseConnectionEntity } from '../database/entities/core/integration-database-connection.entity';
 import { CredentialEncryptionService } from './credential-encryption.service';
-import { INTEGRATION_ENTITIES } from './entities';
+import { entitiesForOrigin } from './entities';
 
 @Injectable()
 export class IntegrationDataSourceFactory implements OnModuleDestroy {
@@ -340,7 +353,7 @@ export class IntegrationDataSourceFactory implements OnModuleDestroy {
             rejectUnauthorized: row.sslMode === 'verify-full',
             ca: row.sslCaCert ?? undefined,
           },
-      entities: INTEGRATION_ENTITIES,
+      entities: [...entitiesForOrigin(row.origin)],
       synchronize: false,
       logging: false,
       extra: { ...(row.connectionOptions ?? {}), max: poolSize },
@@ -460,7 +473,7 @@ import { TenantEntity } from '../database/entities/core/tenant.entity';
 import { CredentialEncryptionService } from './credential-encryption.service';
 import { IntegrationDataSourceFactory } from './integration-data-source.factory';
 import { UpsertIntegrationDto } from './dto/upsert-integration.dto';
-import { INTEGRATION_ENTITIES } from './entities';
+import { entitiesForOrigin } from './entities';
 
 @Injectable()
 export class IntegrationConnectionService {
@@ -525,7 +538,7 @@ export class IntegrationConnectionService {
       type: 'postgres',
       host: row.host, port: row.port, database: row.database, username: row.username, password,
       ssl: row.sslMode === 'disable' ? false : { rejectUnauthorized: row.sslMode === 'verify-full', ca: row.sslCaCert ?? undefined },
-      entities: INTEGRATION_ENTITIES,
+      entities: [...entitiesForOrigin(row.origin)],
       synchronize: false,
     });
     try {

@@ -4,7 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 import { IntegrationDatabaseConnectionEntity } from '../database/entities/core/integration-database-connection.entity';
 import { TenantEntity } from '../database/entities/core/tenant.entity';
 import { CredentialEncryptionService } from './credential-encryption.service';
-import { INTEGRATION_ENTITIES } from './entities';
+import { entitiesForOrigin } from './entities';
 
 @Injectable()
 export class IntegrationDataSourceFactory implements OnModuleDestroy {
@@ -45,7 +45,7 @@ export class IntegrationDataSourceFactory implements OnModuleDestroy {
               rejectUnauthorized: row.sslMode === 'verify-full',
               ca: row.sslCaCert ?? undefined,
             },
-      entities: INTEGRATION_ENTITIES,
+      entities: [...entitiesForOrigin(row.origin)],
       synchronize: false,
       logging: false,
       extra: { ...(row.connectionOptions ?? {}), max: poolSize },
@@ -58,7 +58,7 @@ export class IntegrationDataSourceFactory implements OnModuleDestroy {
 
     this.cache.set(tenantId, dataSource);
     this.logger.log(
-      `Initialized integration DataSource for tenant ${tenantId}`,
+      `Initialized integration DataSource for tenant ${tenantId} (origin=${row.origin})`,
     );
     return dataSource;
   }
