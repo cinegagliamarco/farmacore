@@ -194,10 +194,10 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"ERP\",\n  \"host\": \"localhost\",\n  \"port\": 5435,\n  \"database\": \"erp\",\n  \"username\": \"erp\",\n  \"password\": \"erp\",\n  \"sslMode\": \"disable\",\n  \"readOnly\": true\n}"
+              "raw": "{\n  \"origin\": \"a7pharma\",\n  \"name\": \"ERP\",\n  \"host\": \"localhost\",\n  \"port\": 5435,\n  \"database\": \"erp\",\n  \"username\": \"erp\",\n  \"password\": \"erp\",\n  \"sslMode\": \"disable\",\n  \"readOnly\": true\n}"
             },
             "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/integration", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "integration"] },
-            "description": "Upserts the tenant's ERP connection. Password is encrypted with AES-256-GCM via CredentialEncryptionService. Invalidates the per-tenant DataSource cache. Returns `{ status }`."
+            "description": "Upserts the tenant's ERP connection. `origin` selects the vendor entity set (v1: `a7pharma`). Password is encrypted with AES-256-GCM via CredentialEncryptionService. Invalidates the per-tenant DataSource cache. Returns `{ status }`."
           },
           "response": []
         },

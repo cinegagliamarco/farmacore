@@ -155,6 +155,7 @@ curl -sS -X PUT "http://localhost:3000/admin/tenants/acme/integration" \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
+    "origin": "a7pharma",
     "name": "Local ERP",
     "host": "localhost",
     "port": 5435,
@@ -169,6 +170,8 @@ curl -sS -X POST "http://localhost:3000/admin/tenants/acme/integration/test" \
   -H "Authorization: Bearer $TOKEN"
 # → { "ok": true }
 ```
+
+> `origin` identifies the ERP vendor (the entity set the worker uses when it connects). v1 supports `"a7pharma"` only; new vendors land as new `IntegrationOrigin` enum values + their own folder under `src/integration/entities/`.
 
 ### 5.5 Enable competitor origins
 

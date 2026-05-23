@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-> **Status: ✅ Executed.** Plan 01 was executed. Post-execution amendments: (1) `external_id` moved from `shared_catalog.product` to a new `tenant_base_product` table per the arc doc (commit `41b2c81`); (2) `pipeline_run.tenant_id` changed from `uuid` to `text` to match the message-carried slug (commit `3ce3c0a`).
+> **Status: ✅ Executed.** Plan 01 was executed. Post-execution amendments: (1) `external_id` moved from `shared_catalog.product` to a new `tenant_base_product` table per the arc doc (commit `41b2c81`); (2) `pipeline_run.tenant_id` changed from `uuid` to `text` to match the message-carried slug (commit `3ce3c0a`); (3) `integration_database_connection.origin` column added (text, `CHECK origin IN ('a7pharma')`) so each ERP connection records its vendor (commit `25b1fab`).
 
 **Goal:** Build the database layer — three Postgres schemas (`core`, `shared_catalog`, `tenant_<slug>`), all TypeORM entities, migrations, and a migration runner that targets per-tenant schemas.
 
@@ -289,6 +289,9 @@ export class IntegrationDatabaseConnectionEntity extends BaseEntity {
   @ManyToOne(() => TenantEntity)
   @JoinColumn({ name: 'tenant_id' })
   public tenant?: TenantEntity;
+
+  @Column({ type: 'text' })
+  public origin!: IntegrationOrigin; // tenant ERP vendor: 'a7pharma' (only value in v1)
 
   @Column({ type: 'text' })
   public name!: string;
@@ -1037,6 +1040,7 @@ export class InitAppMeta1700000000000 implements MigrationInterface {
       CREATE TABLE core.integration_database_connection (
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         tenant_id uuid NOT NULL REFERENCES core.tenant(id) ON DELETE CASCADE,
+        origin text NOT NULL,                      -- IntegrationOrigin enum, v1: only 'a7pharma'
         name text NOT NULL,
         type text NOT NULL DEFAULT 'postgres',
         host text NOT NULL,
@@ -1053,7 +1057,8 @@ export class InitAppMeta1700000000000 implements MigrationInterface {
         last_error text,
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now(),
-        deleted_at timestamptz
+        deleted_at timestamptz,
+        CONSTRAINT chk_integration_origin CHECK (origin IN ('a7pharma'))
       );
       CREATE UNIQUE INDEX "UQ_INTEGRATION_DB_TENANT" ON core.integration_database_connection(tenant_id);
     `);

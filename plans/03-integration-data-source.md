@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-> **Status: ✅ Executed.** Plan 03 was executed. Deviation: docker-compose ERP service uses host port `5435` (plan said `5433`) to avoid collision with our farmacore postgres.
+> **Status: ✅ Executed.** Plan 03 was executed with two post-execution amendments: (1) docker-compose ERP service uses host port `5435` (plan said `5433`) to avoid collision with our farmacore postgres; (2) the placeholder `IntegrationErpProductEntity` was replaced by porting the 14 legacy `integration-entities/*.entity.ts` files into `src/integration/entities/a7pharma/`, plus an `origin` column on `core.integration_database_connection` (enum `IntegrationOrigin`, v1 values: `'a7pharma'`). Per-vendor folder structure leaves room for additional ERPs.
 
 **Goal:** Per-tenant, runtime-configurable ERP database connections. Replaces the prototype's hardcoded `INTEGRATION_DATABASE_URL` with rows in `core.integration_database_connection` (entity already created in plan 01) and a factory that builds and caches `DataSource`s per tenant. Passwords are encrypted at rest with AES-256-GCM.
 
@@ -22,8 +22,8 @@
   - `IntegrationDataSourceFactory` — `forTenant(tenantId: string): Promise<DataSource | null>`, `invalidate(tenantId: string): Promise<void>`.
   - `IntegrationConnectionService` — admin-side CRUD on the row (upsert, disable, test). Consumed by plan 06.
 - **DTOs:**
-  - `UpsertIntegrationDto { name, host, port, database, username, password, sslMode?, sslCaCert?, readOnly?, connectionOptions? }`
-- **Integration entities array:** `src/integration/entities/index.ts` exports `INTEGRATION_ENTITIES` — currently empty in v1 (ERP-side reads happen via raw queries from pipeline steps in plan 05; entities are added when a step needs them). A placeholder `IntegrationErpProductEntity` is included as documentation/example.
+  - `UpsertIntegrationDto { origin, name, host, port, database, username, password, sslMode?, sslCaCert?, readOnly?, connectionOptions? }` — `origin` is the integration vendor (`IntegrationOrigin.A7PHARMA` in v1).
+- **Integration entities array:** `src/integration/entities/index.ts` exports `INTEGRATION_ENTITIES` — the union of per-vendor entity sets. v1 ships **A7Pharma** only (14 entities ported from `legacy-app/src/database/integration-entities/`); future vendors get their own folder + entity set + enum value.
 
 ---
 
@@ -33,8 +33,24 @@
 src/integration/
 ├─ integration.module.ts
 ├─ entities/
-│  ├─ index.ts                              # exports INTEGRATION_ENTITIES
-│  └─ integration-erp-product.entity.ts     # example/placeholder
+│  ├─ index.ts                              # INTEGRATION_ENTITIES (union)
+│  ├─ numeric-column.decorator.ts           # shared @NumericColumn (used by all vendor folders)
+│  └─ a7pharma/                             # ported from legacy integration-entities/
+│     ├─ index.ts                           # A7PHARMA_ENTITIES (14 entities)
+│     ├─ caderno-oferta.entity.ts
+│     ├─ classificacao.entity.ts
+│     ├─ classificacao-produto.entity.ts
+│     ├─ custo-produto.entity.ts
+│     ├─ embalagem.entity.ts
+│     ├─ estoque.entity.ts
+│     ├─ fabricante.entity.ts
+│     ├─ item-caderno-oferta.entity.ts
+│     ├─ item-caderno-oferta-quantidade.entity.ts
+│     ├─ item-recebimento-fisico.entity.ts
+│     ├─ pessoa.entity.ts
+│     ├─ principio-ativo.entity.ts
+│     ├─ produto.entity.ts
+│     └─ recebimento-fisico.entity.ts
 ├─ credential-encryption.service.ts
 ├─ credential-encryption.service.spec.ts
 ├─ integration-data-source.factory.ts
@@ -140,43 +156,55 @@ git commit -m "feat(integration): AES-256-GCM CredentialEncryptionService"
 
 ---
 
-### Task 2: Integration entities array
+### Task 2: Integration entities — per-vendor folders
 
-**Files:** `src/integration/entities/index.ts`, `src/integration/entities/integration-erp-product.entity.ts`
+**Files:**
+- `src/integration/entities/numeric-column.decorator.ts` (shared)
+- `src/integration/entities/a7pharma/*.entity.ts` (14 entities)
+- `src/integration/entities/a7pharma/index.ts` (`A7PHARMA_ENTITIES`)
+- `src/integration/entities/index.ts` (`INTEGRATION_ENTITIES` union)
 
-- [x] **Step 1: Example ERP entity (placeholder; refine in plan 05)**
+> **Post-execution amendment:** the original plan punted on real ERP columns with a single placeholder `IntegrationErpProductEntity`. That was replaced by porting the 14 legacy `integration-entities/*.entity.ts` files into `src/integration/entities/a7pharma/`, with a per-vendor folder structure so future ERPs land cleanly. See commit `6ef211a`.
 
+- [x] **Step 1: Shared `NumericColumn` decorator**
+
+`src/integration/entities/numeric-column.decorator.ts` — PG returns `NUMERIC` as string over the wire, transformer parses to number. Reused across all vendor entity folders.
+
+- [x] **Step 2: Port legacy A7Pharma entities**
+
+For each file in `legacy-app/src/database/integration-entities/`, create the same entity under `src/integration/entities/a7pharma/`:
+- Rename `XxxTypeormEntity` → `XxxEntity`.
+- Keep Portuguese class + property names (they map 1:1 to the A7Pharma DB columns).
+- All entities are `synchronize: false` (schema is owned by the customer ERP).
+
+- [x] **Step 3: Vendor barrel**
+
+`src/integration/entities/a7pharma/index.ts`:
 ```ts
-// Example shape — the real ERP columns are added in plan 05 when individual steps need them.
-// Kept here so INTEGRATION_ENTITIES isn't empty and TypeORM connects cleanly.
-import { Column, Entity, PrimaryColumn } from 'typeorm';
-
-@Entity({ name: 'erp_product', synchronize: false })
-export class IntegrationErpProductEntity {
-  @PrimaryColumn({ type: 'text' })
-  public id!: string;
-
-  @Column({ type: 'text', nullable: true })
-  public ean?: string | null;
-
-  @Column({ type: 'text', nullable: true })
-  public name?: string | null;
-}
+export const A7PHARMA_ENTITIES = [
+  CadernoOfertaEntity, ClassificacaoEntity, ClassificacaoProdutoEntity,
+  CustoProdutoEntity, EmbalagemEntity, EstoqueEntity, FabricanteEntity,
+  ItemCadernoOfertaEntity, ItemCadernoOfertaQuantidadeEntity,
+  ItemRecebimentoFisicoEntity, PessoaEntity, PrincipioAtivoEntity,
+  ProdutoEntity, RecebimentoFisicoEntity,
+];
 ```
 
-- [x] **Step 2: Index**
+- [x] **Step 4: Top-level union**
 
+`src/integration/entities/index.ts`:
 ```ts
-import { IntegrationErpProductEntity } from './integration-erp-product.entity';
-
-export const INTEGRATION_ENTITIES = [IntegrationErpProductEntity];
+import { A7PHARMA_ENTITIES } from './a7pharma';
+export { A7PHARMA_ENTITIES };
+export { NumericColumn, numericTransformer } from './numeric-column.decorator';
+export const INTEGRATION_ENTITIES = [...A7PHARMA_ENTITIES];
 ```
 
-- [x] **Step 3: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/integration/entities/
-git commit -m "feat(integration): entity list (placeholder ERP product)"
+git commit -m "feat(integration): port 14 A7Pharma entities into entities/a7pharma/"
 ```
 
 ---
@@ -366,10 +394,14 @@ git commit -m "feat(integration): IntegrationDataSourceFactory with cache + inva
 - [x] **Step 1: Implement**
 
 ```ts
-import { IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Length, Max, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsObject, IsOptional, IsString, Length, Max, Min } from 'class-validator';
 import type { SslMode } from '../../database/entities/core/integration-database-connection.entity';
+import { IntegrationOrigin } from '../../database/enums/integration-origin.enum';
 
 export class UpsertIntegrationDto {
+  @IsEnum(IntegrationOrigin)
+  origin!: IntegrationOrigin;          // vendor: v1 supports 'a7pharma' only
+
   @IsString() @Length(1, 200)
   name!: string;
 
