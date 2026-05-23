@@ -33,6 +33,7 @@ export class IntegrationConnectionService {
     });
     const payload: Partial<IntegrationDatabaseConnectionEntity> = {
       tenantId: tenant.id,
+      origin: dto.origin,
       name: dto.name,
       type: 'postgres',
       host: dto.host,

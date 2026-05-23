@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { WorkerModule } from '../src/worker.module';
 import { IntegrationConnectionService } from '../src/integration/integration-connection.service';
 import { IntegrationDataSourceFactory } from '../src/integration/integration-data-source.factory';
+import { IntegrationOrigin } from '../src/database/enums/integration-origin.enum';
 
 async function main(): Promise<void> {
   const app = await NestFactory.createApplicationContext(WorkerModule);
@@ -14,6 +15,7 @@ async function main(): Promise<void> {
   const port = Number(process.env.SMOKE_ERP_PORT ?? 5435);
 
   await conn.upsert(slug, {
+    origin: IntegrationOrigin.A7PHARMA,
     name: 'Local ERP',
     host,
     port,

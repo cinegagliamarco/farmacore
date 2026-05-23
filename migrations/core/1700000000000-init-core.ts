@@ -26,6 +26,7 @@ export class InitCore1700000000000 implements MigrationInterface {
       CREATE TABLE core.integration_database_connection (
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         tenant_id uuid NOT NULL REFERENCES core.tenant(id) ON DELETE CASCADE,
+        origin text NOT NULL,
         name text NOT NULL,
         type text NOT NULL DEFAULT 'postgres',
         host text NOT NULL,
@@ -42,7 +43,8 @@ export class InitCore1700000000000 implements MigrationInterface {
         last_error text,
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now(),
-        deleted_at timestamptz
+        deleted_at timestamptz,
+        CONSTRAINT chk_integration_origin CHECK (origin IN ('a7pharma'))
       );
       CREATE UNIQUE INDEX "UQ_INTEGRATION_DB_TENANT" ON core.integration_database_connection(tenant_id);
     `);

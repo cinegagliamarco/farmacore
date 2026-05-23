@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsEnum,
   IsIn,
   IsInt,
   IsObject,
@@ -10,8 +11,12 @@ import {
   Min,
 } from 'class-validator';
 import type { SslMode } from '../../database/entities/core/integration-database-connection.entity';
+import { IntegrationOrigin } from '../../database/enums/integration-origin.enum';
 
 export class UpsertIntegrationDto {
+  @IsEnum(IntegrationOrigin)
+  origin!: IntegrationOrigin;
+
   @IsString()
   @Length(1, 200)
   name!: string;

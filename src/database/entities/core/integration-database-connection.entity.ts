@@ -1,6 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
 import { TenantEntity } from './tenant.entity';
+import { IntegrationOrigin } from '../../enums/integration-origin.enum';
 
 export type IntegrationDbType = 'postgres';
 export type SslMode = 'disable' | 'require' | 'verify-full';
@@ -15,6 +16,9 @@ export class IntegrationDatabaseConnectionEntity extends BaseEntity {
   @ManyToOne(() => TenantEntity)
   @JoinColumn({ name: 'tenant_id' })
   public tenant?: TenantEntity;
+
+  @Column({ type: 'text' })
+  public origin!: IntegrationOrigin;
 
   @Column({ type: 'text' })
   public name!: string;
