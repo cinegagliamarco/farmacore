@@ -16,7 +16,9 @@ describe('Admin tenant onboarding (e2e)', () => {
       imports: [AppModule],
     }).compile();
     app = mod.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
     ds = app.get(DataSource);
 
@@ -54,7 +56,9 @@ describe('Admin tenant onboarding (e2e)', () => {
     expect(res.body.slug).toBe(slug);
     expect(res.body.schemaName).toBe(`tenant_${slug.replace(/-/g, '_')}`);
     expect(res.body.initialAdminUser.email).toBe(`admin@${slug}.test`);
-    expect(res.body.initialAdminUser.oneTimePassword).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(res.body.initialAdminUser.oneTimePassword).toMatch(
+      /^[A-Za-z0-9_-]+$/,
+    );
 
     const rows: Array<{ count: string }> = await ds.query(
       `SELECT count(*)::text AS count FROM ${res.body.schemaName}.tenant_competitor_origin`,

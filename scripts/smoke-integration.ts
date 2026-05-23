@@ -29,7 +29,11 @@ async function main(): Promise<void> {
 
   const ds = await factory.forTenantSlug(slug);
   if (!ds) throw new Error('no datasource');
-  const rows: unknown = await ds.query('SELECT id, ean, name FROM erp_product');
+  // Connection-plumbing smoke only. Per-table reads against A7Pharma's real
+  // schema (produto / embalagem / estoque / ...) live in the pipeline steps
+  // that need them (plan 05); the local docker erp does not have that
+  // schema seeded.
+  const rows: unknown = await ds.query('SELECT 1 AS ok');
   console.log('rows:', rows);
   await app.close();
 }
