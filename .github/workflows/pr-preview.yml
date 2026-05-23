@@ -1,0 +1,38 @@
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+
+jobs:
+  branch:
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - uses: neondatabase/create-branch-action@v5
+        id: branch
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          branch_name: pr-${{ github.event.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+      - name: Run migrations against PR branch
+        env:
+          DATABASE_URL: ${{ steps.branch.outputs.db_url_pooled }}
+          DATABASE_DIRECT_URL: ${{ steps.branch.outputs.db_url }}
+        run: npm run migration:run:app
+
+  cleanup:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+    steps:
+      - uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          branch_name: pr-${{ github.event.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}
