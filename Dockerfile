@@ -8,7 +8,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build && npm prune --production
+RUN npm run build && npm run build:scripts && npm prune --production
 
 FROM node:20-alpine AS runtime
 WORKDIR /app
