@@ -2,7 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-> **Status: ✅ Executed.** Plan 03 was executed with two post-execution amendments: (1) docker-compose ERP service uses host port `5435` (plan said `5433`) to avoid collision with our farmacore postgres; (2) the placeholder `IntegrationErpProductEntity` was replaced by porting the 14 legacy `integration-entities/*.entity.ts` files into `src/integration/entities/a7pharma/`, plus an `origin` column on `core.integration_database_connection` (enum `IntegrationOrigin`, v1 values: `'a7pharma'`). Per-vendor folder structure leaves room for additional ERPs.
+> **Status: ✅ Executed.** Plan 03 was executed with three post-execution amendments:
+> 1. docker-compose ERP service uses host port `5435` (plan said `5433`) to avoid collision with our farmacore postgres.
+> 2. The placeholder `IntegrationErpProductEntity` was replaced by porting the 14 legacy `integration-entities/*.entity.ts` files into `src/integration/entities/a7pharma/`, plus an `origin` column on `core.integration_database_connection` (enum `IntegrationOrigin`, v1 values: `'a7pharma'`). Per-vendor folder structure leaves room for additional ERPs.
+> 3. **Integration is per-tenant — each row's `origin` drives the entity set loaded into that tenant's `DataSource`.** Tenants on the same Farmacore install can point at different ERP vendors; first wave uses A7Pharma, future tenants can use a different `IntegrationOrigin` value. The earlier union export `INTEGRATION_ENTITIES` was removed; the factory now calls `entitiesForOrigin(row.origin)`. Commits: `25b1fab`, `dd8bdf7`.
 
 **Goal:** Per-tenant, runtime-configurable ERP database connections. Replaces the prototype's hardcoded `INTEGRATION_DATABASE_URL` with rows in `core.integration_database_connection` (entity already created in plan 01) and a factory that builds and caches `DataSource`s per tenant. Passwords are encrypted at rest with AES-256-GCM.
 

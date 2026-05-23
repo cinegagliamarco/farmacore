@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-> **Status: ✅ Executed.** Plan 01 was executed. Post-execution amendments: (1) `external_id` moved from `shared_catalog.product` to a new `tenant_base_product` table per the arc doc (commit `41b2c81`); (2) `pipeline_run.tenant_id` changed from `uuid` to `text` to match the message-carried slug (commit `3ce3c0a`); (3) `integration_database_connection.origin` column added (text, `CHECK origin IN ('a7pharma')`) so each ERP connection records its vendor (commit `25b1fab`).
+> **Status: ✅ Executed.** Plan 01 was executed. Post-execution amendments: (1) `external_id` moved from `shared_catalog.product` to a new `tenant_base_product` table per the arc doc (commit `41b2c81`); (2) `pipeline_run.tenant_id` changed from `uuid` to `text` to match the message-carried slug (commit `3ce3c0a`); (3) `integration_database_connection.origin` column added (text, `CHECK origin IN ('a7pharma')`) so **each tenant records which ERP vendor its connection points at** — different tenants on the same install can use different vendors; the integration data-source factory loads only the entity set matching each row's `origin` (see plan 03). Commits: `25b1fab`, `dd8bdf7`.
 
 **Goal:** Build the database layer — three Postgres schemas (`core`, `shared_catalog`, `tenant_<slug>`), all TypeORM entities, migrations, and a migration runner that targets per-tenant schemas.
 

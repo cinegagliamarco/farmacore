@@ -171,7 +171,7 @@ curl -sS -X POST "http://localhost:3000/admin/tenants/acme/integration/test" \
 # → { "ok": true }
 ```
 
-> `origin` identifies the ERP vendor (the entity set the worker uses when it connects). v1 supports `"a7pharma"` only; new vendors land as new `IntegrationOrigin` enum values + their own folder under `src/integration/entities/`.
+> **Per tenant, not global.** Each tenant has its own integration row, and `origin` selects the entity set the worker loads when it connects to *that* tenant's ERP. The first wave of tenants is on `"a7pharma"`; subsequent tenants can be on a different vendor without touching the others — the factory keys the entity set by `row.origin` (see `src/integration/entities/index.ts → entitiesForOrigin`). Adding a vendor = new folder under `src/integration/entities/<vendor>/` + new `IntegrationOrigin` enum value + one entry in `ENTITIES_BY_ORIGIN` + relax the migration's `CHECK origin IN (...)`.
 
 ### 5.5 Enable competitor origins
 
@@ -387,6 +387,7 @@ src/
 ├─ database/                    # entities + TypeORM data source
 ├─ health/                      # /health
 ├─ integration/                 # per-tenant ERP DataSource factory (plan 03)
+│                                # entities/<vendor>/ — one folder per IntegrationOrigin (v1: a7pharma)
 ├─ interfaces/                  # DI tokens + interfaces
 ├─ pipeline/                    # 8 step consumers + cron + admin trigger (plan 05)
 ├─ presentation/                # interceptors + InternalLogger (plan 09)
