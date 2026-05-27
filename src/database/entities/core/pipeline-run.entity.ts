@@ -29,6 +29,12 @@ export class PipelineRunEntity extends BaseEntity {
   @Column({ name: 'batch_seq', type: 'int', default: 0 })
   public batchSeq!: number;
 
+  @Column({ name: 'batches_planned', type: 'int', nullable: true })
+  public batchesPlanned?: number | null;
+
+  @Column({ name: 'batches_done', type: 'int', default: 0 })
+  public batchesDone!: number;
+
   @Column({ name: 'started_at', type: 'timestamptz' })
   public startedAt!: Date;
 
