@@ -87,7 +87,7 @@ export class ProductRepository {
       .getRepository(ProductEntity)
       .createQueryBuilder('p')
       .select('p.ean', 'ean')
-      .orderBy('tp.ean', 'ASC')
+      .orderBy('p.ean', 'ASC')
       .getRawMany();
     return rows.map((r) => String(r.ean));
   }
@@ -169,8 +169,8 @@ export class ProductRepository {
       .getRepository(ProductEntity)
       .createQueryBuilder('p')
       .select('p.ean', 'ean')
-      .where(`tp.${column} IS NULL`)
-      .orderBy('tp.ean', 'ASC')
+      .where(`p.${column} IS NULL`)
+      .orderBy('p.ean', 'ASC')
       .getRawMany();
     return rows.map((r) => String(r.ean));
   }
