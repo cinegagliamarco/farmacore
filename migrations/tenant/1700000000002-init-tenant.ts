@@ -35,6 +35,9 @@ export class InitTenant1700000000002 implements MigrationInterface {
         monitored boolean NOT NULL DEFAULT false,
         classification_id uuid,
         deals jsonb,
+        margin numeric(8,4),
+        average_variation numeric(8,4),
+        status text,
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now(),
         deleted_at timestamptz

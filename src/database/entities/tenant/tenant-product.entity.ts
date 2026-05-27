@@ -72,6 +72,21 @@ export class TenantProductEntity extends BaseEntity {
 
   @Column({ type: 'jsonb', nullable: true })
   public deals?: Record<string, TenantProductDeal> | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  public margin?: string | null;
+
+  @Column({
+    name: 'average_variation',
+    type: 'numeric',
+    precision: 8,
+    scale: 4,
+    nullable: true,
+  })
+  public averageVariation?: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  public status?: string | null;
 }
 
 export interface TenantProductDeal {
