@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppConfigService } from '../config/app-config.service';
 import { PipelineRunEntity } from '../database/entities/core/pipeline-run.entity';
 import {
+  BATCHED_STEPS,
   DLX_NAME,
   EXCHANGE_NAME,
   MIGRATE_TENANT_QUEUE,
@@ -11,6 +12,8 @@ import {
   RETRY_DELAYS_MS,
   STEP_PREFETCH,
   STEP_QUEUES,
+  batchStep,
+  dispatchStep,
 } from './constants';
 import { delayQueueName } from './retry.service';
 import { PipelinePublisher } from './pipeline-publisher.service';
@@ -31,6 +34,12 @@ import { RetryService } from './retry.service';
             STEP_QUEUES.map((step) => [
               step,
               { prefetchCount: STEP_PREFETCH[step] },
+            ]),
+          ),
+          ...Object.fromEntries(
+            BATCHED_STEPS.flatMap((step) => [
+              [dispatchStep(step), { prefetchCount: STEP_PREFETCH[dispatchStep(step)] }],
+              [batchStep(step), { prefetchCount: STEP_PREFETCH[batchStep(step)] }],
             ]),
           ),
           'migrate-tenant': { prefetchCount: 10 },
@@ -76,6 +85,46 @@ import { RetryService } from './retry.service';
               },
             })),
           ]),
+          // v2 dispatcher/batch queues per BATCHED_STEPS. Each gets the
+          // same DLX + retry-delay queue set as a v1 step queue.
+          ...BATCHED_STEPS.flatMap((step) =>
+            [dispatchStep(step), batchStep(step)].flatMap((q) => [
+              {
+                name: q,
+                exchange: EXCHANGE_NAME,
+                routingKey: `*.${q}`,
+                createQueueIfNotExists: true,
+                options: {
+                  durable: true,
+                  arguments: {
+                    'x-dead-letter-exchange': DLX_NAME,
+                    'x-dead-letter-routing-key': q,
+                  },
+                },
+              },
+              {
+                name: `${q}.dlq`,
+                exchange: DLX_NAME,
+                routingKey: `*.${q}`,
+                createQueueIfNotExists: true,
+                options: { durable: true },
+              },
+              ...RETRY_DELAYS_MS.map((ms) => ({
+                name: delayQueueName(q, ms),
+                exchange: '',
+                routingKey: delayQueueName(q, ms),
+                createQueueIfNotExists: true,
+                options: {
+                  durable: true,
+                  arguments: {
+                    'x-message-ttl': ms,
+                    'x-dead-letter-exchange': EXCHANGE_NAME,
+                    'x-dead-letter-routing-key': `retry.${q}`,
+                  },
+                },
+              })),
+            ]),
+          ),
           {
             name: PIPELINE_START_QUEUE,
             exchange: EXCHANGE_NAME,

@@ -7,7 +7,6 @@ import {
 } from '../../queue/batch-pipeline.consumer';
 import {
   EXCHANGE_NAME,
-  STEP_PREFETCH,
   batchStep,
   dispatchStep,
 } from '../../queue/constants';
@@ -46,9 +45,7 @@ export class SyncBaseProductBatchConsumer extends BatchPipelineConsumer<SyncBase
     routingKey: `*.${BATCH_QUEUE}`,
     createQueueIfNotExists: false,
     queue: BATCH_QUEUE,
-    queueOptions: {
-      channel: BATCH_QUEUE,
-    },
+    queueOptions: { channel: BATCH_QUEUE },
   })
   public consume(
     message: PipelineMessage<SyncBaseProductBatchPayload>,
@@ -79,6 +76,4 @@ export class SyncBaseProductBatchConsumer extends BatchPipelineConsumer<SyncBase
       }),
     ]);
   }
-
-  protected static readonly _prefetchAck = STEP_PREFETCH[BATCH_QUEUE];
 }

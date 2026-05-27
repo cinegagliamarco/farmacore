@@ -7,7 +7,6 @@ import {
 } from '../../queue/dispatch-pipeline.consumer';
 import {
   EXCHANGE_NAME,
-  STEP_PREFETCH,
   batchStep,
   dispatchStep,
 } from '../../queue/constants';
@@ -62,9 +61,7 @@ export class SyncBaseProductStockDispatchConsumer extends DispatchPipelineConsum
     routingKey: `*.${DISPATCH_QUEUE}`,
     createQueueIfNotExists: false,
     queue: DISPATCH_QUEUE,
-    queueOptions: {
-      channel: DISPATCH_QUEUE,
-    },
+    queueOptions: { channel: DISPATCH_QUEUE },
   })
   public consume(message: PipelineMessage): Promise<void> {
     return this.process(message);
@@ -102,6 +99,4 @@ export class SyncBaseProductStockDispatchConsumer extends DispatchPipelineConsum
     );
     return { batches };
   }
-
-  protected static readonly _prefetchAck = STEP_PREFETCH[DISPATCH_QUEUE];
 }

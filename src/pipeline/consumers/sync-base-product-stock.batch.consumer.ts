@@ -5,12 +5,7 @@ import {
   BatchPipelineConsumer,
   LastBatchContext,
 } from '../../queue/batch-pipeline.consumer';
-import {
-  EXCHANGE_NAME,
-  STEP_PREFETCH,
-  batchStep,
-  dispatchStep,
-} from '../../queue/constants';
+import { EXCHANGE_NAME, batchStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
@@ -59,9 +54,7 @@ export class SyncBaseProductStockBatchConsumer extends BatchPipelineConsumer<Syn
     routingKey: `*.${BATCH_QUEUE}`,
     createQueueIfNotExists: false,
     queue: BATCH_QUEUE,
-    queueOptions: {
-      channel: BATCH_QUEUE,
-    },
+    queueOptions: { channel: BATCH_QUEUE },
   })
   public consume(
     message: PipelineMessage<SyncBaseProductStockBatchPayload>,
@@ -97,6 +90,4 @@ export class SyncBaseProductStockBatchConsumer extends BatchPipelineConsumer<Syn
       }),
     ];
   }
-
-  protected static readonly _prefetchAck = STEP_PREFETCH[BATCH_QUEUE];
 }

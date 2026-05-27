@@ -7,7 +7,6 @@ import {
 } from '../../queue/dispatch-pipeline.consumer';
 import {
   EXCHANGE_NAME,
-  STEP_PREFETCH,
   batchStep,
   dispatchStep,
 } from '../../queue/constants';
@@ -65,9 +64,7 @@ export class SyncBaseProductDispatchConsumer extends DispatchPipelineConsumer {
     routingKey: `*.${DISPATCH_QUEUE}`,
     createQueueIfNotExists: false,
     queue: DISPATCH_QUEUE,
-    queueOptions: {
-      channel: DISPATCH_QUEUE,
-    },
+    queueOptions: { channel: DISPATCH_QUEUE },
   })
   public consume(message: PipelineMessage): Promise<void> {
     return this.process(message);
@@ -116,12 +113,4 @@ export class SyncBaseProductDispatchConsumer extends DispatchPipelineConsumer {
     );
     return { batches, emptySuccessors: [successor] };
   }
-
-  /**
-   * Touch to keep the dispatch queue's prefetch wired (for parity with
-   * the v1 consumer registration pattern; the value is read by the
-   * @golevelup decorator on construction). Calling it from a const
-   * keeps the lookup compile-checked without runtime side effects.
-   */
-  protected static readonly _prefetchAck = STEP_PREFETCH[DISPATCH_QUEUE];
 }
