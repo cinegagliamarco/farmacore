@@ -8,7 +8,7 @@ import { BaseEntity } from '../base.entity';
  *
  * Pure label store — sync-base-product-stock writes every store's stock
  * regardless of whether a row exists here. Unknown stores show up in
- * tenant_product_stock with no label until the operator adds one.
+ * product_stock with no label until the operator adds one.
  */
 @Entity({ name: 'tenant_subsidiary' })
 @Index('UQ_TENANT_SUBSIDIARY_EXTERNAL_ID', ['externalId'], { unique: true })

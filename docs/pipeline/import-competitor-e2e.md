@@ -27,7 +27,7 @@ product-stock's `stock-a` is also done.
 
 ## Prerequisites
 
-- B1+B2+B4+B5 ran (tenant_product populated; shared_catalog.product
+- B1+B2+B4+B5 ran (product populated; shared_catalog.product
   ready to receive scrape data).
 - `tenant_competitor_origin` rows for the origins the tenant cares
   about, with `enabled = true`. Example seed (run after tenant
@@ -46,7 +46,7 @@ product-stock's `stock-a` is also done.
 - **Real HTTP**: scraping hits the vendors' production sites with
   your developer / Fly worker IP. Triggering anti-bot can block your
   IP for hours.
-- **Validate with a small EAN sample first**: limit `tenant_product`
+- **Validate with a small EAN sample first**: limit `product`
   to ~10 known EANs (delete the rest temporarily, or test against a
   fresh tenant with only those EANs).
 - **Drogasil's search page is HTML-streamed**; if the page layout

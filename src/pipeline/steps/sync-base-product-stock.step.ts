@@ -5,9 +5,9 @@ import {
   parseEan,
 } from '../../integration/repositories/a7pharma';
 import {
-  TenantProductStockRepository,
-  TenantProductStockUpsertInput,
-} from '../../database/repositories/tenant/tenant-product-stock.repository';
+  ProductStockRepository,
+  ProductStockUpsertInput,
+} from '../../database/repositories/tenant/product-stock.repository';
 
 interface SyncBaseProductStockBatchResult {
   processed: number;
@@ -17,7 +17,7 @@ interface SyncBaseProductStockBatchResult {
 /**
  * Per-batch business logic for sync-base-product-stock. Pure use-case:
  * reads a slice of embalagens + their estoque rows from the ERP, sums
- * quantities by (ean, subsidiary), and upserts into tenant_product_stock.
+ * quantities by (ean, subsidiary), and upserts into product_stock.
  *
  * Divergence from legacy:
  *  - No SubsidiaryMaping enum: every store id is imported. Labels live
@@ -47,7 +47,7 @@ export class SyncBaseProductStockStep {
     if (embalagemIds.length === 0) return { processed: 0, skipped: 0 };
 
     const a7 = new A7PharmaRepositories(integrationDs);
-    const stockRepo = new TenantProductStockRepository(em);
+    const stockRepo = new ProductStockRepository(em);
 
     const embalagens = await a7.embalagem.findByIdsWithRelations(embalagemIds);
     if (embalagens.length === 0) return { processed: 0, skipped: 0 };
@@ -75,7 +75,7 @@ export class SyncBaseProductStockStep {
     // most once in estoque per subsidiary (UNIQUE index), but two
     // embalagens sharing a barcode would otherwise double-count, so we
     // aggregate at the EAN level too.
-    const sumByPair = new Map<string, TenantProductStockUpsertInput>();
+    const sumByPair = new Map<string, ProductStockUpsertInput>();
     for (const row of estoques) {
       const ean = eanByEmbalagemId.get(String(row.embalagemid));
       if (!ean) continue;

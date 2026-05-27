@@ -9,7 +9,7 @@ import { EntityManager } from 'typeorm';
  * upsertPaths walks each path top-down: ensure (level=0, parent=null),
  * then (level=1, parent=id-from-level-0), etc. Returns a map from the
  * original full path to the LEAF classification id, suitable for
- * tenant_product.classification_id.
+ * product.classification_id.
  *
  * Resolution is concurrent-safe: two batches racing on the same path
  * both run INSERT ... ON CONFLICT DO NOTHING against the partial

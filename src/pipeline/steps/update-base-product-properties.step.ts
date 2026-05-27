@@ -5,7 +5,7 @@ import {
   CompetitorProperties,
   SharedProductRepository,
 } from '../../database/repositories/shared-catalog/product.repository';
-import { TenantProductRepository } from '../../database/repositories/tenant/tenant-product.repository';
+import { ProductRepository } from '../../database/repositories/tenant/product.repository';
 
 export type PropertiesPass = 'supplier' | 'weight' | 'name' | 'measures';
 
@@ -17,8 +17,8 @@ export type PropertiesPass = 'supplier' | 'weight' | 'name' | 'measures';
  * shared_catalog.product (DROGAL + DROGASIL), with DROGASIL preferred
  * (matching legacy fall-through order).
  *
- *   pass='supplier' → tenant_product.supplier ← prod.supplier ?? prod.brand
- *   pass='name'     → tenant_product.name     ← prod.name
+ *   pass='supplier' → product.supplier ← prod.supplier ?? prod.brand
+ *   pass='name'     → product.name     ← prod.name
  *   pass='weight'   → base_product.weight     ← prod.weight
  *   pass='measures' → base_product.{height,length,width,weight (if null)}
  *                       ← whichever origin has dimensions
@@ -61,7 +61,7 @@ export class UpdateBaseProductPropertiesStep {
       const value = pick(pair);
       if (value) updates.push({ ean, value });
     }
-    await new TenantProductRepository(em).updateColumnByEan(column, updates);
+    await new ProductRepository(em).updateColumnByEan(column, updates);
     this.logger.debug(
       `update-properties[${column}]: ${updates.length} updates`,
     );

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
-import { TenantProductRepository } from '../../database/repositories/tenant/tenant-product.repository';
+import { ProductRepository } from '../../database/repositories/tenant/product.repository';
 import { StatusSettingsEntity } from '../../database/entities/tenant/status-settings.entity';
 
 interface StatusThresholds {
@@ -30,15 +30,15 @@ interface MetricRow {
  * Per-batch computation of margin / averageVariation / status for a
  * slice of EANs. Reads:
  *   - tenant.status_settings.settings (jsonb thresholds, with defaults)
- *   - tenant.tenant_product (cost, price)
+ *   - tenant.product (cost, price)
  *   - shared_catalog.product (DROGAL + DROGASIL competitor prices)
  *   - tenant.offer_book (target_price)
  *
  * Writes:
- *   - tenant.tenant_product.margin / average_variation / status
+ *   - tenant.product.margin / average_variation / status
  *
  * Cross-schema joins are safe inside runWithTenant because each entity
- * declares its schema; the per-batch UPDATE goes via TenantProductRepository.
+ * declares its schema; the per-batch UPDATE goes via ProductRepository.
  */
 @Injectable()
 export class CalcBaseProductMetricsStep {
@@ -51,24 +51,24 @@ export class CalcBaseProductMetricsStep {
 
     const rows: MetricRow[] = await em.query(
       `SELECT
-         tp.ean,
-         tp.cost,
-         tp.price,
+         p.ean,
+         p.cost,
+         p.price,
          drogal.price AS drogal_price,
          drogasil.price AS drogasil_price,
          ob.target_price
-       FROM tenant_product tp
+       FROM product p
        LEFT JOIN shared_catalog.product drogal
-         ON drogal.ean = tp.ean AND drogal.origin = 'DROGAL'
+         ON drogal.ean = p.ean AND drogal.origin = 'DROGAL'
        LEFT JOIN shared_catalog.product drogasil
-         ON drogasil.ean = tp.ean AND drogasil.origin = 'DROGASIL'
-       LEFT JOIN offer_book ob ON ob.ean = tp.ean
-       WHERE tp.ean = ANY($1::bigint[])`,
+         ON drogasil.ean = p.ean AND drogasil.origin = 'DROGASIL'
+       LEFT JOIN offer_book ob ON ob.ean = p.ean
+       WHERE p.ean = ANY($1::bigint[])`,
       [eans],
     );
 
     const updates = rows.map((r) => this.computeMetrics(r, thresholds));
-    await new TenantProductRepository(em).updateMetricsBatch(updates);
+    await new ProductRepository(em).updateMetricsBatch(updates);
 
     this.logger.debug(
       `calc-base-product-metrics batch: ${updates.length} rows updated`,

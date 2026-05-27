@@ -14,7 +14,7 @@ import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import { BaseProductRepository } from '../../database/repositories/shared-catalog/base-product.repository';
-import { TenantProductRepository } from '../../database/repositories/tenant/tenant-product.repository';
+import { ProductRepository } from '../../database/repositories/tenant/product.repository';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
 import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
@@ -70,12 +70,12 @@ export class UpdateBaseProductPropertiesDispatchConsumer extends DispatchPipelin
   protected async handle(
     ctx: DispatchHandleContext,
   ): Promise<DispatchHandleResult> {
-    const tenantProductRepo = new TenantProductRepository(ctx.em);
+    const productRepo = new ProductRepository(ctx.em);
     const baseProductRepo = new BaseProductRepository(ctx.em);
 
     const passCandidates: Array<{ pass: PropertiesPass; eans: string[] }> = [
-      { pass: 'supplier', eans: await tenantProductRepo.findEansMissingSupplier() },
-      { pass: 'name', eans: await tenantProductRepo.findEansMissingName() },
+      { pass: 'supplier', eans: await productRepo.findEansMissingSupplier() },
+      { pass: 'name', eans: await productRepo.findEansMissingName() },
       { pass: 'weight', eans: await baseProductRepo.findEansMissingWeight() },
       { pass: 'measures', eans: await baseProductRepo.findEansMissingMeasures() },
     ];

@@ -13,7 +13,7 @@ import {
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
-import { TenantProductRepository } from '../../database/repositories/tenant/tenant-product.repository';
+import { ProductRepository } from '../../database/repositories/tenant/product.repository';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
 import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
@@ -31,7 +31,7 @@ export interface CalcBaseProductMetricsBatchPayload {
 
 /**
  * Dispatcher for calc-base-product-metrics. Enumerates all EANs in
- * tenant_product, chunks into 500-EAN slices, emits one batch per
+ * product, chunks into 500-EAN slices, emits one batch per
  * slice. Each row is independent (no cross-EAN contention) so chunking
  * by ean directly is safe.
  *
@@ -75,7 +75,7 @@ export class CalcBaseProductMetricsDispatchConsumer extends DispatchPipelineCons
       payload: {},
     });
 
-    const eans = await new TenantProductRepository(ctx.em).findAllEans();
+    const eans = await new ProductRepository(ctx.em).findAllEans();
     if (eans.length === 0) {
       return { batches: [], emptySuccessors: [successor] };
     }

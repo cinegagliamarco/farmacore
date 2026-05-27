@@ -74,7 +74,7 @@ Then check the writes:
 SET search_path TO tenant_acme, shared_catalog, public;
 
 SELECT COUNT(*) FROM shared_catalog.base_product;
-SELECT COUNT(*) FROM tenant_product;
+SELECT COUNT(*) FROM product;
 SELECT COUNT(*) FROM classification;
 SELECT COUNT(*) FROM offer_book;
 
@@ -82,13 +82,13 @@ SELECT COUNT(*) FROM offer_book;
 SELECT bp.ean, bp.description, bp.generic, bp.active_ingredient,
        tp.name, tp.price, tp.cost, tp.supplier, tp.deals
 FROM shared_catalog.base_product bp
-JOIN tenant_product tp USING (ean)
+JOIN product tp USING (ean)
 WHERE bp.ean = <known ean>;
 ```
 
 ## Common surprises
 
-- **`tenant_product.classification_id` empty**: the ERP product's
+- **`product.classification_id` empty**: the ERP product's
   `classificacao` row may not have a `caminho` set, or no
   `classificacao.principal = true` row exists. Inspect
   `classificacao_produto` rows for the produtoid; legacy fell back to

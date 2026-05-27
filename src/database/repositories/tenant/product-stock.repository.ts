@@ -1,7 +1,7 @@
 import { EntityManager, In } from 'typeorm';
-import { TenantProductStockEntity } from '../../entities/tenant/tenant-product-stock.entity';
+import { ProductStockEntity } from '../../entities/tenant/product-stock.entity';
 
-export interface TenantProductStockUpsertInput {
+export interface ProductStockUpsertInput {
   ean: string;
   subsidiaryExternalId: string;
   quantity: number;
@@ -14,14 +14,14 @@ export interface TenantProductStockUpsertInput {
  * is idempotent across dispatcher restarts; rows for EANs/stores that
  * vanish from the ERP can be reconciled by a future cleanup pass.
  */
-export class TenantProductStockRepository {
+export class ProductStockRepository {
   constructor(private readonly em: EntityManager) {}
 
   public async upsertMany(
-    inputs: TenantProductStockUpsertInput[],
+    inputs: ProductStockUpsertInput[],
   ): Promise<void> {
     if (inputs.length === 0) return;
-    const repo = this.em.getRepository(TenantProductStockEntity);
+    const repo = this.em.getRepository(ProductStockEntity);
     const deduped = this.dedupe(inputs);
     await repo.upsert(deduped, {
       conflictPaths: ['ean', 'subsidiaryExternalId'],
@@ -38,14 +38,14 @@ export class TenantProductStockRepository {
   public async deleteByEans(eans: string[]): Promise<void> {
     if (eans.length === 0) return;
     await this.em
-      .getRepository(TenantProductStockEntity)
+      .getRepository(ProductStockEntity)
       .delete({ ean: In(eans) });
   }
 
   private dedupe(
-    inputs: TenantProductStockUpsertInput[],
-  ): TenantProductStockUpsertInput[] {
-    const byPair = new Map<string, TenantProductStockUpsertInput>();
+    inputs: ProductStockUpsertInput[],
+  ): ProductStockUpsertInput[] {
+    const byPair = new Map<string, ProductStockUpsertInput>();
     for (const i of inputs) {
       byPair.set(`${i.ean}|${i.subsidiaryExternalId}`, i);
     }

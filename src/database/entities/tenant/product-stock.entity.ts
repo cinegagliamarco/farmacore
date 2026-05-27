@@ -7,14 +7,14 @@ import { BaseEntity } from '../base.entity';
  * (tenant_subsidiary) from the import, so unknown stores can still
  * land without throwing.
  */
-@Entity({ name: 'tenant_product_stock' })
+@Entity({ name: 'product_stock' })
 @Index(
-  'UQ_TENANT_PRODUCT_STOCK_EAN_SUBSIDIARY',
+  'UQ_PRODUCT_STOCK_EAN_SUBSIDIARY',
   ['ean', 'subsidiaryExternalId'],
   { unique: true },
 )
-@Index('IX_TENANT_PRODUCT_STOCK_EAN', ['ean'])
-export class TenantProductStockEntity extends BaseEntity {
+@Index('IX_PRODUCT_STOCK_EAN', ['ean'])
+export class ProductStockEntity extends BaseEntity {
   @Column({ type: 'bigint' })
   public ean!: string;
 

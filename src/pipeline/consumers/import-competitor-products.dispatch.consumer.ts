@@ -15,7 +15,7 @@ import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
-import { TenantProductRepository } from '../../database/repositories/tenant/tenant-product.repository';
+import { ProductRepository } from '../../database/repositories/tenant/product.repository';
 import { TenantCompetitorOriginEntity } from '../../database/entities/tenant/tenant-competitor-origin.entity';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
 import { RetryService } from '../../queue/retry.service';
@@ -34,7 +34,7 @@ export interface ImportCompetitorProductsBatchPayload {
 /**
  * Dispatcher for per-origin product scrape. Reads enabled origins
  * from tenant_competitor_origin (only origins the tenant has opted
- * into get scraped), reads the EAN universe from tenant_product, and
+ * into get scraped), reads the EAN universe from product, and
  * for each enabled origin × every PER_ORIGIN_BATCH_SIZE-EAN slice
  * publishes one batch message to that origin's queue.
  *
@@ -87,7 +87,7 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
     if (enabledOrigins.length === 0) {
       return { batches: [], emptySuccessors: [successor] };
     }
-    const eans = await new TenantProductRepository(ctx.em).findAllEans();
+    const eans = await new ProductRepository(ctx.em).findAllEans();
     if (eans.length === 0) {
       return { batches: [], emptySuccessors: [successor] };
     }

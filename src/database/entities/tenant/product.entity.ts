@@ -10,14 +10,14 @@ import { ClassificationEntity } from './classification.entity';
  * receipt date, monitored flag, classification FK, and the legacy
  * `deals` jsonb (per-quantity offer payload).
  */
-@Entity({ name: 'tenant_product' })
-@Index('UQ_TENANT_PRODUCT_EAN', ['ean'], { unique: true })
-@Index('UQ_TENANT_PRODUCT_EXTERNAL_ID', ['externalId'], {
+@Entity({ name: 'product' })
+@Index('UQ_PRODUCT_EAN', ['ean'], { unique: true })
+@Index('UQ_PRODUCT_EXTERNAL_ID', ['externalId'], {
   unique: true,
   where: '"external_id" IS NOT NULL',
 })
-@Index('IX_TENANT_PRODUCT_CLASSIFICATION', ['classificationId'])
-export class TenantProductEntity extends BaseEntity {
+@Index('IX_PRODUCT_CLASSIFICATION', ['classificationId'])
+export class ProductEntity extends BaseEntity {
   @Column({ type: 'bigint' })
   public ean!: string;
 
@@ -71,7 +71,7 @@ export class TenantProductEntity extends BaseEntity {
   public classification?: ClassificationEntity | null;
 
   @Column({ type: 'jsonb', nullable: true })
-  public deals?: Record<string, TenantProductDeal> | null;
+  public deals?: Record<string, ProductDeal> | null;
 
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
   public margin?: string | null;
@@ -89,7 +89,7 @@ export class TenantProductEntity extends BaseEntity {
   public status?: string | null;
 }
 
-export interface TenantProductDeal {
+export interface ProductDeal {
   totalPrice: number;
   discount: number;
   itemCadernoOfertaId?: number | null;

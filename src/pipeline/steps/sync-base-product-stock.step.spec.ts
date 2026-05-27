@@ -2,7 +2,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { SyncBaseProductStockStep } from './sync-base-product-stock.step';
 import { EmbalagemEntity } from '../../integration/entities/a7pharma/embalagem.entity';
 import { EstoqueEntity } from '../../integration/entities/a7pharma/estoque.entity';
-import { TenantProductStockEntity } from '../../database/entities/tenant/tenant-product-stock.entity';
+import { ProductStockEntity } from '../../database/entities/tenant/product-stock.entity';
 
 /**
  * Lightweight mock of the per-call repos. Keeps the suite focused on
@@ -52,7 +52,7 @@ const buildEm = (
 ): EntityManager =>
   ({
     getRepository: (entity: unknown) => {
-      if (entity !== TenantProductStockEntity) {
+      if (entity !== ProductStockEntity) {
         throw new Error(`unexpected tenant entity: ${String(entity)}`);
       }
       return {
@@ -64,7 +64,7 @@ const buildEm = (
           captures.deleteArgs.push(where);
           return Promise.resolve({});
         },
-      } as unknown as Repository<TenantProductStockEntity>;
+      } as unknown as Repository<ProductStockEntity>;
     },
   }) as unknown as EntityManager;
 

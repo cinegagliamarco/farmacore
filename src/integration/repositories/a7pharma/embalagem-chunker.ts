@@ -26,7 +26,7 @@ export function parseEan(codigobarras?: string | null): string | null {
  * universe into slices of `batchSize` distinct EANs. All embalagens
  * sharing one of a slice's EANs land in the same batch — without this,
  * two embalagens with the same barcode in different batches step on
- * each other's writes (base_product upsert, tenant_product_stock
+ * each other's writes (base_product upsert, product_stock
  * delete-then-insert).
  */
 export async function chunkEmbalagensByEan(

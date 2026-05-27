@@ -2,7 +2,7 @@
 
 Run the v2 dispatcher/batch port against a real A7Pharma ERP after
 sync-base-product has filled `shared_catalog.base_product` and
-`tenant_product`.
+`product`.
 
 ## Prerequisites
 
@@ -49,15 +49,15 @@ Expected:
 ```sql
 SET search_path TO tenant_acme, shared_catalog, public;
 
-SELECT COUNT(*) FROM tenant_product_stock;
+SELECT COUNT(*) FROM product_stock;
 SELECT subsidiary_external_id, SUM(quantity)
-FROM tenant_product_stock
+FROM product_stock
 GROUP BY subsidiary_external_id
 ORDER BY subsidiary_external_id;
 
 -- Spot-check a known EAN
 SELECT tps.ean, tps.subsidiary_external_id, ts.name AS store, tps.quantity
-FROM tenant_product_stock tps
+FROM product_stock tps
 LEFT JOIN tenant_subsidiary ts
   ON ts.external_id = tps.subsidiary_external_id
 WHERE tps.ean = <known ean>;
@@ -65,11 +65,11 @@ WHERE tps.ean = <known ean>;
 
 ## Common surprises
 
-- **`tenant_product_stock` empty for an EAN you expect**: the embalagem
+- **`product_stock` empty for an EAN you expect**: the embalagem
   has no parseable `codigobarras` (length > 14, non-numeric only,
   empty) — those are silently skipped (legacy behavior; counted in
   `skipped`).
-- **`tenant_product_stock` empty for a store**: the store has no
+- **`product_stock` empty for a store**: the store has no
   `estoque` rows with quantity > 0 in this snapshot, or the
   embalagem's stock is exactly 0. Zero-quantity rows are dropped by
   design (legacy did the same).

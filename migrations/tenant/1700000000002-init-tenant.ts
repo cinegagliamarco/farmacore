@@ -20,7 +20,7 @@ export class InitTenant1700000000002 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
-      CREATE TABLE tenant_product (
+      CREATE TABLE product (
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         ean bigint NOT NULL,
         external_id text,
@@ -42,14 +42,14 @@ export class InitTenant1700000000002 implements MigrationInterface {
         updated_at timestamptz NOT NULL DEFAULT now(),
         deleted_at timestamptz
       );
-      CREATE UNIQUE INDEX "UQ_TENANT_PRODUCT_EAN" ON tenant_product(ean);
-      CREATE UNIQUE INDEX "UQ_TENANT_PRODUCT_EXTERNAL_ID"
-        ON tenant_product(external_id) WHERE external_id IS NOT NULL;
-      CREATE INDEX "IX_TENANT_PRODUCT_CLASSIFICATION" ON tenant_product(classification_id);
+      CREATE UNIQUE INDEX "UQ_PRODUCT_EAN" ON product(ean);
+      CREATE UNIQUE INDEX "UQ_PRODUCT_EXTERNAL_ID"
+        ON product(external_id) WHERE external_id IS NOT NULL;
+      CREATE INDEX "IX_PRODUCT_CLASSIFICATION" ON product(classification_id);
     `);
 
     await queryRunner.query(`
-      CREATE TABLE tenant_product_override (
+      CREATE TABLE product_override (
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         ean bigint NOT NULL,
         origin text NOT NULL,
@@ -60,8 +60,8 @@ export class InitTenant1700000000002 implements MigrationInterface {
         updated_at timestamptz NOT NULL DEFAULT now(),
         deleted_at timestamptz
       );
-      CREATE UNIQUE INDEX "UQ_TENANT_OVERRIDE_EAN_ORIGIN" ON tenant_product_override(ean, origin);
-      CREATE INDEX "IX_TENANT_OVERRIDE_EAN" ON tenant_product_override(ean);
+      CREATE UNIQUE INDEX "UQ_PRODUCT_OVERRIDE_EAN_ORIGIN" ON product_override(ean, origin);
+      CREATE INDEX "IX_PRODUCT_OVERRIDE_EAN" ON product_override(ean);
     `);
 
     await queryRunner.query(`
@@ -286,7 +286,7 @@ export class InitTenant1700000000002 implements MigrationInterface {
     // FK to tenant_subsidiary so unknown stores can still land — the
     // operator labels them later by inserting a tenant_subsidiary row.
     await queryRunner.query(`
-      CREATE TABLE tenant_product_stock (
+      CREATE TABLE product_stock (
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         ean bigint NOT NULL,
         subsidiary_external_id bigint NOT NULL,
@@ -295,15 +295,15 @@ export class InitTenant1700000000002 implements MigrationInterface {
         updated_at timestamptz NOT NULL DEFAULT now(),
         deleted_at timestamptz
       );
-      CREATE UNIQUE INDEX "UQ_TENANT_PRODUCT_STOCK_EAN_SUBSIDIARY"
-        ON tenant_product_stock(ean, subsidiary_external_id);
-      CREATE INDEX "IX_TENANT_PRODUCT_STOCK_EAN" ON tenant_product_stock(ean);
+      CREATE UNIQUE INDEX "UQ_PRODUCT_STOCK_EAN_SUBSIDIARY"
+        ON product_stock(ean, subsidiary_external_id);
+      CREATE INDEX "IX_PRODUCT_STOCK_EAN" ON product_stock(ean);
     `);
 
     // Deferred FKs (tables created out of dependency order).
     await queryRunner.query(`
-      ALTER TABLE tenant_product
-      ADD CONSTRAINT fk_tenant_product_classification
+      ALTER TABLE product
+      ADD CONSTRAINT fk_product_classification
       FOREIGN KEY (classification_id)
       REFERENCES classification(id)
       ON DELETE SET NULL;

@@ -7,8 +7,8 @@ legacy fall-through).
 
 | Pass | Source columns | Target |
 |---|---|---|
-| supplier | product.supplier ?? product.brand | tenant_product.supplier |
-| name | product.name | tenant_product.name |
+| supplier | product.supplier ?? product.brand | product.supplier |
+| name | product.name | product.name |
 | weight | product.weight | shared_catalog.base_product.weight |
 | measures | product.{height,length,width,weight} | shared_catalog.base_product.{height,length,width,weight} |
 
@@ -18,7 +18,7 @@ with the first-writer-wins value and the second's UPDATE is a no-op.
 
 ## Prerequisites
 
-- B1+B2+B4 ran (tenant_product + base_product populated).
+- B1+B2+B4 ran (product + base_product populated).
 - Phase C ran for the run (shared_catalog.product has DROGAL/DROGASIL
   rows with supplier/brand/weight/height/length/width set). Until C
   lands, `shared_catalog.product` is empty and B5 is a no-op — all
@@ -49,7 +49,7 @@ pass — check worker logs for the per-pass debug lines.
 SET search_path TO tenant_acme, shared_catalog, public;
 
 -- Suppliers + names backfilled per tenant
-SELECT ean, supplier, name FROM tenant_product
+SELECT ean, supplier, name FROM product
 WHERE supplier IS NOT NULL OR name IS NOT NULL LIMIT 20;
 
 -- Dimensions backfilled in shared catalog
@@ -64,9 +64,9 @@ WHERE weight IS NOT NULL OR height IS NOT NULL LIMIT 20;
   (supplier/brand/weight/dimensions) are all null because the scraper
   didn't populate them. Inspect a sample row.
 - **`shared_catalog.base_product` weight set but per-tenant
-  `tenant_product.supplier` still null**: weight is shared (population
+  `product.supplier` still null**: weight is shared (population
   is global), supplier is per-tenant. The supplier pass picks
-  candidates from `tenant_product.supplier IS NULL`; if your tenant
+  candidates from `product.supplier IS NULL`; if your tenant
   hasn't run B5 against current scrape data, those rows stay null.
 - **DROGAL has data, DROGASIL doesn't, but B5 reads zero on the
   measures pass**: DROGASIL is preferred but we fall through to

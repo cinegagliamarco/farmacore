@@ -1,14 +1,14 @@
 # calc-base-product-metrics — end-to-end validation
 
 Computes `margin`, `average_variation`, `status` for every
-`tenant_product`. Dispatcher chunks all EANs into batches of 500; each
-batch joins tenant_product with shared_catalog.product (DROGAL +
+`product`. Dispatcher chunks all EANs into batches of 500; each
+batch joins product with shared_catalog.product (DROGAL +
 DROGASIL competitor prices) and tenant.offer_book (target_price),
 computes the three metrics, and bulk-updates in one SQL statement.
 
 ## Prerequisites
 
-- B1 + B2 ran (tenant_product populated).
+- B1 + B2 ran (product populated).
 - Competitor price source is `shared_catalog.product` (origin = DROGAL
   or DROGASIL). Until Phase C lands `import-competitor-products`, that
   table is empty and `average_variation` + `status` come out null —
@@ -43,11 +43,11 @@ Expected: one dispatch row + N batch rows, all `completed`.
 ```sql
 SET search_path TO tenant_acme, shared_catalog, public;
 
-SELECT status, COUNT(*) FROM tenant_product GROUP BY status ORDER BY status;
+SELECT status, COUNT(*) FROM product GROUP BY status ORDER BY status;
 
 -- Spot-check the math for a known ean
 SELECT ean, price, cost, margin, average_variation, status
-FROM tenant_product WHERE ean = <known ean>;
+FROM product WHERE ean = <known ean>;
 ```
 
 ## Common surprises

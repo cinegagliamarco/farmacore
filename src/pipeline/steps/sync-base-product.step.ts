@@ -14,15 +14,15 @@ import {
   BaseProductUpsertInput,
 } from '../../database/repositories/shared-catalog/base-product.repository';
 import {
-  TenantProductRepository,
-  TenantProductUpsertInput,
-} from '../../database/repositories/tenant/tenant-product.repository';
+  ProductRepository,
+  ProductUpsertInput,
+} from '../../database/repositories/tenant/product.repository';
 import { ClassificationRepository } from '../../database/repositories/tenant/classification.repository';
 import {
   OfferBookRepository,
   OfferBookUpsertInput,
 } from '../../database/repositories/tenant/offer-book.repository';
-import { TenantProductDeal } from '../../database/entities/tenant/tenant-product.entity';
+import { ProductDeal } from '../../database/entities/tenant/product.entity';
 
 interface SyncBaseProductBatchResult {
   processed: number;
@@ -39,7 +39,7 @@ interface SyncBaseProductBatchResult {
  *   ean, description, activeIngredient, generic -> shared_catalog.base_product
  *   external_id, name, active, price, cost, average_unit_cost,
  *     unit_sale_price, supplier, receipt_date, monitored,
- *     classification_id, deals -> tenant.tenant_product
+ *     classification_id, deals -> tenant.product
  *   ean, description, target_price -> tenant.offer_book
  */
 @Injectable()
@@ -61,7 +61,7 @@ export class SyncBaseProductStep {
 
     const a7 = new A7PharmaRepositories(integrationDs);
     const baseProductRepo = new BaseProductRepository(em);
-    const tenantProductRepo = new TenantProductRepository(em);
+    const productRepo = new ProductRepository(em);
     const classificationRepo = new ClassificationRepository(em);
     const offerBookRepo = new OfferBookRepository(em);
 
@@ -107,8 +107,8 @@ export class SyncBaseProductStep {
     );
 
     const baseProductInputs: BaseProductUpsertInput[] = [];
-    const tenantProductSeeds: Array<
-      Omit<TenantProductUpsertInput, 'classificationId'> & {
+    const productSeeds: Array<
+      Omit<ProductUpsertInput, 'classificationId'> & {
         classificationPath?: string;
       }
     > = [];
@@ -137,7 +137,7 @@ export class SyncBaseProductStep {
         generic: isGeneric,
       });
 
-      tenantProductSeeds.push({
+      productSeeds.push({
         ean,
         externalId: record.id != null ? String(record.id) : null,
         name: record.descricao || record.apresentacao || null,
@@ -173,8 +173,8 @@ export class SyncBaseProductStep {
 
     await baseProductRepo.upsertManyByEan(baseProductInputs);
 
-    const tenantProductInputs: TenantProductUpsertInput[] =
-      tenantProductSeeds.map((seed) => {
+    const productInputs: ProductUpsertInput[] =
+      productSeeds.map((seed) => {
         const { classificationPath, ...rest } = seed;
         return {
           ...rest,
@@ -183,14 +183,14 @@ export class SyncBaseProductStep {
             : null,
         };
       });
-    await tenantProductRepo.upsertManyByEan(tenantProductInputs);
+    await productRepo.upsertManyByEan(productInputs);
 
     await offerBookRepo.upsertManyByEan(offerInputs);
 
     this.logger.debug(
-      `sync-base-product batch: ${tenantProductInputs.length} products, ${offerInputs.length} offers, ${skipped} skipped`,
+      `sync-base-product batch: ${productInputs.length} products, ${offerInputs.length} offers, ${skipped} skipped`,
     );
-    return { processed: tenantProductInputs.length, skipped };
+    return { processed: productInputs.length, skipped };
   }
 
   private buildClassificationPathMap(
@@ -255,9 +255,9 @@ export class SyncBaseProductStep {
 
   private buildDeals(
     quantidades?: ItemCadernoOfertaQuantidadeEntity[],
-  ): Record<string, TenantProductDeal> | null {
+  ): Record<string, ProductDeal> | null {
     if (!quantidades?.length) return null;
-    const deals: Record<string, TenantProductDeal> = {};
+    const deals: Record<string, ProductDeal> = {};
     for (const q of quantidades) {
       deals[String(q.quantidade)] = {
         totalPrice: q.precototal != null ? Number(q.precototal) : 0,

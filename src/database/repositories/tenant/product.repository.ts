@@ -1,10 +1,10 @@
 import { EntityManager } from 'typeorm';
 import {
-  TenantProductDeal,
-  TenantProductEntity,
-} from '../../entities/tenant/tenant-product.entity';
+  ProductDeal,
+  ProductEntity,
+} from '../../entities/tenant/product.entity';
 
-export interface TenantProductUpsertInput {
+export interface ProductUpsertInput {
   ean: string;
   externalId?: string | null;
   name?: string | null;
@@ -17,7 +17,7 @@ export interface TenantProductUpsertInput {
   receiptDate?: Date | string | null;
   monitored?: boolean;
   classificationId?: string | null;
-  deals?: Record<string, TenantProductDeal> | null;
+  deals?: Record<string, ProductDeal> | null;
 }
 
 /**
@@ -25,7 +25,7 @@ export interface TenantProductUpsertInput {
  * the shared catalog deliberately omits: external_id, name, prices,
  * supplier, receipt date, monitored flag, classification FK, deals jsonb.
  */
-export class TenantProductRepository {
+export class ProductRepository {
   constructor(private readonly em: EntityManager) {}
 
   /**
@@ -35,10 +35,10 @@ export class TenantProductRepository {
    * when an embalagem id is reassigned to a new barcode.
    */
   public async upsertManyByEan(
-    inputs: TenantProductUpsertInput[],
+    inputs: ProductUpsertInput[],
   ): Promise<void> {
     if (inputs.length === 0) return;
-    const repo = this.em.getRepository(TenantProductEntity);
+    const repo = this.em.getRepository(ProductEntity);
     const deduped = this.dedupeByEan(inputs);
     await this.releaseConflictingExternalIds(deduped);
     await repo.upsert(
@@ -52,15 +52,15 @@ export class TenantProductRepository {
   }
 
   private dedupeByEan(
-    inputs: TenantProductUpsertInput[],
-  ): TenantProductUpsertInput[] {
-    const byEan = new Map<string, TenantProductUpsertInput>();
+    inputs: ProductUpsertInput[],
+  ): ProductUpsertInput[] {
+    const byEan = new Map<string, ProductUpsertInput>();
     for (const i of inputs) byEan.set(String(i.ean), i);
     return [...byEan.values()];
   }
 
   private async releaseConflictingExternalIds(
-    chunk: TenantProductUpsertInput[],
+    chunk: ProductUpsertInput[],
   ): Promise<void> {
     const withExternal = chunk
       .filter((c) => c.externalId != null)
@@ -69,7 +69,7 @@ export class TenantProductRepository {
     const externalIds = withExternal.map((p) => p.externalId);
     const eans = withExternal.map((p) => p.ean);
     await this.em
-      .getRepository(TenantProductEntity)
+      .getRepository(ProductEntity)
       .createQueryBuilder()
       .update()
       .set({ externalId: () => 'NULL' })
@@ -84,9 +84,9 @@ export class TenantProductRepository {
    */
   public async findAllEans(): Promise<string[]> {
     const rows: Array<{ ean: string }> = await this.em
-      .getRepository(TenantProductEntity)
-      .createQueryBuilder('tp')
-      .select('tp.ean', 'ean')
+      .getRepository(ProductEntity)
+      .createQueryBuilder('p')
+      .select('p.ean', 'ean')
       .orderBy('tp.ean', 'ASC')
       .getRawMany();
     return rows.map((r) => String(r.ean));
@@ -115,14 +115,14 @@ export class TenantProductRepository {
       params.push(r.ean, r.margin, r.averageVariation, r.status);
     }
     await this.em.query(
-      `UPDATE tenant_product AS tp
+      `UPDATE product AS p
        SET margin = u.margin,
            average_variation = u.average_variation,
            status = u.status,
            updated_at = now()
        FROM (VALUES ${values.join(', ')})
          AS u(ean, margin, average_variation, status)
-       WHERE tp.ean = u.ean`,
+       WHERE p.ean = u.ean`,
       params,
     );
   }
@@ -154,10 +154,10 @@ export class TenantProductRepository {
       params.push(r.ean, r.value);
     }
     await this.em.query(
-      `UPDATE tenant_product AS tp
+      `UPDATE product AS p
        SET ${column} = u.value, updated_at = now()
        FROM (VALUES ${values.join(', ')}) AS u(ean, value)
-       WHERE tp.ean = u.ean AND tp.${column} IS NULL`,
+       WHERE p.ean = u.ean AND p.${column} IS NULL`,
       params,
     );
   }
@@ -166,9 +166,9 @@ export class TenantProductRepository {
     column: 'supplier' | 'name',
   ): Promise<string[]> {
     const rows: Array<{ ean: string }> = await this.em
-      .getRepository(TenantProductEntity)
-      .createQueryBuilder('tp')
-      .select('tp.ean', 'ean')
+      .getRepository(ProductEntity)
+      .createQueryBuilder('p')
+      .select('p.ean', 'ean')
       .where(`tp.${column} IS NULL`)
       .orderBy('tp.ean', 'ASC')
       .getRawMany();
