@@ -29,6 +29,24 @@ export class ProductEntity extends BaseEntity {
   })
   public unitSalePrice?: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  public supplier?: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  public brand?: string | null;
+
+  @Column({ type: 'numeric', precision: 10, scale: 3, nullable: true })
+  public weight?: string | null;
+
+  @Column({ type: 'numeric', precision: 10, scale: 4, nullable: true })
+  public height?: string | null;
+
+  @Column({ type: 'numeric', precision: 10, scale: 4, nullable: true })
+  public length?: string | null;
+
+  @Column({ type: 'numeric', precision: 10, scale: 4, nullable: true })
+  public width?: string | null;
+
   @Column({ type: 'jsonb', default: {} })
   public metadata!: Record<string, unknown>;
 }
