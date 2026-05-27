@@ -3,22 +3,81 @@ import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppConfigService } from '../config/app-config.service';
 import { PipelineRunEntity } from '../database/entities/core/pipeline-run.entity';
+import { CompetitorOrigin } from '../database/enums/competitor-origin.enum';
+import { PipelineStep } from '../database/enums/pipeline-step.enum';
 import {
   BATCHED_STEPS,
   DLX_NAME,
   EXCHANGE_NAME,
   MIGRATE_TENANT_QUEUE,
+  PER_ORIGIN_STEPS,
   PIPELINE_START_QUEUE,
   RETRY_DELAYS_MS,
   STEP_PREFETCH,
   STEP_QUEUES,
   batchStep,
   dispatchStep,
+  originStep,
 } from './constants';
 import { delayQueueName } from './retry.service';
 import { PipelinePublisher } from './pipeline-publisher.service';
 import { PipelineRunService } from './pipeline-run.service';
 import { RetryService } from './retry.service';
+
+/**
+ * Build the queue + DLQ + retry-delay declarations for one queue
+ * name. Used for every kind of step (v1 single-queue, v2 batched
+ * dispatch+batch, v2 per-origin). The shape is identical: main queue
+ * with DLX wiring, a .dlq mirror under DLX, plus one delay queue
+ * per RETRY_DELAYS_MS entry.
+ */
+const queueWithDlqAndRetries = (q: string) => [
+  {
+    name: q,
+    exchange: EXCHANGE_NAME,
+    routingKey: `*.${q}`,
+    createQueueIfNotExists: true,
+    options: {
+      durable: true,
+      arguments: {
+        'x-dead-letter-exchange': DLX_NAME,
+        'x-dead-letter-routing-key': q,
+      },
+    },
+  },
+  {
+    name: `${q}.dlq`,
+    exchange: DLX_NAME,
+    routingKey: `*.${q}`,
+    createQueueIfNotExists: true,
+    options: { durable: true },
+  },
+  ...RETRY_DELAYS_MS.map((ms) => ({
+    name: delayQueueName(q, ms),
+    exchange: '',
+    routingKey: delayQueueName(q, ms),
+    createQueueIfNotExists: true,
+    options: {
+      durable: true,
+      arguments: {
+        'x-message-ttl': ms,
+        'x-dead-letter-exchange': EXCHANGE_NAME,
+        'x-dead-letter-routing-key': `retry.${q}`,
+      },
+    },
+  })),
+];
+
+const perOriginQueueNames = (): string[] => {
+  const out: string[] = [];
+  for (const [stepKey, origins] of Object.entries(PER_ORIGIN_STEPS)) {
+    const step = stepKey as PipelineStep;
+    if (!origins) continue;
+    out.push(dispatchStep(step));
+    for (const origin of origins) out.push(originStep(step, origin));
+  }
+  return out;
+};
 
 @Global()
 @Module({
@@ -42,6 +101,12 @@ import { RetryService } from './retry.service';
               [batchStep(step), { prefetchCount: STEP_PREFETCH[batchStep(step)] }],
             ]),
           ),
+          ...Object.fromEntries(
+            perOriginQueueNames().map((q) => [
+              q,
+              { prefetchCount: STEP_PREFETCH[q] ?? 1 },
+            ]),
+          ),
           'migrate-tenant': { prefetchCount: 10 },
         },
         exchanges: [
@@ -49,82 +114,12 @@ import { RetryService } from './retry.service';
           { name: DLX_NAME, type: 'topic', options: { durable: true } },
         ],
         queues: [
-          ...STEP_QUEUES.flatMap((step) => [
-            {
-              name: step,
-              exchange: EXCHANGE_NAME,
-              routingKey: `*.${step}`,
-              createQueueIfNotExists: true,
-              options: {
-                durable: true,
-                arguments: {
-                  'x-dead-letter-exchange': DLX_NAME,
-                  'x-dead-letter-routing-key': step,
-                },
-              },
-            },
-            {
-              name: `${step}.dlq`,
-              exchange: DLX_NAME,
-              routingKey: `*.${step}`,
-              createQueueIfNotExists: true,
-              options: { durable: true },
-            },
-            ...RETRY_DELAYS_MS.map((ms) => ({
-              name: delayQueueName(step, ms),
-              exchange: '',
-              routingKey: delayQueueName(step, ms),
-              createQueueIfNotExists: true,
-              options: {
-                durable: true,
-                arguments: {
-                  'x-message-ttl': ms,
-                  'x-dead-letter-exchange': EXCHANGE_NAME,
-                  'x-dead-letter-routing-key': `retry.${step}`,
-                },
-              },
-            })),
+          ...STEP_QUEUES.flatMap((step) => queueWithDlqAndRetries(step)),
+          ...BATCHED_STEPS.flatMap((step) => [
+            ...queueWithDlqAndRetries(dispatchStep(step)),
+            ...queueWithDlqAndRetries(batchStep(step)),
           ]),
-          // v2 dispatcher/batch queues per BATCHED_STEPS. Each gets the
-          // same DLX + retry-delay queue set as a v1 step queue.
-          ...BATCHED_STEPS.flatMap((step) =>
-            [dispatchStep(step), batchStep(step)].flatMap((q) => [
-              {
-                name: q,
-                exchange: EXCHANGE_NAME,
-                routingKey: `*.${q}`,
-                createQueueIfNotExists: true,
-                options: {
-                  durable: true,
-                  arguments: {
-                    'x-dead-letter-exchange': DLX_NAME,
-                    'x-dead-letter-routing-key': q,
-                  },
-                },
-              },
-              {
-                name: `${q}.dlq`,
-                exchange: DLX_NAME,
-                routingKey: `*.${q}`,
-                createQueueIfNotExists: true,
-                options: { durable: true },
-              },
-              ...RETRY_DELAYS_MS.map((ms) => ({
-                name: delayQueueName(q, ms),
-                exchange: '',
-                routingKey: delayQueueName(q, ms),
-                createQueueIfNotExists: true,
-                options: {
-                  durable: true,
-                  arguments: {
-                    'x-message-ttl': ms,
-                    'x-dead-letter-exchange': EXCHANGE_NAME,
-                    'x-dead-letter-routing-key': `retry.${q}`,
-                  },
-                },
-              })),
-            ]),
-          ),
+          ...perOriginQueueNames().flatMap(queueWithDlqAndRetries),
           {
             name: PIPELINE_START_QUEUE,
             exchange: EXCHANGE_NAME,

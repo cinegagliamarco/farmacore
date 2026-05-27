@@ -2,6 +2,7 @@ import { DynamicModule, Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PipelineRunEntity } from '../database/entities/core/pipeline-run.entity';
+import { ScrapersModule } from '../scrapers/scrapers.module';
 
 import { PipelineJoinService } from './pipeline-join.service';
 import { AdminPipelineService } from './admin-pipeline.service';
@@ -22,7 +23,12 @@ import { SyncBaseProductBatchConsumer } from './consumers/sync-base-product.batc
 import { SyncBaseProductStockDispatchConsumer } from './consumers/sync-base-product-stock.dispatch.consumer';
 import { SyncBaseProductStockBatchConsumer } from './consumers/sync-base-product-stock.batch.consumer';
 import { SyncOfferBooksInfoConsumer } from './consumers/sync-offer-books-info.consumer';
-import { ImportCompetitorProductsConsumer } from './consumers/import-competitor-products.consumer';
+import { ImportCompetitorProductsDispatchConsumer } from './consumers/import-competitor-products.dispatch.consumer';
+import {
+  ImportCompetitorProductsDrogalConsumer,
+  ImportCompetitorProductsDrogasilConsumer,
+  ImportCompetitorProductsMichelassiConsumer,
+} from './consumers/import-competitor-products.batch.consumers';
 import { ImportCompetitorStockConsumer } from './consumers/import-competitor-stock.consumer';
 import { CalcBaseProductMetricsDispatchConsumer } from './consumers/calc-base-product-metrics.dispatch.consumer';
 import { CalcBaseProductMetricsBatchConsumer } from './consumers/calc-base-product-metrics.batch.consumer';
@@ -49,7 +55,10 @@ const CONSUMERS = [
   SyncBaseProductStockDispatchConsumer,
   SyncBaseProductStockBatchConsumer,
   SyncOfferBooksInfoConsumer,
-  ImportCompetitorProductsConsumer,
+  ImportCompetitorProductsDispatchConsumer,
+  ImportCompetitorProductsDrogalConsumer,
+  ImportCompetitorProductsDrogasilConsumer,
+  ImportCompetitorProductsMichelassiConsumer,
   ImportCompetitorStockConsumer,
   CalcBaseProductMetricsDispatchConsumer,
   CalcBaseProductMetricsBatchConsumer,
@@ -67,6 +76,7 @@ export class PipelineStepsModule {
       imports: [
         ScheduleModule.forRoot(),
         TypeOrmModule.forFeature([PipelineRunEntity]),
+        ScrapersModule,
       ],
       providers: [
         PipelineJoinService,
