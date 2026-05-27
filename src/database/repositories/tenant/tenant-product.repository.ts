@@ -126,4 +126,52 @@ export class TenantProductRepository {
       params,
     );
   }
+
+  public async findEansMissingSupplier(): Promise<string[]> {
+    return this.findEansMissingColumn('supplier');
+  }
+
+  public async findEansMissingName(): Promise<string[]> {
+    return this.findEansMissingColumn('name');
+  }
+
+  /**
+   * Single-column bulk update used by update-base-product-properties
+   * for the supplier and name passes. The WHERE clause keeps the write
+   * idempotent — already-populated rows are left alone, so two tenants
+   * scraping the same EAN don't fight over the value.
+   */
+  public async updateColumnByEan(
+    column: 'supplier' | 'name',
+    rows: Array<{ ean: string; value: string | null }>,
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    const values: string[] = [];
+    const params: unknown[] = [];
+    for (const r of rows) {
+      const i = params.length;
+      values.push(`($${i + 1}::bigint, $${i + 2}::text)`);
+      params.push(r.ean, r.value);
+    }
+    await this.em.query(
+      `UPDATE tenant_product AS tp
+       SET ${column} = u.value, updated_at = now()
+       FROM (VALUES ${values.join(', ')}) AS u(ean, value)
+       WHERE tp.ean = u.ean AND tp.${column} IS NULL`,
+      params,
+    );
+  }
+
+  private async findEansMissingColumn(
+    column: 'supplier' | 'name',
+  ): Promise<string[]> {
+    const rows: Array<{ ean: string }> = await this.em
+      .getRepository(TenantProductEntity)
+      .createQueryBuilder('tp')
+      .select('tp.ean', 'ean')
+      .where(`tp.${column} IS NULL`)
+      .orderBy('tp.ean', 'ASC')
+      .getRawMany();
+    return rows.map((r) => String(r.ean));
+  }
 }

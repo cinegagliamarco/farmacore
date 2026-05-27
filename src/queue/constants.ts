@@ -19,7 +19,6 @@ export const STEP_QUEUES: ReadonlyArray<PipelineStep> = [
   PipelineStep.SYNC_OFFER_BOOKS_INFO,
   PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
   PipelineStep.IMPORT_COMPETITOR_STOCK,
-  PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES,
   PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT,
 ];
 
@@ -35,6 +34,7 @@ export const BATCHED_STEPS: ReadonlyArray<PipelineStep> = [
   PipelineStep.SYNC_BASE_PRODUCT,
   PipelineStep.SYNC_BASE_PRODUCT_STOCK,
   PipelineStep.CALC_BASE_PRODUCT_METRICS,
+  PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES,
 ];
 
 export const dispatchStep = (step: PipelineStep): string =>
@@ -46,13 +46,14 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [PipelineStep.SYNC_OFFER_BOOKS_INFO]: 2,
   [PipelineStep.IMPORT_COMPETITOR_PRODUCTS]: 4,
   [PipelineStep.IMPORT_COMPETITOR_STOCK]: 2,
-  [PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES]: 1,
   [PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT]: 2,
 
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 1,
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 1,
   [dispatchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 1,
+  [dispatchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 1,
   [batchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 4,
   [batchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 4,
   [batchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 2,
+  [batchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 4,
 };

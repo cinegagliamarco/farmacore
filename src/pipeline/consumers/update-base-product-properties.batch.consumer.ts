@@ -5,27 +5,28 @@ import {
   BatchPipelineConsumer,
   LastBatchContext,
 } from '../../queue/batch-pipeline.consumer';
-import { EXCHANGE_NAME, batchStep, dispatchStep } from '../../queue/constants';
+import { EXCHANGE_NAME, batchStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
-import { CalcBaseProductMetricsStep } from '../steps/calc-base-product-metrics.step';
+import { UpdateBaseProductPropertiesStep } from '../steps/update-base-product-properties.step';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
 import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
-import type { CalcBaseProductMetricsBatchPayload } from './calc-base-product-metrics.dispatch.consumer';
+import type { UpdateBaseProductPropertiesBatchPayload } from './update-base-product-properties.dispatch.consumer';
 
-const BATCH_QUEUE = batchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS);
+const BATCH_QUEUE = batchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES);
 
 @Injectable()
-export class CalcBaseProductMetricsBatchConsumer extends BatchPipelineConsumer<CalcBaseProductMetricsBatchPayload> {
-  protected readonly logicalStep = PipelineStep.CALC_BASE_PRODUCT_METRICS;
+export class UpdateBaseProductPropertiesBatchConsumer extends BatchPipelineConsumer<UpdateBaseProductPropertiesBatchPayload> {
+  protected readonly logicalStep =
+    PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES;
 
   constructor(
-    private readonly stepImpl: CalcBaseProductMetricsStep,
+    private readonly stepImpl: UpdateBaseProductPropertiesStep,
     runs: PipelineRunService,
     retry: RetryService,
     tx: TenantTransactionService,
@@ -44,26 +45,29 @@ export class CalcBaseProductMetricsBatchConsumer extends BatchPipelineConsumer<C
     queueOptions: { channel: BATCH_QUEUE },
   })
   public consume(
-    message: PipelineMessage<CalcBaseProductMetricsBatchPayload>,
+    message: PipelineMessage<UpdateBaseProductPropertiesBatchPayload>,
   ): Promise<void> {
     return this.process(message);
   }
 
   protected handle(
-    ctx: BatchHandleContext<CalcBaseProductMetricsBatchPayload>,
+    ctx: BatchHandleContext<UpdateBaseProductPropertiesBatchPayload>,
   ): Promise<void> {
-    return this.stepImpl.run(ctx.em, ctx.message.payload.eans);
+    return this.stepImpl.run(
+      ctx.em,
+      ctx.message.payload.pass,
+      ctx.message.payload.eans,
+    );
   }
 
   protected successors(
-    ctx: LastBatchContext<CalcBaseProductMetricsBatchPayload>,
+    ctx: LastBatchContext<UpdateBaseProductPropertiesBatchPayload>,
   ): Promise<PipelineMessage<unknown>[]> {
     return Promise.resolve([
       newPipelineMessage({
         pipelineRunId: ctx.message.pipelineRunId,
         tenantId: ctx.message.tenantId,
-        step: PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES,
-        queue: dispatchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES),
+        step: PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT,
         payload: {},
       }),
     ]);

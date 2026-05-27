@@ -71,6 +71,7 @@ export class CalcBaseProductMetricsDispatchConsumer extends DispatchPipelineCons
       pipelineRunId: ctx.message.pipelineRunId,
       tenantId: ctx.message.tenantId,
       step: PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES,
+      queue: dispatchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES),
       payload: {},
     });
 
