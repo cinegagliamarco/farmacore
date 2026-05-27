@@ -1,6 +1,7 @@
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { DrogalScraper } from './drogal/drogal.scraper';
+import { DrogasilScraper } from './drogasil/drogasil.scraper';
 
 /**
  * Per-origin scrapers (Phase C). Each scraper implements
@@ -10,7 +11,7 @@ import { DrogalScraper } from './drogal/drogal.scraper';
  */
 @Module({
   imports: [HttpModule.register({ timeout: 30_000, maxRedirects: 5 })],
-  providers: [DrogalScraper],
-  exports: [DrogalScraper],
+  providers: [DrogalScraper, DrogasilScraper],
+  exports: [DrogalScraper, DrogasilScraper],
 })
 export class ScrapersModule {}
