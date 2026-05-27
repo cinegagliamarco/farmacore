@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, IsNull, Repository } from 'typeorm';
 import { PipelineOutboxEntity } from '../database/entities/core/pipeline-outbox.entity';
-import { EXCHANGE_NAME } from './constants';
 import { PipelineMessage } from './types';
 
 @Injectable()
@@ -71,5 +70,3 @@ export class OutboxRepository {
     );
   }
 }
-
-export { EXCHANGE_NAME };

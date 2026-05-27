@@ -12,7 +12,8 @@ export class PipelineOutbox1700000000020 implements MigrationInterface {
         attempts int NOT NULL DEFAULT 0,
         published_at timestamptz,
         created_at timestamptz NOT NULL DEFAULT now(),
-        updated_at timestamptz NOT NULL DEFAULT now()
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        deleted_at timestamptz
       );
       -- partial index for the publisher's "what's pending" scan
       CREATE INDEX "IX_PIPELINE_OUTBOX_PENDING"
