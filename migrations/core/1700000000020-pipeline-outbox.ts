@@ -11,6 +11,11 @@ export class PipelineOutbox1700000000020 implements MigrationInterface {
         message jsonb NOT NULL,
         attempts int NOT NULL DEFAULT 0,
         published_at timestamptz,
+        -- Set when a publisher claims the row. Cleared semantically by
+        -- published_at filtering — never read again after publish succeeds.
+        -- A stale claimed_at (older than CLAIM_GRACE_MS) lets another
+        -- tick reclaim the row, covering crashed publishers.
+        claimed_at timestamptz,
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now(),
         deleted_at timestamptz

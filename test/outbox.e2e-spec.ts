@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from '../src/app.module';
 import { OutboxPublisher } from '../src/queue/outbox-publisher.service';
+import { OutboxRepository } from '../src/queue/outbox.repository';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { EXCHANGE_NAME } from '../src/queue/constants';
 
@@ -111,5 +112,35 @@ describe('OutboxPublisher (real Postgres + RabbitMQ)', () => {
       [runId],
     );
     expect(row.published_at).not.toBeNull();
+  });
+
+  it('lease: a fresh claim is excluded from a concurrent claim', async () => {
+    // Stage two rows, claim them via the repository directly, then
+    // verify a second claimPending sees ZERO available rows because
+    // both are still inside the CLAIM_GRACE_MS window.
+    const runId = randomUUID();
+    for (const i of [1, 2]) {
+      await ds.query(
+        `INSERT INTO core.pipeline_outbox
+           (pipeline_run_id, tenant_id, routing_key, message, attempts)
+         VALUES ($1, $2, $3, $4::jsonb, 0)`,
+        [
+          runId,
+          'system',
+          `system.lease-probe-${runId}-${i}`,
+          JSON.stringify({ probe: true, i }),
+        ],
+      );
+    }
+
+    const outbox = app.get(OutboxRepository);
+    const firstClaim = await outbox.claimPending(10);
+    expect(firstClaim.filter((r) => r.pipelineRunId === runId)).toHaveLength(2);
+
+    const secondClaim = await outbox.claimPending(10);
+    expect(secondClaim.filter((r) => r.pipelineRunId === runId)).toHaveLength(0);
+
+    // Cleanup
+    await ds.query(`DELETE FROM core.pipeline_outbox WHERE pipeline_run_id = $1`, [runId]);
   });
 });

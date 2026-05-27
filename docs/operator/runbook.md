@@ -174,6 +174,13 @@ WHERE published_at IS NULL;
 Healthy: `pending = 0` most of the time, occasional 1–10 during
 chain transitions, drained within 5 seconds (`OutboxPublisher` tick).
 
+`claimed_at` is the lease marker. A row claimed in the last
+`CLAIM_GRACE_MS` (60s, `src/queue/outbox.repository.ts`) is excluded
+from re-claim, so two concurrent publisher ticks can't double-publish
+the same row. A crashed publisher's row becomes claimable again after
+the grace expires — at-least-once delivery, downstream consumers are
+idempotent.
+
 Stuck:
 - **`pending` climbing** → AMQP connection issue or publisher cron
   not running. Check worker logs for `OutboxPublisher` errors.
@@ -187,6 +194,9 @@ Stuck:
   ```
   Common cause: routing key references a queue that doesn't exist.
   After fixing the binding, the row drains on the next tick.
+- **Row `claimed_at` set, never published** → publisher crashed mid-publish.
+  Wait `CLAIM_GRACE_MS` (60s); next tick reclaims and retries. If a row
+  is stuck claimed for hours, the worker is wedged — check process state.
 
 ## DLQ debugging
 

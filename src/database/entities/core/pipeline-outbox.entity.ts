@@ -30,4 +30,7 @@ export class PipelineOutboxEntity extends BaseEntity {
 
   @Column({ name: 'published_at', type: 'timestamptz', nullable: true })
   public publishedAt?: Date | null;
+
+  @Column({ name: 'claimed_at', type: 'timestamptz', nullable: true })
+  public claimedAt?: Date | null;
 }

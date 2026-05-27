@@ -4,6 +4,15 @@ import { EntityManager, IsNull, Repository } from 'typeorm';
 import { PipelineOutboxEntity } from '../database/entities/core/pipeline-outbox.entity';
 import { PipelineMessage } from './types';
 
+/**
+ * Lease window: a claimed row is excluded from re-claim until this
+ * many ms have passed since claimed_at. Comfortably larger than a
+ * normal publish (broker round-trip is sub-second) so happy-path
+ * publishes never race their own lease; short enough that a crashed
+ * publisher's row is reclaimable within 60s.
+ */
+const CLAIM_GRACE_MS = 60_000;
+
 @Injectable()
 export class OutboxRepository {
   constructor(
@@ -37,11 +46,15 @@ export class OutboxRepository {
   }
 
   /**
-   * Claim a batch of unpublished rows. Two-step:
-   *   1. UPDATE...RETURNING with FOR UPDATE SKIP LOCKED to atomically
-   *      bump the attempts counter for picked rows. Multiple publisher
-   *      instances can run concurrently without double-publishing.
-   *   2. Re-fetch via the typed repo so callers get camelCase fields.
+   * Claim a batch of unpublished rows with a lease.
+   *
+   * The SKIP LOCKED row lock only holds for the duration of this UPDATE
+   * statement — once it commits, the row is unlocked while
+   * AmqpConnection.publish is still in flight. Without the lease,
+   * another tick would re-pick and double-publish. claimed_at + a
+   * CLAIM_GRACE_MS window solve that: a row claimed in the last grace
+   * window is excluded from subsequent claims. A crashed publisher's
+   * row becomes claimable again after the grace expires.
    */
   public async claimPending(
     limit: number,
@@ -50,14 +63,16 @@ export class OutboxRepository {
       `WITH chosen AS (
         SELECT id FROM core.pipeline_outbox
         WHERE published_at IS NULL
+          AND (claimed_at IS NULL
+               OR claimed_at < now() - ($2::int * interval '1 millisecond'))
         ORDER BY created_at ASC
         LIMIT $1 FOR UPDATE SKIP LOCKED
       )
       UPDATE core.pipeline_outbox
-      SET attempts = attempts + 1, updated_at = now()
+      SET attempts = attempts + 1, claimed_at = now(), updated_at = now()
       WHERE id IN (SELECT id FROM chosen)
       RETURNING id`,
-      [limit],
+      [limit, CLAIM_GRACE_MS],
     );
     if (picked.length === 0) return [];
     return this.repo.find({ where: picked.map((p) => ({ id: p.id })) });
