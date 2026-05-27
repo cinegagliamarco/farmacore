@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EntityManager, DataSource } from 'typeorm';
+import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService } from './pipeline-run.service';
 import { RetryService } from './retry.service';
 import { PipelinePublisher } from './pipeline-publisher.service';
@@ -50,6 +51,11 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
   protected abstract readonly logicalStep: PipelineStep;
   protected readonly logger = new Logger(this.constructor.name);
 
+  // Property injection so concrete dispatchers don't thread
+  // OutboxRepository through their super() calls.
+  @Inject(OutboxRepository)
+  protected readonly outbox!: OutboxRepository;
+
   constructor(
     protected readonly runs: PipelineRunService,
     protected readonly retry: RetryService,
@@ -83,24 +89,43 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
         tenant.slug,
       );
 
-      const result = await this.tx.runWithTenant(tenant.schemaName, (em) =>
-        this.handle({ message, em, integrationDs }),
+      // Empty path is atomic via the tenant tx (recordDispatch +
+      // complete + outbox-staged emptySuccessors all-or-nothing).
+      // The batches path keeps direct AMQP publish — batches are
+      // re-emittable via startOrRestartDispatch on crash, and the
+      // 1-to-1 outbox staging of N batches would balloon the table.
+      const result = await this.tx.runWithTenant(
+        tenant.schemaName,
+        async (em) => {
+          const r = await this.handle({ message, em, integrationDs });
+          if (r.batches.length === 0) {
+            await this.runs.recordDispatch(
+              message.pipelineRunId,
+              this.logicalStep,
+              0,
+              em,
+            );
+            await this.runs.complete(
+              message.pipelineRunId,
+              this.logicalStep,
+              undefined,
+              em,
+            );
+            await this.outbox.insertMany(
+              em,
+              message.pipelineRunId,
+              message.tenantId,
+              r.emptySuccessors ?? [],
+            );
+          }
+          return r;
+        },
       );
 
       if (result.batches.length === 0) {
-        await this.runs.recordDispatch(
-          message.pipelineRunId,
-          this.logicalStep,
-          0,
-        );
-        await this.runs.complete(message.pipelineRunId, this.logicalStep);
-        const successors = result.emptySuccessors ?? [];
         this.logger.log(
-          `${this.logicalStep}.dispatch: no batches; publishing ${successors.length} empty-successor(s)`,
+          `${this.logicalStep}.dispatch: no batches; ${(result.emptySuccessors ?? []).length} empty-successor(s) staged to outbox`,
         );
-        for (const successor of successors) {
-          await this.publisher.publishStep(successor);
-        }
         return;
       }
 

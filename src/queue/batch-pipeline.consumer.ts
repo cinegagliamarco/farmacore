@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EntityManager, DataSource } from 'typeorm';
+import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService } from './pipeline-run.service';
 import { RetryService } from './retry.service';
 import { PipelinePublisher } from './pipeline-publisher.service';
@@ -41,6 +42,11 @@ export interface LastBatchContext<TPayload = unknown> {
 export abstract class BatchPipelineConsumer<TPayload = unknown> {
   protected abstract readonly logicalStep: PipelineStep;
   protected readonly logger = new Logger(this.constructor.name);
+
+  // Property injection so the 13+ concrete consumer subclasses don't
+  // need to thread OutboxRepository through their super() calls.
+  @Inject(OutboxRepository)
+  protected readonly outbox!: OutboxRepository;
 
   constructor(
     protected readonly runs: PipelineRunService,
@@ -100,36 +106,42 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
         tenant.slug,
       );
 
-      // Handle + complete + counter increment all in ONE tenant tx.
-      // If anything throws, the batch row stays 'running' and the
-      // counter is unchanged; redelivery re-runs handle() cleanly.
-      // The atomic CTE in completeBatchAndIncrement closes the
-      // deadlock window between marking the batch complete and
-      // bumping the dispatch counter (bug #1, window 1).
+      // Handle + complete + counter increment + (last-batch) outbox
+      // staging all in ONE tenant tx. The atomic CTE closes the
+      // complete↔counter deadlock (bug #1 window 1); the outbox
+      // insert closes the counter↔publish gap (bug #1 window 2).
+      // OutboxPublisher drains the outbox + actually publishes to AMQP.
       const inc = await this.tx.runWithTenant(
         tenant.schemaName,
         async (em) => {
           await this.handle({ message, em, integrationDs, batchSeq });
-          return this.runs.completeBatchAndIncrement(
+          const incResult = await this.runs.completeBatchAndIncrement(
             em,
             message.pipelineRunId,
             this.logicalStep,
             batchSeq,
           );
+          if (incResult.isLast) {
+            const successors = await this.successors({
+              message,
+              em,
+              integrationDs,
+            });
+            await this.outbox.insertMany(
+              em,
+              message.pipelineRunId,
+              message.tenantId,
+              successors,
+            );
+          }
+          return incResult;
         },
       );
 
       if (inc.isLast) {
-        const successors = await this.tx.runWithTenant(
-          tenant.schemaName,
-          (em) => this.successors({ message, em, integrationDs }),
-        );
         this.logger.log(
-          `${this.logicalStep} fan-in complete (${inc.done}/${inc.planned}); publishing ${successors.length} successor(s)`,
+          `${this.logicalStep} fan-in complete (${inc.done}/${inc.planned}); successors staged to outbox`,
         );
-        for (const successor of successors) {
-          await this.publisher.publishStep(successor);
-        }
       } else {
         this.logger.debug(
           `${this.logicalStep}#${batchSeq} done (${inc.done}/${inc.planned})`,

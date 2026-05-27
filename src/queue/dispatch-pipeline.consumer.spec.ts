@@ -4,6 +4,7 @@ import {
   DispatchPipelineConsumer,
   DispatchHandleResult,
 } from './dispatch-pipeline.consumer';
+import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService } from './pipeline-run.service';
 import { RetryService } from './retry.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
@@ -37,6 +38,7 @@ describe('DispatchPipelineConsumer', () => {
   let tenants: { findActive: jest.Mock };
   let factory: { forTenantSlug: jest.Mock };
   let publisher: { publishStep: jest.Mock };
+  let outbox: { insertMany: jest.Mock };
 
   const msg: PipelineMessage<{ total: number }> = {
     pipelineRunId: 'run1',
@@ -80,6 +82,7 @@ describe('DispatchPipelineConsumer', () => {
     };
     factory = { forTenantSlug: jest.fn().mockResolvedValue(null) };
     publisher = { publishStep: jest.fn() };
+    outbox = { insertMany: jest.fn() };
 
     const mod = await Test.createTestingModule({
       providers: [
@@ -90,6 +93,7 @@ describe('DispatchPipelineConsumer', () => {
         { provide: TenantService, useValue: tenants },
         { provide: IntegrationDataSourceFactory, useValue: factory },
         { provide: PipelinePublisher, useValue: publisher },
+        { provide: OutboxRepository, useValue: outbox },
       ],
     }).compile();
     consumer = mod.get(TestDispatchConsumer);
@@ -122,19 +126,28 @@ describe('DispatchPipelineConsumer', () => {
     );
   });
 
-  it('publishes emptySuccessors when batches is empty', async () => {
+  it('stages emptySuccessors to outbox when batches is empty', async () => {
+    const empty = successor(PipelineStep.SYNC_BASE_PRODUCT_STOCK);
     consumer.toReturn = {
       batches: [],
-      emptySuccessors: [successor(PipelineStep.SYNC_BASE_PRODUCT_STOCK)],
+      emptySuccessors: [empty],
     };
     await consumer.process(msg);
     expect(runs.recordDispatch).toHaveBeenCalledWith(
       'run1',
       PipelineStep.SYNC_BASE_PRODUCT,
       0,
+      expect.anything(), // em
     );
-    expect(publisher.publishStep).toHaveBeenCalledTimes(1);
     expect(runs.complete).toHaveBeenCalled();
+    // D2: emptySuccessors flow through the outbox, not direct publish.
+    expect(outbox.insertMany).toHaveBeenCalledWith(
+      expect.anything(),
+      'run1',
+      'acme',
+      [empty],
+    );
+    expect(publisher.publishStep).not.toHaveBeenCalled();
   });
 
   it('skips when dispatch row is already-completed (idempotent)', async () => {

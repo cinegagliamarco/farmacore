@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppConfigService } from '../config/app-config.service';
+import { PipelineOutboxEntity } from '../database/entities/core/pipeline-outbox.entity';
 import { PipelineRunEntity } from '../database/entities/core/pipeline-run.entity';
 import { CompetitorOrigin } from '../database/enums/competitor-origin.enum';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
@@ -20,6 +21,8 @@ import {
   originStep,
 } from './constants';
 import { delayQueueName } from './retry.service';
+import { OutboxPublisher } from './outbox-publisher.service';
+import { OutboxRepository } from './outbox.repository';
 import { PipelinePublisher } from './pipeline-publisher.service';
 import { PipelineRunService } from './pipeline-run.service';
 import { RetryService } from './retry.service';
@@ -82,7 +85,7 @@ const perOriginQueueNames = (): string[] => {
 @Global()
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PipelineRunEntity]),
+    TypeOrmModule.forFeature([PipelineRunEntity, PipelineOutboxEntity]),
     RabbitMQModule.forRootAsync({
       inject: [AppConfigService],
       useFactory: (config: AppConfigService) => ({
@@ -138,11 +141,18 @@ const perOriginQueueNames = (): string[] => {
       }),
     }),
   ],
-  providers: [PipelinePublisher, PipelineRunService, RetryService],
+  providers: [
+    PipelinePublisher,
+    PipelineRunService,
+    RetryService,
+    OutboxRepository,
+    OutboxPublisher,
+  ],
   exports: [
     PipelinePublisher,
     PipelineRunService,
     RetryService,
+    OutboxRepository,
     RabbitMQModule,
   ],
 })

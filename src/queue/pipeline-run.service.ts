@@ -51,8 +51,12 @@ export class PipelineRunService {
     pipelineRunId: string,
     step: PipelineStep | string,
     batchSeq: number = DISPATCH_BATCH_SEQ,
+    em?: EntityManager,
   ): Promise<void> {
-    await this.repo.update(
+    const repo = em
+      ? em.getRepository(PipelineRunEntity)
+      : this.repo;
+    await repo.update(
       { pipelineRunId, step: step as PipelineStep, batchSeq },
       { status: PipelineRunStatus.COMPLETED, finishedAt: new Date() },
     );
@@ -78,8 +82,12 @@ export class PipelineRunService {
     pipelineRunId: string,
     step: PipelineStep | string,
     planned: number,
+    em?: EntityManager,
   ): Promise<void> {
-    await this.repo.update(
+    const repo = em
+      ? em.getRepository(PipelineRunEntity)
+      : this.repo;
+    await repo.update(
       {
         pipelineRunId,
         step: step as PipelineStep,

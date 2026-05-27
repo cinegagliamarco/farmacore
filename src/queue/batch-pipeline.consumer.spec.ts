@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { EntityManager } from 'typeorm';
 import { BatchPipelineConsumer } from './batch-pipeline.consumer';
+import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService, BatchIncrement } from './pipeline-run.service';
 import { RetryService } from './retry.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
@@ -41,6 +42,7 @@ describe('BatchPipelineConsumer', () => {
   let tenants: { findActive: jest.Mock };
   let factory: { forTenantSlug: jest.Mock };
   let publisher: { publishStep: jest.Mock };
+  let outbox: { insertMany: jest.Mock };
 
   const buildMsg = (
     batchSeq: number,
@@ -77,6 +79,7 @@ describe('BatchPipelineConsumer', () => {
     };
     factory = { forTenantSlug: jest.fn().mockResolvedValue(null) };
     publisher = { publishStep: jest.fn() };
+    outbox = { insertMany: jest.fn() };
 
     const mod = await Test.createTestingModule({
       providers: [
@@ -87,6 +90,7 @@ describe('BatchPipelineConsumer', () => {
         { provide: TenantService, useValue: tenants },
         { provide: IntegrationDataSourceFactory, useValue: factory },
         { provide: PipelinePublisher, useValue: publisher },
+        { provide: OutboxRepository, useValue: outbox },
       ],
     }).compile();
     consumer = mod.get(TestBatchConsumer);
@@ -147,7 +151,14 @@ describe('BatchPipelineConsumer', () => {
     });
     await consumer.process(buildMsg(4));
     expect(consumer.successorsCalled).toBe(1);
-    expect(publisher.publishStep).toHaveBeenCalledWith(successor);
+    // D2: successors go to outbox, not directly to AMQP.
+    expect(outbox.insertMany).toHaveBeenCalledWith(
+      expect.anything(), // em
+      'run1',
+      'acme',
+      [successor],
+    );
+    expect(publisher.publishStep).not.toHaveBeenCalled();
   });
 
   it('skips handle when start returns already-completed', async () => {
