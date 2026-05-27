@@ -24,7 +24,7 @@ import {
 } from '../../database/repositories/tenant/offer-book.repository';
 import { TenantProductDeal } from '../../database/entities/tenant/tenant-product.entity';
 
-export interface SyncBaseProductBatchResult {
+interface SyncBaseProductBatchResult {
   processed: number;
   skipped: number;
 }
@@ -33,8 +33,7 @@ export interface SyncBaseProductBatchResult {
  * Per-batch business logic for sync-base-product. Pure use-case: takes
  * the tenant EntityManager + integration DataSource + a slice of
  * embalagem IDs; reads from the ERP, writes to shared_catalog and the
- * tenant schema; no RMQ awareness. The dispatcher owns the global
- * delete-then-fan-out step (offer_book is wiped once before the batches).
+ * tenant schema; no RMQ awareness.
  *
  * Field mapping (legacy BaseProductEntity -> new model):
  *   ean, description, activeIngredient, generic -> shared_catalog.base_product

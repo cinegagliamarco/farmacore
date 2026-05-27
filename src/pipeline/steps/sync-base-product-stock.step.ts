@@ -6,7 +6,7 @@ import {
   TenantProductStockUpsertInput,
 } from '../../database/repositories/tenant/tenant-product-stock.repository';
 
-export interface SyncBaseProductStockBatchResult {
+interface SyncBaseProductStockBatchResult {
   processed: number;
   skipped: number;
 }

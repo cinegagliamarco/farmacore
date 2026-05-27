@@ -74,22 +74,6 @@ export class PipelineRunService {
     );
   }
 
-  public async isCompleted(
-    pipelineRunId: string,
-    step: PipelineStep | string,
-    batchSeq: number = DISPATCH_BATCH_SEQ,
-  ): Promise<boolean> {
-    const row = await this.repo.findOne({
-      where: {
-        pipelineRunId,
-        step: step as PipelineStep,
-        batchSeq,
-        status: PipelineRunStatus.COMPLETED,
-      },
-    });
-    return row !== null;
-  }
-
   public async recordDispatch(
     pipelineRunId: string,
     step: PipelineStep | string,

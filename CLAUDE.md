@@ -14,6 +14,10 @@ Aplicação prática:
   pergunte: esse caso pode mesmo acontecer? Confiar em código interno e
   contratos de framework; validar apenas em fronteiras (entrada de usuário,
   APIs externas).
+- **Zero dead code, zero lógica desnecessária**: imports não usados, helpers
+  chamados uma vez (inline), guards pra casos impossíveis, exports não
+  consumidos, constantes "para o futuro" — tudo isso é peso. Remova ou não
+  adicione.
 - **Antes de adicionar um comentário**, pergunte: o nome do identificador já
   diz isso? Comentar só o "porquê" não-óbvio (constraint escondida, bug
   conhecido, decisão de design surpreendente).
