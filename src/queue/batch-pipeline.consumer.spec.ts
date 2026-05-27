@@ -33,9 +33,8 @@ describe('BatchPipelineConsumer', () => {
   let consumer: TestBatchConsumer;
   let runs: {
     start: jest.Mock;
-    complete: jest.Mock;
     fail: jest.Mock;
-    incrementBatchDone: jest.Mock;
+    completeBatchAndIncrement: jest.Mock;
   };
   let retry: { republishOnFailure: jest.Mock };
   let tx: { runWithTenant: jest.Mock };
@@ -59,9 +58,8 @@ describe('BatchPipelineConsumer', () => {
   beforeEach(async () => {
     runs = {
       start: jest.fn().mockResolvedValue('started'),
-      complete: jest.fn(),
       fail: jest.fn(),
-      incrementBatchDone: jest.fn(),
+      completeBatchAndIncrement: jest.fn(),
     };
     retry = { republishOnFailure: jest.fn().mockResolvedValue('retried') };
     tx = {
@@ -105,27 +103,24 @@ describe('BatchPipelineConsumer', () => {
     );
   });
 
-  it('runs handle and increments fan-in counter', async () => {
-    runs.incrementBatchDone.mockResolvedValue({
+  it('runs handle and increments fan-in counter atomically', async () => {
+    runs.completeBatchAndIncrement.mockResolvedValue({
       done: 1,
       planned: 4,
       isLast: false,
     } satisfies BatchIncrement);
     await consumer.process(buildMsg(1));
     expect(consumer.lastInvoked).toBe(1);
-    expect(runs.complete).toHaveBeenCalledWith(
+    expect(runs.completeBatchAndIncrement).toHaveBeenCalledWith(
+      expect.anything(), // em
       'run1',
       PipelineStep.SYNC_BASE_PRODUCT,
       1,
     );
-    expect(runs.incrementBatchDone).toHaveBeenCalledWith(
-      'run1',
-      PipelineStep.SYNC_BASE_PRODUCT,
-    );
   });
 
   it('does NOT call successors() or publish when not the last batch', async () => {
-    runs.incrementBatchDone.mockResolvedValue({
+    runs.completeBatchAndIncrement.mockResolvedValue({
       done: 2,
       planned: 4,
       isLast: false,
@@ -145,7 +140,7 @@ describe('BatchPipelineConsumer', () => {
       payload: {},
     };
     consumer.successorsToReturn = [successor];
-    runs.incrementBatchDone.mockResolvedValue({
+    runs.completeBatchAndIncrement.mockResolvedValue({
       done: 4,
       planned: 4,
       isLast: true,
@@ -159,7 +154,7 @@ describe('BatchPipelineConsumer', () => {
     runs.start.mockResolvedValue('already-completed');
     await consumer.process(buildMsg(1));
     expect(consumer.lastInvoked).toBe(0);
-    expect(runs.incrementBatchDone).not.toHaveBeenCalled();
+    expect(runs.completeBatchAndIncrement).not.toHaveBeenCalled();
   });
 
   it('on failure -> retry + fail row keyed on batchSeq', async () => {

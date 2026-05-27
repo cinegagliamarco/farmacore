@@ -100,19 +100,23 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
         tenant.slug,
       );
 
-      await this.tx.runWithTenant(tenant.schemaName, (em) =>
-        this.handle({ message, em, integrationDs, batchSeq }),
-      );
-
-      await this.runs.complete(
-        message.pipelineRunId,
-        this.logicalStep,
-        batchSeq,
-      );
-
-      const inc = await this.runs.incrementBatchDone(
-        message.pipelineRunId,
-        this.logicalStep,
+      // Handle + complete + counter increment all in ONE tenant tx.
+      // If anything throws, the batch row stays 'running' and the
+      // counter is unchanged; redelivery re-runs handle() cleanly.
+      // The atomic CTE in completeBatchAndIncrement closes the
+      // deadlock window between marking the batch complete and
+      // bumping the dispatch counter (bug #1, window 1).
+      const inc = await this.tx.runWithTenant(
+        tenant.schemaName,
+        async (em) => {
+          await this.handle({ message, em, integrationDs, batchSeq });
+          return this.runs.completeBatchAndIncrement(
+            em,
+            message.pipelineRunId,
+            this.logicalStep,
+            batchSeq,
+          );
+        },
       );
 
       if (inc.isLast) {

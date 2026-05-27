@@ -89,28 +89,41 @@ describe('PipelineRunService', () => {
     );
   });
 
-  it('incrementBatchDone: returns isLast=true when done reaches planned', async () => {
-    repo.query.mockResolvedValue([{ batches_done: 4, batches_planned: 4 }]);
-    const out = await svc.incrementBatchDone(
+  it('completeBatchAndIncrement: returns isLast=true when done reaches planned', async () => {
+    const em = { query: jest.fn().mockResolvedValue([{ batches_done: 4, batches_planned: 4 }]) };
+    const out = await svc.completeBatchAndIncrement(
+      em as unknown as Parameters<typeof svc.completeBatchAndIncrement>[0],
       'run1',
       PipelineStep.SYNC_BASE_PRODUCT,
+      3,
     );
     expect(out).toEqual({ done: 4, planned: 4, isLast: true });
+    expect(em.query).toHaveBeenCalledWith(
+      expect.stringMatching(/WITH batch_done AS/),
+      expect.arrayContaining(['run1', PipelineStep.SYNC_BASE_PRODUCT, 3]),
+    );
   });
 
-  it('incrementBatchDone: returns isLast=false when done < planned', async () => {
-    repo.query.mockResolvedValue([{ batches_done: 1, batches_planned: 4 }]);
-    const out = await svc.incrementBatchDone(
+  it('completeBatchAndIncrement: returns isLast=false when done < planned', async () => {
+    const em = { query: jest.fn().mockResolvedValue([{ batches_done: 1, batches_planned: 4 }]) };
+    const out = await svc.completeBatchAndIncrement(
+      em as unknown as Parameters<typeof svc.completeBatchAndIncrement>[0],
       'run1',
       PipelineStep.SYNC_BASE_PRODUCT,
+      1,
     );
     expect(out).toEqual({ done: 1, planned: 4, isLast: false });
   });
 
-  it('incrementBatchDone: throws when no dispatch row exists', async () => {
-    repo.query.mockResolvedValue([]);
+  it('completeBatchAndIncrement: throws when no dispatch row exists', async () => {
+    const em = { query: jest.fn().mockResolvedValue([]) };
     await expect(
-      svc.incrementBatchDone('run1', PipelineStep.SYNC_BASE_PRODUCT),
+      svc.completeBatchAndIncrement(
+        em as unknown as Parameters<typeof svc.completeBatchAndIncrement>[0],
+        'run1',
+        PipelineStep.SYNC_BASE_PRODUCT,
+        1,
+      ),
     ).rejects.toThrow(/no dispatch row/);
   });
 

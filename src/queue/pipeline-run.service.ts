@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { PipelineRunEntity } from '../database/entities/core/pipeline-run.entity';
 import { PipelineRunStatus } from '../database/enums/pipeline-run-status.enum';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
@@ -143,21 +143,54 @@ export class PipelineRunService {
     return 'started';
   }
 
-  public async incrementBatchDone(
+  /**
+   * Atomic batch completion + fan-in increment in one SQL CTE.
+   *
+   * Closes bug #1 (the deadlock window between `complete()` and
+   * `incrementBatchDone()`). The CTE only bumps the counter when the
+   * batch row actually transitions running -> completed, so it's
+   * idempotent on broker redelivery: a redelivered already-completed
+   * batch re-runs the CTE, the WHERE status='running' filter matches
+   * zero rows, count() returns 0, counter stays put. Returns the
+   * current counter snapshot either way so callers can detect isLast
+   * even on the redelivery path.
+   *
+   * Accepts an EntityManager (not the injected repo) so the caller's
+   * tenant transaction wraps this together with the batch's handle()
+   * work + outbox inserts — all-or-nothing atomicity.
+   */
+  public async completeBatchAndIncrement(
+    em: EntityManager,
     pipelineRunId: string,
     step: PipelineStep | string,
+    batchSeq: number,
   ): Promise<BatchIncrement> {
     const rows: Array<{ batches_done: number; batches_planned: number | null }> =
-      await this.repo.query(
-        `UPDATE core.pipeline_run
-         SET batches_done = batches_done + 1, updated_at = now()
-         WHERE pipeline_run_id = $1 AND step = $2 AND batch_seq = $3
-         RETURNING batches_done, batches_planned`,
-        [pipelineRunId, step, DISPATCH_BATCH_SEQ],
+      await em.query(
+        `WITH batch_done AS (
+          UPDATE core.pipeline_run
+          SET status = $4, finished_at = now(), updated_at = now()
+          WHERE pipeline_run_id = $1 AND step = $2 AND batch_seq = $3
+            AND status = $5
+          RETURNING 1
+        )
+        UPDATE core.pipeline_run
+        SET batches_done = batches_done + (SELECT count(*) FROM batch_done),
+            updated_at = now()
+        WHERE pipeline_run_id = $1 AND step = $2 AND batch_seq = $6
+        RETURNING batches_done, batches_planned`,
+        [
+          pipelineRunId,
+          step,
+          batchSeq,
+          PipelineRunStatus.COMPLETED,
+          PipelineRunStatus.RUNNING,
+          DISPATCH_BATCH_SEQ,
+        ],
       );
     if (rows.length === 0) {
       throw new Error(
-        `incrementBatchDone: no dispatch row for run=${pipelineRunId} step=${step}`,
+        `completeBatchAndIncrement: no dispatch row for run=${pipelineRunId} step=${step}`,
       );
     }
     const { batches_done, batches_planned } = rows[0];

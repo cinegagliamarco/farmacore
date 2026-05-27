@@ -27,13 +27,15 @@ describe('PipelineRunService fan-in (real Postgres)', () => {
     await app.close();
   });
 
-  it('concurrent incrementBatchDone sees isLast=true exactly once', async () => {
+  it('concurrent completeBatchAndIncrement sees isLast=true exactly once', async () => {
     const runId = randomUUID();
     const step = PipelineStep.SYNC_BASE_PRODUCT;
     const tenantId = 'system';
     const planned = 32;
 
-    // Seed a dispatch row with batches_planned=N.
+    // Seed a dispatch row + N running batch rows; the CTE only bumps
+    // the counter when the matching batch row transitions
+    // running -> completed.
     await ds.query(
       `INSERT INTO core.pipeline_run
          (pipeline_run_id, tenant_id, step, status, attempt,
@@ -41,10 +43,21 @@ describe('PipelineRunService fan-in (real Postgres)', () => {
        VALUES ($1, $2, $3, $4, 1, 0, $5, 0, now())`,
       [runId, tenantId, step, PipelineRunStatus.RUNNING, planned],
     );
+    for (let i = 1; i <= planned; i++) {
+      await ds.query(
+        `INSERT INTO core.pipeline_run
+           (pipeline_run_id, tenant_id, step, status, attempt,
+            batch_seq, started_at)
+         VALUES ($1, $2, $3, $4, 1, $5, now())`,
+        [runId, tenantId, step, PipelineRunStatus.RUNNING, i],
+      );
+    }
 
     const outcomes = await Promise.all(
-      Array.from({ length: planned }, () =>
-        svc.incrementBatchDone(runId, step),
+      Array.from({ length: planned }, (_, i) =>
+        ds.transaction((em) =>
+          svc.completeBatchAndIncrement(em, runId, step, i + 1),
+        ),
       ),
     );
 
@@ -61,5 +74,37 @@ describe('PipelineRunService fan-in (real Postgres)', () => {
     );
     expect(row.batches_done).toBe(planned);
     expect(row.batches_planned).toBe(planned);
+  });
+
+  it('redelivered batch (already-completed) does not double-bump the counter', async () => {
+    const runId = randomUUID();
+    const step = PipelineStep.SYNC_BASE_PRODUCT_STOCK;
+    const tenantId = 'system';
+
+    await ds.query(
+      `INSERT INTO core.pipeline_run
+         (pipeline_run_id, tenant_id, step, status, attempt,
+          batch_seq, batches_planned, batches_done, started_at)
+       VALUES ($1, $2, $3, $4, 1, 0, 1, 0, now())`,
+      [runId, tenantId, step, PipelineRunStatus.RUNNING],
+    );
+    await ds.query(
+      `INSERT INTO core.pipeline_run
+         (pipeline_run_id, tenant_id, step, status, attempt,
+          batch_seq, started_at)
+       VALUES ($1, $2, $3, $4, 1, 1, now())`,
+      [runId, tenantId, step, PipelineRunStatus.RUNNING],
+    );
+
+    const first = await ds.transaction((em) =>
+      svc.completeBatchAndIncrement(em, runId, step, 1),
+    );
+    expect(first).toEqual({ done: 1, planned: 1, isLast: true });
+
+    // Simulate broker redelivery: same batch, already completed.
+    const second = await ds.transaction((em) =>
+      svc.completeBatchAndIncrement(em, runId, step, 1),
+    );
+    expect(second).toEqual({ done: 1, planned: 1, isLast: true });
   });
 });
