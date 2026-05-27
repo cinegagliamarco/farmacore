@@ -250,6 +250,29 @@ export class InitTenant1700000000002 implements MigrationInterface {
       );
     `);
 
+    // Tenant-wide catalog of ERP promotional campaigns (caderno_oferta).
+    // Populated by sync-offer-books-info; surfaced in the admin UI for
+    // browsing/filtering. Distinct from `offer_book_info` (extension
+    // metadata on a per-EAN offer_book row) — same family of concepts,
+    // different cardinality.
+    await queryRunner.query(`
+      CREATE TABLE tenant_offer_campaign (
+        id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+        external_id bigint NOT NULL,
+        name text NOT NULL,
+        active boolean NOT NULL DEFAULT false,
+        start_date timestamptz,
+        expiration_date timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        deleted_at timestamptz
+      );
+      CREATE UNIQUE INDEX "UQ_TENANT_OFFER_CAMPAIGN_EXTERNAL_ID"
+        ON tenant_offer_campaign(external_id);
+      CREATE INDEX "IX_TENANT_OFFER_CAMPAIGN_ACTIVE_EXPIRATION"
+        ON tenant_offer_campaign(active, expiration_date);
+    `);
+
     // Per-tenant subsidiary label lookup. The sync-base-product-stock
     // step imports every store's stock from the ERP regardless of what
     // is configured here; this table only carries human-readable names
