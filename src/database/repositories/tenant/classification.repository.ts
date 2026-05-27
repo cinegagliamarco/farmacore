@@ -1,5 +1,4 @@
-import { EntityManager, IsNull } from 'typeorm';
-import { ClassificationEntity } from '../../entities/tenant/classification.entity';
+import { EntityManager } from 'typeorm';
 
 /**
  * Tree-aware classification repository. Legacy stored classification as
@@ -11,6 +10,11 @@ import { ClassificationEntity } from '../../entities/tenant/classification.entit
  * then (level=1, parent=id-from-level-0), etc. Returns a map from the
  * original full path to the LEAF classification id, suitable for
  * tenant_product.classification_id.
+ *
+ * Resolution is concurrent-safe: two batches racing on the same path
+ * both run INSERT ... ON CONFLICT DO NOTHING against the partial
+ * unique indexes (UQ_CLASSIFICATION_ROOT_NAME / _CHILD_NAME). Whoever
+ * loses the conflict reads the winner's row.
  */
 export class ClassificationRepository {
   constructor(private readonly em: EntityManager) {}
@@ -18,7 +22,6 @@ export class ClassificationRepository {
   public async upsertPaths(
     paths: (string | undefined | null)[],
   ): Promise<Map<string, string>> {
-    const repo = this.em.getRepository(ClassificationEntity);
     const out = new Map<string, string>();
 
     const segmentsByPath = new Map<string, string[]>();
@@ -33,36 +36,70 @@ export class ClassificationRepository {
     }
     if (segmentsByPath.size === 0) return out;
 
-    const idCache = new Map<string, string>(); // key: `${parentId ?? 'null'}|${name}`
-    const resolve = async (
-      name: string,
-      parentId: string | null,
-    ): Promise<string> => {
-      const cacheKey = `${parentId ?? 'null'}|${name}`;
-      const cached = idCache.get(cacheKey);
-      if (cached) return cached;
-
-      const existing = await repo.findOne({
-        where: { name, parentId: parentId ?? IsNull() },
-      });
-      if (existing) {
-        idCache.set(cacheKey, existing.id);
-        return existing.id;
-      }
-      const saved = await repo.save({ name, parentId });
-      idCache.set(cacheKey, saved.id);
-      return saved.id;
-    };
-
+    const idCache = new Map<string, string>();
     for (const [path, parts] of segmentsByPath) {
       let parentId: string | null = null;
       let leafId: string | null = null;
       for (const segment of parts) {
-        leafId = await resolve(segment, parentId);
+        leafId = await this.resolve(segment, parentId, idCache);
         parentId = leafId;
       }
       if (leafId) out.set(path, leafId);
     }
     return out;
+  }
+
+  private async resolve(
+    name: string,
+    parentId: string | null,
+    idCache: Map<string, string>,
+  ): Promise<string> {
+    const cacheKey = `${parentId ?? 'null'}|${name}`;
+    const cached = idCache.get(cacheKey);
+    if (cached) return cached;
+
+    const id = await this.upsertAndFetchId(name, parentId);
+    idCache.set(cacheKey, id);
+    return id;
+  }
+
+  /**
+   * Atomic upsert: INSERT ... ON CONFLICT DO NOTHING against the
+   * partial UNIQUE index that matches the row's parentId nullity.
+   * Always follow with a SELECT for the row id (the INSERT returns
+   * nothing on conflict).
+   */
+  private async upsertAndFetchId(
+    name: string,
+    parentId: string | null,
+  ): Promise<string> {
+    if (parentId === null) {
+      await this.em.query(
+        `INSERT INTO classification (name, parent_id)
+         VALUES ($1, NULL)
+         ON CONFLICT (name) WHERE parent_id IS NULL AND deleted_at IS NULL
+         DO NOTHING`,
+        [name],
+      );
+      const rows: Array<{ id: string }> = await this.em.query(
+        `SELECT id FROM classification
+         WHERE name = $1 AND parent_id IS NULL AND deleted_at IS NULL`,
+        [name],
+      );
+      return rows[0].id;
+    }
+    await this.em.query(
+      `INSERT INTO classification (name, parent_id)
+       VALUES ($1, $2)
+       ON CONFLICT (parent_id, name) WHERE parent_id IS NOT NULL AND deleted_at IS NULL
+       DO NOTHING`,
+      [name, parentId],
+    );
+    const rows: Array<{ id: string }> = await this.em.query(
+      `SELECT id FROM classification
+       WHERE name = $1 AND parent_id = $2 AND deleted_at IS NULL`,
+      [name, parentId],
+    );
+    return rows[0].id;
   }
 }

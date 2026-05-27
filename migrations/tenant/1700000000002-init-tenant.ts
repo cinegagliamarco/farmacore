@@ -85,6 +85,14 @@ export class InitTenant1700000000002 implements MigrationInterface {
         deleted_at timestamptz
       );
       CREATE INDEX "IX_CLASSIFICATION_PARENT" ON classification(parent_id);
+      -- Two partial indexes (Postgres treats NULL as distinct, so a single
+      -- UNIQUE on (parent_id, name) wouldn't cover root segments). Lets
+      -- concurrent batches resolve the same classification path safely
+      -- via INSERT ... ON CONFLICT DO NOTHING.
+      CREATE UNIQUE INDEX "UQ_CLASSIFICATION_ROOT_NAME"
+        ON classification(name) WHERE parent_id IS NULL AND deleted_at IS NULL;
+      CREATE UNIQUE INDEX "UQ_CLASSIFICATION_CHILD_NAME"
+        ON classification(parent_id, name) WHERE parent_id IS NOT NULL AND deleted_at IS NULL;
     `);
 
     await queryRunner.query(`
