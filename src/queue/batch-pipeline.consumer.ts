@@ -1,0 +1,129 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { EntityManager, DataSource } from 'typeorm';
+import { PipelineRunService } from './pipeline-run.service';
+import { RetryService } from './retry.service';
+import { PipelinePublisher } from './pipeline-publisher.service';
+import { TenantService } from '../tenant/tenant.service';
+import { TenantTransactionService } from '../tenant/tenant-transaction.service';
+import { IntegrationDataSourceFactory } from '../integration/integration-data-source.factory';
+import { PipelineMessage } from './types';
+import { PipelineStep } from '../database/enums/pipeline-step.enum';
+
+export interface BatchHandleResult {
+  successors: PipelineMessage[];
+}
+
+export interface BatchHandleContext<TPayload = unknown> {
+  message: PipelineMessage<TPayload>;
+  em: EntityManager;
+  integrationDs: DataSource | null;
+  batchSeq: number;
+}
+
+/**
+ * Base class for a per-batch consumer in the v2 dispatcher/batch topology.
+ *
+ * The dispatcher emits N messages with batchSeq 1..N. Each batch:
+ *   1. Idempotency-checks (runId, step, batchSeq) via PipelineRunService.start.
+ *   2. Runs handle() inside the tenant transaction.
+ *   3. Records completion of its own batch row.
+ *   4. Atomically increments batches_done on the step's dispatch row
+ *      (batch_seq=0). The batch that observes done == planned is the
+ *      LAST one and publishes the successors returned by handle().
+ *
+ * `logicalStep` is the dependency-graph unit (e.g. SYNC_BASE_PRODUCT).
+ * The queue / routing key are owned by the concrete @RabbitSubscribe
+ * decorator on the subclass (e.g. 'sync-base-product.batch').
+ */
+@Injectable()
+export abstract class BatchPipelineConsumer<TPayload = unknown> {
+  protected abstract readonly logicalStep: PipelineStep;
+  protected readonly logger = new Logger(this.constructor.name);
+
+  constructor(
+    protected readonly runs: PipelineRunService,
+    protected readonly retry: RetryService,
+    protected readonly tx: TenantTransactionService,
+    protected readonly tenants: TenantService,
+    protected readonly integrationFactory: IntegrationDataSourceFactory,
+    protected readonly publisher: PipelinePublisher,
+  ) {}
+
+  protected abstract handle(
+    ctx: BatchHandleContext<TPayload>,
+  ): Promise<BatchHandleResult>;
+
+  public async process(message: PipelineMessage<TPayload>): Promise<void> {
+    const batchSeq = message.batchSeq ?? 0;
+    try {
+      if (batchSeq <= 0) {
+        throw new Error(
+          `BatchPipelineConsumer requires batchSeq >= 1 (got ${batchSeq}) for step ${this.logicalStep}`,
+        );
+      }
+      const outcome = await this.runs.start(
+        message.pipelineRunId,
+        message.tenantId,
+        this.logicalStep,
+        message.attempt,
+        batchSeq,
+      );
+      if (outcome === 'already-completed') {
+        this.logger.debug(
+          `Skipping ${this.logicalStep}#${batchSeq} for run ${message.pipelineRunId}: already completed`,
+        );
+        return;
+      }
+      if (outcome === 'in-progress') {
+        throw new Error(
+          `In-progress lock held for ${this.logicalStep}#${batchSeq} run ${message.pipelineRunId}`,
+        );
+      }
+
+      const tenant = await this.tenants.findActive(message.tenantId);
+      const integrationDs = await this.integrationFactory.forTenantSlug(
+        tenant.slug,
+      );
+
+      const result = await this.tx.runWithTenant(tenant.schemaName, (em) =>
+        this.handle({ message, em, integrationDs, batchSeq }),
+      );
+
+      await this.runs.complete(
+        message.pipelineRunId,
+        this.logicalStep,
+        batchSeq,
+      );
+
+      const inc = await this.runs.incrementBatchDone(
+        message.pipelineRunId,
+        this.logicalStep,
+      );
+
+      if (inc.isLast) {
+        this.logger.log(
+          `${this.logicalStep} fan-in complete (${inc.done}/${inc.planned}); publishing ${result.successors.length} successor(s)`,
+        );
+        for (const successor of result.successors) {
+          await this.publisher.publishStep(successor);
+        }
+      } else {
+        this.logger.debug(
+          `${this.logicalStep}#${batchSeq} done (${inc.done}/${inc.planned})`,
+        );
+      }
+    } catch (err) {
+      const errMessage = (err as Error).message || String(err);
+      this.logger.error(
+        `${this.logicalStep}#${batchSeq} failed for run ${message.pipelineRunId}: ${errMessage}`,
+      );
+      const outcome = await this.retry.republishOnFailure(message);
+      await this.runs.fail(
+        message.pipelineRunId,
+        this.logicalStep,
+        `${errMessage} (retry=${outcome})`,
+        batchSeq,
+      );
+    }
+  }
+}

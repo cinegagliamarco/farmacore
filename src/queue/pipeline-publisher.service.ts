@@ -36,9 +36,10 @@ export class PipelinePublisher {
   }
 
   public async publishStep<P>(message: PipelineMessage<P>): Promise<void> {
+    const routingSegment = message.queue ?? message.step;
     await this.amqp.publish(
       EXCHANGE_NAME,
-      `${message.tenantId}.${message.step}`,
+      `${message.tenantId}.${routingSegment}`,
       message,
       {
         persistent: true,
