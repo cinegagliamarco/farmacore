@@ -32,8 +32,7 @@ Inspect DLQs first — anything left there is unprocessed work:
 TOKEN="<system admin access token>"
 for step in sync-base-product sync-base-product-stock sync-offer-books-info \
             import-competitor-products import-competitor-stock \
-            calc-base-product-metrics update-base-product-properties \
-            update-active-ingredient-mat; do
+            calc-base-product-metrics update-base-product-properties; do
   echo "--- $step ---"
   curl -sH "Authorization: Bearer $TOKEN" \
     "https://farmacore-api.fly.dev/admin/dlq/$step?limit=100" | jq length

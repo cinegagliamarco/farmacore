@@ -65,19 +65,6 @@ export class InitTenant1700000000002 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
-      CREATE TABLE active_ingredient (
-        id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name text NOT NULL,
-        mat numeric(12,4),
-        mat_updated_at timestamptz,
-        created_at timestamptz NOT NULL DEFAULT now(),
-        updated_at timestamptz NOT NULL DEFAULT now(),
-        deleted_at timestamptz
-      );
-      CREATE UNIQUE INDEX "UQ_ACTIVE_INGREDIENT_NAME" ON active_ingredient(name);
-    `);
-
-    await queryRunner.query(`
       CREATE TABLE classification (
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         name text NOT NULL,

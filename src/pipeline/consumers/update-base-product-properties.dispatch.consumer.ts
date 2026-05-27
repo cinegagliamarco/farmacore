@@ -37,10 +37,8 @@ export interface UpdateBaseProductPropertiesBatchPayload {
 /**
  * 4-pass dispatcher: queries the "candidate EANs" for each pass
  * (rows missing the target column), chunks per pass into 500-EAN
- * batches, emits all batches under one dispatch row. The fan-in
- * counter is total batches across all four passes — successor
- * (update-active-ingredient-mat) fires once the LAST batch from any
- * pass closes the counter.
+ * batches, emits all batches under one dispatch row. Terminal step:
+ * the last batch closes the fan-in counter and the pipeline ends.
  */
 @Injectable()
 export class UpdateBaseProductPropertiesDispatchConsumer extends DispatchPipelineConsumer {
@@ -72,13 +70,6 @@ export class UpdateBaseProductPropertiesDispatchConsumer extends DispatchPipelin
   protected async handle(
     ctx: DispatchHandleContext,
   ): Promise<DispatchHandleResult> {
-    const successor = newPipelineMessage({
-      pipelineRunId: ctx.message.pipelineRunId,
-      tenantId: ctx.message.tenantId,
-      step: PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT,
-      payload: {},
-    });
-
     const tenantProductRepo = new TenantProductRepository(ctx.em);
     const baseProductRepo = new BaseProductRepository(ctx.em);
 
@@ -106,13 +97,11 @@ export class UpdateBaseProductPropertiesDispatchConsumer extends DispatchPipelin
       }
     }
 
-    if (batches.length === 0) {
-      return { batches: [], emptySuccessors: [successor] };
-    }
+    if (batches.length === 0) return { batches: [] };
 
     this.logger.log(
       `update-base-product-properties dispatch: ${batches.length} batch(es) across 4 passes`,
     );
-    return { batches, emptySuccessors: [successor] };
+    return { batches };
   }
 }

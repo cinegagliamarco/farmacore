@@ -15,7 +15,6 @@ import { ImportCompetitorProductsStep } from './steps/import-competitor-products
 import { ImportCompetitorStockStep } from './steps/import-competitor-stock.step';
 import { CalcBaseProductMetricsStep } from './steps/calc-base-product-metrics.step';
 import { UpdateBaseProductPropertiesStep } from './steps/update-base-product-properties.step';
-import { UpdateActiveIngredientMatStep } from './steps/update-active-ingredient-mat.step';
 
 import { PipelineStartConsumer } from './consumers/pipeline-start.consumer';
 import { SyncBaseProductDispatchConsumer } from './consumers/sync-base-product.dispatch.consumer';
@@ -38,7 +37,6 @@ import { CalcBaseProductMetricsDispatchConsumer } from './consumers/calc-base-pr
 import { CalcBaseProductMetricsBatchConsumer } from './consumers/calc-base-product-metrics.batch.consumer';
 import { UpdateBaseProductPropertiesDispatchConsumer } from './consumers/update-base-product-properties.dispatch.consumer';
 import { UpdateBaseProductPropertiesBatchConsumer } from './consumers/update-base-product-properties.batch.consumer';
-import { UpdateActiveIngredientMatConsumer } from './consumers/update-active-ingredient-mat.consumer';
 import { MigrateTenantConsumer } from './consumers/migrate-tenant.consumer';
 
 const STEPS = [
@@ -49,7 +47,6 @@ const STEPS = [
   ImportCompetitorStockStep,
   CalcBaseProductMetricsStep,
   UpdateBaseProductPropertiesStep,
-  UpdateActiveIngredientMatStep,
 ];
 
 const CONSUMERS = [
@@ -70,7 +67,6 @@ const CONSUMERS = [
   CalcBaseProductMetricsBatchConsumer,
   UpdateBaseProductPropertiesDispatchConsumer,
   UpdateBaseProductPropertiesBatchConsumer,
-  UpdateActiveIngredientMatConsumer,
   MigrateTenantConsumer,
 ];
 

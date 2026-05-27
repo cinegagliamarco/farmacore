@@ -76,7 +76,6 @@ SET search_path TO tenant_acme, shared_catalog, public;
 SELECT COUNT(*) FROM shared_catalog.base_product;
 SELECT COUNT(*) FROM tenant_product;
 SELECT COUNT(*) FROM classification;
-SELECT COUNT(*) FROM active_ingredient;
 SELECT COUNT(*) FROM offer_book;
 
 -- Spot-check a known EAN

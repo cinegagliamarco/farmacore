@@ -18,7 +18,6 @@ export const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
  */
 export const STEP_QUEUES: ReadonlyArray<PipelineStep> = [
   PipelineStep.SYNC_OFFER_BOOKS_INFO,
-  PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT,
 ];
 
 export const PIPELINE_START_QUEUE = 'pipeline.start';
@@ -66,7 +65,6 @@ export const originStep = (
 /** Per-queue prefetch. Keyed by actual queue name (= step + suffix). */
 export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [PipelineStep.SYNC_OFFER_BOOKS_INFO]: 2,
-  [PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT]: 2,
 
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 1,
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 1,

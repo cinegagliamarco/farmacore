@@ -6,7 +6,6 @@ import {
   LastBatchContext,
 } from '../../queue/batch-pipeline.consumer';
 import { EXCHANGE_NAME, batchStep } from '../../queue/constants';
-import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import { UpdateBaseProductPropertiesStep } from '../steps/update-base-product-properties.step';
@@ -61,15 +60,9 @@ export class UpdateBaseProductPropertiesBatchConsumer extends BatchPipelineConsu
   }
 
   protected successors(
-    ctx: LastBatchContext<UpdateBaseProductPropertiesBatchPayload>,
+    _ctx: LastBatchContext<UpdateBaseProductPropertiesBatchPayload>,
   ): Promise<PipelineMessage<unknown>[]> {
-    return Promise.resolve([
-      newPipelineMessage({
-        pipelineRunId: ctx.message.pipelineRunId,
-        tenantId: ctx.message.tenantId,
-        step: PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT,
-        payload: {},
-      }),
-    ]);
+    // Terminal step. The pipeline ends here.
+    return Promise.resolve([]);
   }
 }

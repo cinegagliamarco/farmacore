@@ -19,9 +19,7 @@ pipeline.start
                                                                 ▼
                                         calc-base-product-metrics.dispatch ─► .batch
                                                                 ▼
-                                  update-base-product-properties.dispatch ─► .batch
-                                                                ▼
-                                          update-active-ingredient-mat  (v1 stub; B6 deferred)
+                                  update-base-product-properties.dispatch ─► .batch  (terminal)
 ```
 
 All chain-boundary successors (last-batch, empty-dispatch) flow through
@@ -72,8 +70,7 @@ Healthy completion:
 - One dispatch row per batched step with `status='completed'`,
   `batches_done = batches_planned`.
 - N batch rows per batched step with `status='completed'`.
-- Single-shot steps (`sync-offer-books-info`,
-  `update-active-ingredient-mat`) get one `batch_seq=0` row.
+- Single-shot step (`sync-offer-books-info`) gets one `batch_seq=0` row.
 - Two `branch.stock-a` + `branch.stock-b` rows (join markers).
 
 ## "It's stuck" — diagnosis tree

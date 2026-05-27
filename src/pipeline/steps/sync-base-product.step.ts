@@ -18,7 +18,6 @@ import {
   TenantProductUpsertInput,
 } from '../../database/repositories/tenant/tenant-product.repository';
 import { ClassificationRepository } from '../../database/repositories/tenant/classification.repository';
-import { ActiveIngredientRepository } from '../../database/repositories/tenant/active-ingredient.repository';
 import {
   OfferBookRepository,
   OfferBookUpsertInput,
@@ -64,7 +63,6 @@ export class SyncBaseProductStep {
     const baseProductRepo = new BaseProductRepository(em);
     const tenantProductRepo = new TenantProductRepository(em);
     const classificationRepo = new ClassificationRepository(em);
-    const activeIngredientRepo = new ActiveIngredientRepository(em);
     const offerBookRepo = new OfferBookRepository(em);
 
     const embalagens = await a7.embalagem.findByIdsWithRelations(embalagemIds);
@@ -107,17 +105,6 @@ export class SyncBaseProductStep {
     const classificationIdByPath = await classificationRepo.upsertPaths(
       uniqueClassificationPaths,
     );
-
-    const activeIngredientNames = embalagens
-      .filter((e) =>
-        this.isGenericClassification(
-          e.produtoid
-            ? classificationPathByProdutoId[String(e.produtoid)]
-            : undefined,
-        ),
-      )
-      .map((e) => e.produto?.principioativo?.nome);
-    await activeIngredientRepo.upsertNames(activeIngredientNames);
 
     const baseProductInputs: BaseProductUpsertInput[] = [];
     const tenantProductSeeds: Array<
