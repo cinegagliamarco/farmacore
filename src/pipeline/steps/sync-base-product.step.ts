@@ -4,6 +4,7 @@ import {
   A7PharmaRepositories,
   ItemCadernoOfertaWithPrice,
   LatestReceiptDate,
+  parseEan,
 } from '../../integration/repositories/a7pharma';
 import { ItemCadernoOfertaQuantidadeEntity } from '../../integration/entities/a7pharma/item-caderno-oferta-quantidade.entity';
 import { ClassificacaoProdutoEntity } from '../../integration/entities/a7pharma/classificacao-produto.entity';
@@ -128,7 +129,7 @@ export class SyncBaseProductStep {
     let skipped = 0;
 
     for (const record of embalagens) {
-      const ean = this.parseEan(record.codigobarras);
+      const ean = parseEan(record.codigobarras);
       if (!ean) {
         skipped++;
         continue;
@@ -278,16 +279,6 @@ export class SyncBaseProductStep {
       };
     }
     return deals;
-  }
-
-  private parseEan(codigobarras?: string): string | null {
-    if (!codigobarras) return null;
-    const cleaned = codigobarras.replace(/\D/g, '');
-    if (!cleaned.length || cleaned.length > 14) return null;
-    const padded = cleaned.padStart(13, '0');
-    const numeric = Number(padded);
-    if (!Number.isFinite(numeric) || numeric <= 0) return null;
-    return padded.replace(/^0+(?=\d)/, '') || '0';
   }
 
   private toNumericString(value: unknown): string | null {

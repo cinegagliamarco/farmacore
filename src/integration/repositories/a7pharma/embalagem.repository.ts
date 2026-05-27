@@ -18,15 +18,21 @@ export class EmbalagemRepository {
   }
 
   /**
-   * IDs only (~36k rows, lightweight). The dispatcher uses this to chunk
-   * the work into deterministic batches before publishing.
+   * Lightweight (id, codigobarras) pairs for the dispatcher's EAN
+   * chunker. Two embalagens can share a barcode; only the dispatcher
+   * has the full picture needed to keep them in the same batch.
    */
-  public async findAllValidIds(): Promise<number[]> {
+  public async findAllValidWithBarcode(): Promise<
+    Array<{ id: number; codigobarras: string }>
+  > {
     const rows = await this.validQuery()
-      .select('e.id', 'id')
+      .select(['e.id AS id', 'e.codigobarras AS codigobarras'])
       .orderBy('e.id', 'ASC')
-      .getRawMany<{ id: string }>();
-    return rows.map((r) => Number(r.id));
+      .getRawMany<{ id: string; codigobarras: string }>();
+    return rows.map((r) => ({
+      id: Number(r.id),
+      codigobarras: r.codigobarras,
+    }));
   }
 
   /**

@@ -1,4 +1,5 @@
 import { SyncBaseProductStep } from './sync-base-product.step';
+import { parseEan } from '../../integration/repositories/a7pharma';
 import type { ItemCadernoOfertaQuantidadeEntity } from '../../integration/entities/a7pharma/item-caderno-oferta-quantidade.entity';
 import type { ClassificacaoProdutoEntity } from '../../integration/entities/a7pharma/classificacao-produto.entity';
 
@@ -11,9 +12,9 @@ import type { ClassificacaoProdutoEntity } from '../../integration/entities/a7ph
 describe('SyncBaseProductStep helpers', () => {
   const step = new SyncBaseProductStep();
   // Reach into private helpers via type-cast; pragmatic alternative to
-  // a separate utility module just for testability.
+  // a separate utility module just for testability. parseEan lives in
+  // the a7pharma chunker module so dispatcher + step share one parser.
   const h = step as unknown as {
-    parseEan(s?: string): string | null;
     isGenericClassification(s?: string): boolean;
     toNumericString(v: unknown): string | null;
     buildDeals(qs?: ItemCadernoOfertaQuantidadeEntity[]): unknown;
@@ -24,22 +25,22 @@ describe('SyncBaseProductStep helpers', () => {
 
   describe('parseEan', () => {
     it('returns null for missing or empty', () => {
-      expect(h.parseEan(undefined)).toBeNull();
-      expect(h.parseEan('')).toBeNull();
-      expect(h.parseEan('---')).toBeNull();
+      expect(parseEan(undefined)).toBeNull();
+      expect(parseEan('')).toBeNull();
+      expect(parseEan('---')).toBeNull();
     });
 
     it('strips non-digits and pads to 13', () => {
-      expect(h.parseEan('789-1234567890')).toBe('7891234567890');
+      expect(parseEan('789-1234567890')).toBe('7891234567890');
     });
 
     it('rejects bar codes longer than 14 digits', () => {
-      expect(h.parseEan('123456789012345')).toBeNull();
+      expect(parseEan('123456789012345')).toBeNull();
     });
 
     it('keeps a meaningful numeric string when input is short', () => {
       // "9876" -> pad to 13 -> "0000000009876" -> trimmed leading zeros -> "9876"
-      expect(h.parseEan('9876')).toBe('9876');
+      expect(parseEan('9876')).toBe('9876');
     });
   });
 

@@ -13,7 +13,10 @@ import {
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
-import { A7PharmaRepositories } from '../../integration/repositories/a7pharma';
+import {
+  A7PharmaRepositories,
+  chunkEmbalagensByEan,
+} from '../../integration/repositories/a7pharma';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
 import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
@@ -69,11 +72,14 @@ export class SyncBaseProductStockDispatchConsumer extends DispatchPipelineConsum
   protected async handle(
     ctx: DispatchHandleContext,
   ): Promise<DispatchHandleResult> {
-    const ids = ctx.integrationDs
-      ? await new A7PharmaRepositories(ctx.integrationDs).embalagem.findAllValidIds()
+    const slices = ctx.integrationDs
+      ? await chunkEmbalagensByEan(
+          new A7PharmaRepositories(ctx.integrationDs).embalagem,
+          BATCH_SIZE,
+        )
       : [];
 
-    if (ids.length === 0) {
+    if (slices.length === 0) {
       if (!ctx.integrationDs) {
         this.logger.warn(
           `No integration DataSource for tenant ${ctx.message.tenantId}; marking stock-a branch complete`,
@@ -82,22 +88,19 @@ export class SyncBaseProductStockDispatchConsumer extends DispatchPipelineConsum
       return { batches: [], emptySuccessors: await this.markBranchAndSuccessor(ctx) };
     }
 
-    const batches: PipelineMessage<SyncBaseProductStockBatchPayload>[] = [];
-    for (let offset = 0, seq = 1; offset < ids.length; offset += BATCH_SIZE, seq++) {
-      batches.push(
-        newPipelineMessage<SyncBaseProductStockBatchPayload>({
-          pipelineRunId: ctx.message.pipelineRunId,
-          tenantId: ctx.message.tenantId,
-          step: PipelineStep.SYNC_BASE_PRODUCT_STOCK,
-          queue: BATCH_QUEUE,
-          batchSeq: seq,
-          payload: { embalagemIds: ids.slice(offset, offset + BATCH_SIZE) },
-        }),
-      );
-    }
+    const batches = slices.map((slice, i) =>
+      newPipelineMessage<SyncBaseProductStockBatchPayload>({
+        pipelineRunId: ctx.message.pipelineRunId,
+        tenantId: ctx.message.tenantId,
+        step: PipelineStep.SYNC_BASE_PRODUCT_STOCK,
+        queue: BATCH_QUEUE,
+        batchSeq: i + 1,
+        payload: { embalagemIds: slice.embalagemIds },
+      }),
+    );
 
     this.logger.log(
-      `sync-base-product-stock dispatch: ${ids.length} embalagens -> ${batches.length} batch(es) of <= ${BATCH_SIZE}`,
+      `sync-base-product-stock dispatch: ${batches.length} batch(es) of <= ${BATCH_SIZE} EANs`,
     );
     return { batches };
   }

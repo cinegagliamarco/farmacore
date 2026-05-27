@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
-import { A7PharmaRepositories } from '../../integration/repositories/a7pharma';
+import {
+  A7PharmaRepositories,
+  parseEan,
+} from '../../integration/repositories/a7pharma';
 import {
   TenantProductStockRepository,
   TenantProductStockUpsertInput,
@@ -54,7 +57,7 @@ export class SyncBaseProductStockStep {
     const eanByEmbalagemId = new Map<string, string>();
     let skipped = 0;
     for (const e of embalagens) {
-      const ean = this.parseEan(e.codigobarras);
+      const ean = parseEan(e.codigobarras);
       if (!ean) {
         skipped++;
         continue;
@@ -106,15 +109,5 @@ export class SyncBaseProductStockStep {
       `sync-base-product-stock batch: ${inputs.length} stock rows across ${eans.length} eans, ${skipped} skipped`,
     );
     return { processed: inputs.length, skipped };
-  }
-
-  private parseEan(codigobarras?: string): string | null {
-    if (!codigobarras) return null;
-    const cleaned = codigobarras.replace(/\D/g, '');
-    if (!cleaned.length || cleaned.length > 14) return null;
-    const padded = cleaned.padStart(13, '0');
-    const numeric = Number(padded);
-    if (!Number.isFinite(numeric) || numeric <= 0) return null;
-    return padded.replace(/^0+(?=\d)/, '') || '0';
   }
 }

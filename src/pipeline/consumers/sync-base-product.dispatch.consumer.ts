@@ -13,7 +13,10 @@ import {
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
-import { A7PharmaRepositories } from '../../integration/repositories/a7pharma';
+import {
+  A7PharmaRepositories,
+  chunkEmbalagensByEan,
+} from '../../integration/repositories/a7pharma';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
 import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
@@ -89,27 +92,24 @@ export class SyncBaseProductDispatchConsumer extends DispatchPipelineConsumer {
     }
 
     const a7 = new A7PharmaRepositories(ctx.integrationDs);
-    const ids = await a7.embalagem.findAllValidIds();
-    if (ids.length === 0) {
+    const slices = await chunkEmbalagensByEan(a7.embalagem, BATCH_SIZE);
+    if (slices.length === 0) {
       return { batches: [], emptySuccessors: [successor] };
     }
 
-    const batches: PipelineMessage<SyncBaseProductBatchPayload>[] = [];
-    for (let offset = 0, seq = 1; offset < ids.length; offset += BATCH_SIZE, seq++) {
-      batches.push(
-        newPipelineMessage<SyncBaseProductBatchPayload>({
-          pipelineRunId: ctx.message.pipelineRunId,
-          tenantId: ctx.message.tenantId,
-          step: PipelineStep.SYNC_BASE_PRODUCT,
-          queue: BATCH_QUEUE,
-          batchSeq: seq,
-          payload: { embalagemIds: ids.slice(offset, offset + BATCH_SIZE) },
-        }),
-      );
-    }
+    const batches = slices.map((slice, i) =>
+      newPipelineMessage<SyncBaseProductBatchPayload>({
+        pipelineRunId: ctx.message.pipelineRunId,
+        tenantId: ctx.message.tenantId,
+        step: PipelineStep.SYNC_BASE_PRODUCT,
+        queue: BATCH_QUEUE,
+        batchSeq: i + 1,
+        payload: { embalagemIds: slice.embalagemIds },
+      }),
+    );
 
     this.logger.log(
-      `sync-base-product dispatch: ${ids.length} embalagens -> ${batches.length} batch(es) of <= ${BATCH_SIZE}`,
+      `sync-base-product dispatch: ${batches.length} batch(es) of <= ${BATCH_SIZE} EANs`,
     );
     return { batches, emptySuccessors: [successor] };
   }
