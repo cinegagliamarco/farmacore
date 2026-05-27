@@ -2,6 +2,7 @@ import { DataSource } from 'typeorm';
 import { ClassificacaoProdutoEntity } from '../../entities/a7pharma/classificacao-produto.entity';
 import { CustoProdutoEntity } from '../../entities/a7pharma/custo-produto.entity';
 import { EmbalagemEntity } from '../../entities/a7pharma/embalagem.entity';
+import { EstoqueEntity } from '../../entities/a7pharma/estoque.entity';
 import { ItemCadernoOfertaEntity } from '../../entities/a7pharma/item-caderno-oferta.entity';
 import { ItemCadernoOfertaQuantidadeEntity } from '../../entities/a7pharma/item-caderno-oferta-quantidade.entity';
 import { ItemRecebimentoFisicoEntity } from '../../entities/a7pharma/item-recebimento-fisico.entity';
@@ -9,6 +10,7 @@ import { ItemRecebimentoFisicoEntity } from '../../entities/a7pharma/item-recebi
 import { ClassificacaoProdutoRepository } from './classificacao-produto.repository';
 import { CustoProdutoRepository } from './custo-produto.repository';
 import { EmbalagemRepository } from './embalagem.repository';
+import { EstoqueRepository } from './estoque.repository';
 import { ItemCadernoOfertaRepository } from './item-caderno-oferta.repository';
 import { ItemCadernoOfertaQuantidadeRepository } from './item-caderno-oferta-quantidade.repository';
 import { ItemRecebimentoFisicoRepository } from './item-recebimento-fisico.repository';
@@ -17,6 +19,7 @@ export {
   ClassificacaoProdutoRepository,
   CustoProdutoRepository,
   EmbalagemRepository,
+  EstoqueRepository,
   ItemCadernoOfertaRepository,
   ItemCadernoOfertaQuantidadeRepository,
   ItemRecebimentoFisicoRepository,
@@ -33,6 +36,7 @@ export class A7PharmaRepositories {
   public readonly embalagem: EmbalagemRepository;
   public readonly classificacaoProduto: ClassificacaoProdutoRepository;
   public readonly custoProduto: CustoProdutoRepository;
+  public readonly estoque: EstoqueRepository;
   public readonly itemCadernoOferta: ItemCadernoOfertaRepository;
   public readonly itemCadernoOfertaQuantidade: ItemCadernoOfertaQuantidadeRepository;
   public readonly itemRecebimentoFisico: ItemRecebimentoFisicoRepository;
@@ -45,6 +49,7 @@ export class A7PharmaRepositories {
     this.custoProduto = new CustoProdutoRepository(
       ds.getRepository(CustoProdutoEntity),
     );
+    this.estoque = new EstoqueRepository(ds.getRepository(EstoqueEntity));
     this.itemCadernoOferta = new ItemCadernoOfertaRepository(
       ds.getRepository(ItemCadernoOfertaEntity),
     );
