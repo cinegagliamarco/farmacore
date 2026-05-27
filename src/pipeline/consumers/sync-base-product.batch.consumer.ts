@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import {
-  BasePipelineConsumer,
-  HandleContext,
-  HandleResult,
-} from '../../queue/base-pipeline.consumer';
-import { EXCHANGE_NAME } from '../../queue/constants';
+  BatchHandleContext,
+  BatchHandleResult,
+  BatchPipelineConsumer,
+} from '../../queue/batch-pipeline.consumer';
+import { EXCHANGE_NAME, STEP_PREFETCH, batchStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
@@ -16,10 +16,13 @@ import { TenantTransactionService } from '../../tenant/tenant-transaction.servic
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
+import type { SyncBaseProductBatchPayload } from './sync-base-product.dispatch.consumer';
+
+const BATCH_QUEUE = batchStep(PipelineStep.SYNC_BASE_PRODUCT);
 
 @Injectable()
-export class SyncBaseProductConsumer extends BasePipelineConsumer {
-  protected readonly step = PipelineStep.SYNC_BASE_PRODUCT;
+export class SyncBaseProductBatchConsumer extends BatchPipelineConsumer<SyncBaseProductBatchPayload> {
+  protected readonly logicalStep = PipelineStep.SYNC_BASE_PRODUCT;
 
   constructor(
     private readonly stepImpl: SyncBaseProductStep,
@@ -35,19 +38,27 @@ export class SyncBaseProductConsumer extends BasePipelineConsumer {
 
   @RabbitSubscribe({
     exchange: EXCHANGE_NAME,
-    routingKey: `*.${PipelineStep.SYNC_BASE_PRODUCT}`,
+    routingKey: `*.${BATCH_QUEUE}`,
     createQueueIfNotExists: false,
-    queue: PipelineStep.SYNC_BASE_PRODUCT,
+    queue: BATCH_QUEUE,
     queueOptions: {
-      channel: 'sync-base-product',
+      channel: BATCH_QUEUE,
     },
   })
-  public consume(message: PipelineMessage): Promise<void> {
+  public consume(
+    message: PipelineMessage<SyncBaseProductBatchPayload>,
+  ): Promise<void> {
     return this.process(message);
   }
 
-  protected async handle(ctx: HandleContext): Promise<HandleResult> {
-    await this.stepImpl.run(ctx.em, ctx.integrationDs, ctx.message.tenantId);
+  protected async handle(
+    ctx: BatchHandleContext<SyncBaseProductBatchPayload>,
+  ): Promise<BatchHandleResult> {
+    await this.stepImpl.run(
+      ctx.em,
+      ctx.integrationDs,
+      ctx.message.payload.embalagemIds,
+    );
     return {
       successors: [
         newPipelineMessage({
@@ -59,4 +70,6 @@ export class SyncBaseProductConsumer extends BasePipelineConsumer {
       ],
     };
   }
+
+  protected static readonly _prefetchAck = STEP_PREFETCH[BATCH_QUEUE];
 }

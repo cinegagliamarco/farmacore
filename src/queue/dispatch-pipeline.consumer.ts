@@ -14,15 +14,16 @@ export interface DispatchHandleResult {
    * The full set of batch messages this dispatcher emits for the run.
    * Each must carry a deterministic batchSeq in 1..N and the correct
    * routing-key segment via `queue` (e.g. 'sync-base-product.batch',
-   * 'import-competitor-products.drogal').
+   * 'import-competitor-products.drogal'). Payload shape is per-step;
+   * the base class only forwards the message to the publisher.
    */
-  batches: PipelineMessage[];
+  batches: PipelineMessage<unknown>[];
   /**
    * Optional successors to publish IF batches.length === 0 (no work to
    * do). In the normal case batches drive the fan-in; this list lets a
    * single-shot or empty-data dispatcher short-circuit to the next step.
    */
-  emptySuccessors?: PipelineMessage[];
+  emptySuccessors?: PipelineMessage<unknown>[];
 }
 
 export interface DispatchHandleContext<TPayload = unknown> {

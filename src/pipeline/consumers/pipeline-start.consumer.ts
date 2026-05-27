@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
-import { EXCHANGE_NAME, PIPELINE_START_QUEUE } from '../../queue/constants';
+import {
+  EXCHANGE_NAME,
+  PIPELINE_START_QUEUE,
+  dispatchStep,
+} from '../../queue/constants';
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
@@ -27,6 +31,7 @@ export class PipelineStartConsumer {
         pipelineRunId: message.pipelineRunId,
         tenantId: message.tenantId,
         step: PipelineStep.SYNC_BASE_PRODUCT,
+        queue: dispatchStep(PipelineStep.SYNC_BASE_PRODUCT),
         payload: {},
       }),
     );

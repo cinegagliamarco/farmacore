@@ -17,7 +17,8 @@ import { UpdateBaseProductPropertiesStep } from './steps/update-base-product-pro
 import { UpdateActiveIngredientMatStep } from './steps/update-active-ingredient-mat.step';
 
 import { PipelineStartConsumer } from './consumers/pipeline-start.consumer';
-import { SyncBaseProductConsumer } from './consumers/sync-base-product.consumer';
+import { SyncBaseProductDispatchConsumer } from './consumers/sync-base-product.dispatch.consumer';
+import { SyncBaseProductBatchConsumer } from './consumers/sync-base-product.batch.consumer';
 import { SyncBaseProductStockConsumer } from './consumers/sync-base-product-stock.consumer';
 import { SyncOfferBooksInfoConsumer } from './consumers/sync-offer-books-info.consumer';
 import { ImportCompetitorProductsConsumer } from './consumers/import-competitor-products.consumer';
@@ -40,7 +41,8 @@ const STEPS = [
 
 const CONSUMERS = [
   PipelineStartConsumer,
-  SyncBaseProductConsumer,
+  SyncBaseProductDispatchConsumer,
+  SyncBaseProductBatchConsumer,
   SyncBaseProductStockConsumer,
   SyncOfferBooksInfoConsumer,
   ImportCompetitorProductsConsumer,
