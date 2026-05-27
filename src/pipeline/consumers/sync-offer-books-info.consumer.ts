@@ -47,7 +47,7 @@ export class SyncOfferBooksInfoConsumer extends BasePipelineConsumer {
   }
 
   protected async handle(ctx: HandleContext): Promise<HandleResult> {
-    await this.stepImpl.run(ctx.em, ctx.integrationDs, ctx.message.tenantId);
+    await this.stepImpl.run(ctx.em, ctx.integrationDs);
     return {
       successors: [
         newPipelineMessage({
