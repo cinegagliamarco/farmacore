@@ -4,7 +4,12 @@
 
 > **Status: ✅ Executed (v1 stubs).** Plan 05 was executed: 8 step consumers + `pipeline.start` fan-out + 2-branch join all in place and green end-to-end (8 step rows + 2 `branch.*` rows per run, `completed`, join fires once). Bundled fixes: `core.pipeline_run.tenant_id` changed to `text`; `Plan 09 AmqpInterceptor` guarded against `@golevelup` shape (passes through when `getChannelRef` is absent).
 >
-> **⚠ Plan 05 v2 — pending.** The step `handle()` methods are still stubs that log and return. Porting the real legacy work needs a different message shape than what v1 ships: the hot steps (`sync-base-product`, `sync-base-product-stock`, `import-competitor-products`, `import-competitor-stock`, `calc-base-product-metrics`, `update-base-product-properties`) fan out over ~36k base_products × 2–3 competitor origins. Legacy keeps that all in one Node process with `global.gc()` calls every 30-50 items — we won't.
+> **⚠ Plan 05 v2 — in progress.** Phase A (dispatcher/batch foundation: pipeline_run schema extensions, BatchPipelineConsumer + DispatchPipelineConsumer base classes, per-origin queue constants) landed in commits `fc8e47f`..`512a8c9`. Phase B step ports underway:
+> - **B1 (sync-base-product) — ✅ ported.** `tenant_base_product` renamed and extended to `tenant_product` with ERP columns; A7Pharma read repos under `src/integration/repositories/a7pharma/`; tenant/shared-catalog write repos under `src/database/repositories/`; `SyncBaseProductStep` ports the legacy business logic; v1 consumer replaced by `SyncBaseProductDispatchConsumer` + `SyncBaseProductBatchConsumer`; `pipeline.start` now publishes to the `.dispatch` queue. Helper specs cover EAN parsing, generic-classification matching, deals building. End-to-end validation against real ERP is the responsibility of the operator (see `docs/pipeline/sync-base-product-e2e.md`).
+> - **B2–B6** — pending.
+>
+> Original v2-pending note for reference:
+> The step `handle()` methods are still stubs that log and return. Porting the real legacy work needs a different message shape than what v1 ships: the hot steps (`sync-base-product`, `sync-base-product-stock`, `import-competitor-products`, `import-competitor-stock`, `calc-base-product-metrics`, `update-base-product-properties`) fan out over ~36k base_products × 2–3 competitor origins. Legacy keeps that all in one Node process with `global.gc()` calls every 30-50 items — we won't.
 >
 > The v2 design is in [`notes/pipeline-throughput.md`](./notes/pipeline-throughput.md). Summary:
 > - Each heavy step becomes **two queues**: `<step>.dispatch` (one message per run, scans the source, emits N batch messages) and `<step>.batch` (one message per ~500 IDs, does the work and ack's).
