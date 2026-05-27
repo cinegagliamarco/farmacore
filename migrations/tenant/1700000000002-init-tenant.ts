@@ -20,17 +20,29 @@ export class InitTenant1700000000002 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
-      CREATE TABLE tenant_base_product (
+      CREATE TABLE tenant_product (
         id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         ean bigint NOT NULL,
         external_id text,
+        name text,
+        active boolean NOT NULL DEFAULT true,
+        price numeric(12,2),
+        cost numeric(12,4),
+        average_unit_cost numeric(12,4),
+        unit_sale_price numeric(12,2),
+        supplier text,
+        receipt_date date,
+        monitored boolean NOT NULL DEFAULT false,
+        classification_id uuid,
+        deals jsonb,
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now(),
         deleted_at timestamptz
       );
-      CREATE UNIQUE INDEX "UQ_TENANT_BASE_PRODUCT_EAN" ON tenant_base_product(ean);
-      CREATE UNIQUE INDEX "UQ_TENANT_BASE_PRODUCT_EXTERNAL_ID"
-        ON tenant_base_product(external_id) WHERE external_id IS NOT NULL;
+      CREATE UNIQUE INDEX "UQ_TENANT_PRODUCT_EAN" ON tenant_product(ean);
+      CREATE UNIQUE INDEX "UQ_TENANT_PRODUCT_EXTERNAL_ID"
+        ON tenant_product(external_id) WHERE external_id IS NOT NULL;
+      CREATE INDEX "IX_TENANT_PRODUCT_CLASSIFICATION" ON tenant_product(classification_id);
     `);
 
     await queryRunner.query(`
@@ -228,6 +240,15 @@ export class InitTenant1700000000002 implements MigrationInterface {
         updated_at timestamptz NOT NULL DEFAULT now(),
         deleted_at timestamptz
       );
+    `);
+
+    // Deferred FKs (tables created out of dependency order).
+    await queryRunner.query(`
+      ALTER TABLE tenant_product
+      ADD CONSTRAINT fk_tenant_product_classification
+      FOREIGN KEY (classification_id)
+      REFERENCES classification(id)
+      ON DELETE SET NULL;
     `);
   }
 
