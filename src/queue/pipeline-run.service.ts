@@ -105,6 +105,60 @@ export class PipelineRunService {
     );
   }
 
+  /**
+   * Dispatcher idempotency: skip if a completed dispatch row exists,
+   * otherwise upsert it to status=running. Unlike start(), this does
+   * NOT treat an existing running row as a conflict — a crashed
+   * dispatcher must be able to restart and re-emit. Batch idempotency
+   * (start() keyed on batchSeq) prevents duplicate batch execution;
+   * batches_done is preserved across restart so the fan-in counter
+   * stays consistent.
+   */
+  public async startOrRestartDispatch(
+    pipelineRunId: string,
+    tenantId: string,
+    step: PipelineStep | string,
+    attempt: number,
+  ): Promise<'started' | 'already-completed'> {
+    const existing = await this.repo.findOne({
+      where: {
+        pipelineRunId,
+        step: step as PipelineStep,
+        batchSeq: DISPATCH_BATCH_SEQ,
+      },
+    });
+    if (existing?.status === PipelineRunStatus.COMPLETED)
+      return 'already-completed';
+    if (existing) {
+      await this.repo.update(
+        {
+          pipelineRunId,
+          step: step as PipelineStep,
+          batchSeq: DISPATCH_BATCH_SEQ,
+        },
+        {
+          status: PipelineRunStatus.RUNNING,
+          attempt,
+          startedAt: new Date(),
+          finishedAt: null,
+          error: null,
+          batchesPlanned: null,
+        },
+      );
+    } else {
+      await this.repo.save({
+        pipelineRunId,
+        tenantId,
+        step: step as PipelineStep,
+        batchSeq: DISPATCH_BATCH_SEQ,
+        attempt,
+        status: PipelineRunStatus.RUNNING,
+        startedAt: new Date(),
+      });
+    }
+    return 'started';
+  }
+
   public async incrementBatchDone(
     pipelineRunId: string,
     step: PipelineStep | string,

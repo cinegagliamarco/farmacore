@@ -113,4 +113,55 @@ describe('PipelineRunService', () => {
       svc.incrementBatchDone('run1', PipelineStep.SYNC_BASE_PRODUCT),
     ).rejects.toThrow(/no dispatch row/);
   });
+
+  it('startOrRestartDispatch: returns already-completed when row is completed', async () => {
+    repo.findOne.mockResolvedValue({ status: 'completed' });
+    const out = await svc.startOrRestartDispatch(
+      'run1',
+      'tid',
+      PipelineStep.SYNC_BASE_PRODUCT,
+      1,
+    );
+    expect(out).toBe('already-completed');
+    expect(repo.update).not.toHaveBeenCalled();
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('startOrRestartDispatch: inserts a row when none exists', async () => {
+    repo.findOne.mockResolvedValue(null);
+    repo.save.mockResolvedValue({});
+    const out = await svc.startOrRestartDispatch(
+      'run1',
+      'tid',
+      PipelineStep.SYNC_BASE_PRODUCT,
+      1,
+    );
+    expect(out).toBe('started');
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ batchSeq: 0, status: 'running' }),
+    );
+  });
+
+  it('startOrRestartDispatch: resets a running row to retry (keeps batches_done)', async () => {
+    repo.findOne.mockResolvedValue({ status: 'running' });
+    repo.update.mockResolvedValue({});
+    const out = await svc.startOrRestartDispatch(
+      'run1',
+      'tid',
+      PipelineStep.SYNC_BASE_PRODUCT,
+      2,
+    );
+    expect(out).toBe('started');
+    expect(repo.update).toHaveBeenCalledWith(
+      expect.objectContaining({ batchSeq: 0 }),
+      expect.objectContaining({
+        status: 'running',
+        attempt: 2,
+        batchesPlanned: null,
+      }),
+    );
+    // batches_done is NOT in the update payload (preserved across restart)
+    const updatePayload = repo.update.mock.calls[0][1];
+    expect(updatePayload).not.toHaveProperty('batchesDone');
+  });
 });
