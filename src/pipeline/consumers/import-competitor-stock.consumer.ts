@@ -5,7 +5,7 @@ import {
   HandleContext,
   HandleResult,
 } from '../../queue/base-pipeline.consumer';
-import { EXCHANGE_NAME } from '../../queue/constants';
+import { EXCHANGE_NAME, dispatchStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
@@ -62,6 +62,7 @@ export class ImportCompetitorStockConsumer extends BasePipelineConsumer {
           pipelineRunId: ctx.message.pipelineRunId,
           tenantId: ctx.message.tenantId,
           step: PipelineStep.CALC_BASE_PRODUCT_METRICS,
+          queue: dispatchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS),
           payload: {},
         }),
       ],

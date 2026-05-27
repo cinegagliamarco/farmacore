@@ -77,4 +77,53 @@ export class TenantProductRepository {
       .andWhere('ean NOT IN (:...eans)', { eans })
       .execute();
   }
+
+  /**
+   * EAN universe of the tenant — used by calc-base-product-metrics and
+   * update-base-product-properties dispatchers to chunk the work.
+   */
+  public async findAllEans(): Promise<string[]> {
+    const rows: Array<{ ean: string }> = await this.em
+      .getRepository(TenantProductEntity)
+      .createQueryBuilder('tp')
+      .select('tp.ean', 'ean')
+      .orderBy('tp.ean', 'ASC')
+      .getRawMany();
+    return rows.map((r) => String(r.ean));
+  }
+
+  /**
+   * Bulk metrics update via a single UPDATE ... FROM (VALUES ...) so
+   * 500 rows go in one statement instead of 500. Numeric fields are
+   * cast back from text via the VALUES tuples; null inputs are passed
+   * verbatim.
+   */
+  public async updateMetricsBatch(
+    rows: Array<{
+      ean: string;
+      margin: number | null;
+      averageVariation: number | null;
+      status: string | null;
+    }>,
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    const values: string[] = [];
+    const params: unknown[] = [];
+    for (const r of rows) {
+      const i = params.length;
+      values.push(`($${i + 1}::bigint, $${i + 2}::numeric, $${i + 3}::numeric, $${i + 4}::text)`);
+      params.push(r.ean, r.margin, r.averageVariation, r.status);
+    }
+    await this.em.query(
+      `UPDATE tenant_product AS tp
+       SET margin = u.margin,
+           average_variation = u.average_variation,
+           status = u.status,
+           updated_at = now()
+       FROM (VALUES ${values.join(', ')})
+         AS u(ean, margin, average_variation, status)
+       WHERE tp.ean = u.ean`,
+      params,
+    );
+  }
 }

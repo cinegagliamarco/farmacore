@@ -24,7 +24,8 @@ import { SyncBaseProductStockBatchConsumer } from './consumers/sync-base-product
 import { SyncOfferBooksInfoConsumer } from './consumers/sync-offer-books-info.consumer';
 import { ImportCompetitorProductsConsumer } from './consumers/import-competitor-products.consumer';
 import { ImportCompetitorStockConsumer } from './consumers/import-competitor-stock.consumer';
-import { CalcBaseProductMetricsConsumer } from './consumers/calc-base-product-metrics.consumer';
+import { CalcBaseProductMetricsDispatchConsumer } from './consumers/calc-base-product-metrics.dispatch.consumer';
+import { CalcBaseProductMetricsBatchConsumer } from './consumers/calc-base-product-metrics.batch.consumer';
 import { UpdateBaseProductPropertiesConsumer } from './consumers/update-base-product-properties.consumer';
 import { UpdateActiveIngredientMatConsumer } from './consumers/update-active-ingredient-mat.consumer';
 import { MigrateTenantConsumer } from './consumers/migrate-tenant.consumer';
@@ -49,7 +50,8 @@ const CONSUMERS = [
   SyncOfferBooksInfoConsumer,
   ImportCompetitorProductsConsumer,
   ImportCompetitorStockConsumer,
-  CalcBaseProductMetricsConsumer,
+  CalcBaseProductMetricsDispatchConsumer,
+  CalcBaseProductMetricsBatchConsumer,
   UpdateBaseProductPropertiesConsumer,
   UpdateActiveIngredientMatConsumer,
   MigrateTenantConsumer,

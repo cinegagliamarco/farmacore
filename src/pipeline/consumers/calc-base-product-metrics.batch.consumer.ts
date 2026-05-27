@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import {
-  BasePipelineConsumer,
-  HandleContext,
-  HandleResult,
-} from '../../queue/base-pipeline.consumer';
-import { EXCHANGE_NAME } from '../../queue/constants';
+  BatchHandleContext,
+  BatchPipelineConsumer,
+  LastBatchContext,
+} from '../../queue/batch-pipeline.consumer';
+import { EXCHANGE_NAME, batchStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
@@ -16,10 +16,13 @@ import { TenantTransactionService } from '../../tenant/tenant-transaction.servic
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
+import type { CalcBaseProductMetricsBatchPayload } from './calc-base-product-metrics.dispatch.consumer';
+
+const BATCH_QUEUE = batchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS);
 
 @Injectable()
-export class CalcBaseProductMetricsConsumer extends BasePipelineConsumer {
-  protected readonly step = PipelineStep.CALC_BASE_PRODUCT_METRICS;
+export class CalcBaseProductMetricsBatchConsumer extends BatchPipelineConsumer<CalcBaseProductMetricsBatchPayload> {
+  protected readonly logicalStep = PipelineStep.CALC_BASE_PRODUCT_METRICS;
 
   constructor(
     private readonly stepImpl: CalcBaseProductMetricsStep,
@@ -35,28 +38,33 @@ export class CalcBaseProductMetricsConsumer extends BasePipelineConsumer {
 
   @RabbitSubscribe({
     exchange: EXCHANGE_NAME,
-    routingKey: `*.${PipelineStep.CALC_BASE_PRODUCT_METRICS}`,
+    routingKey: `*.${BATCH_QUEUE}`,
     createQueueIfNotExists: false,
-    queue: PipelineStep.CALC_BASE_PRODUCT_METRICS,
-    queueOptions: {
-      channel: 'calc-base-product-metrics',
-    },
+    queue: BATCH_QUEUE,
+    queueOptions: { channel: BATCH_QUEUE },
   })
-  public consume(message: PipelineMessage): Promise<void> {
+  public consume(
+    message: PipelineMessage<CalcBaseProductMetricsBatchPayload>,
+  ): Promise<void> {
     return this.process(message);
   }
 
-  protected async handle(ctx: HandleContext): Promise<HandleResult> {
-    await this.stepImpl.run(ctx.em, ctx.integrationDs, ctx.message.tenantId);
-    return {
-      successors: [
-        newPipelineMessage({
-          pipelineRunId: ctx.message.pipelineRunId,
-          tenantId: ctx.message.tenantId,
-          step: PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES,
-          payload: {},
-        }),
-      ],
-    };
+  protected handle(
+    ctx: BatchHandleContext<CalcBaseProductMetricsBatchPayload>,
+  ): Promise<void> {
+    return this.stepImpl.run(ctx.em, ctx.message.payload.eans);
+  }
+
+  protected successors(
+    ctx: LastBatchContext<CalcBaseProductMetricsBatchPayload>,
+  ): Promise<PipelineMessage<unknown>[]> {
+    return Promise.resolve([
+      newPipelineMessage({
+        pipelineRunId: ctx.message.pipelineRunId,
+        tenantId: ctx.message.tenantId,
+        step: PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES,
+        payload: {},
+      }),
+    ]);
   }
 }

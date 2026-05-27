@@ -5,7 +5,7 @@ import {
   BatchPipelineConsumer,
   LastBatchContext,
 } from '../../queue/batch-pipeline.consumer';
-import { EXCHANGE_NAME, batchStep } from '../../queue/constants';
+import { EXCHANGE_NAME, batchStep, dispatchStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
@@ -86,6 +86,7 @@ export class SyncBaseProductStockBatchConsumer extends BatchPipelineConsumer<Syn
         pipelineRunId: ctx.message.pipelineRunId,
         tenantId: ctx.message.tenantId,
         step: PipelineStep.CALC_BASE_PRODUCT_METRICS,
+        queue: dispatchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS),
         payload: {},
       }),
     ];

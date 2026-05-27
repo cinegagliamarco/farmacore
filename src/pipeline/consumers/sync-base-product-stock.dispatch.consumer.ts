@@ -124,6 +124,7 @@ export class SyncBaseProductStockDispatchConsumer extends DispatchPipelineConsum
         pipelineRunId: ctx.message.pipelineRunId,
         tenantId: ctx.message.tenantId,
         step: PipelineStep.CALC_BASE_PRODUCT_METRICS,
+        queue: dispatchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS),
         payload: {},
       }),
     ];
