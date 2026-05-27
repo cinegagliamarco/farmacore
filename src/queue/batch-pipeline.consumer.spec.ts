@@ -1,9 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { EntityManager } from 'typeorm';
-import {
-  BatchPipelineConsumer,
-  BatchHandleResult,
-} from './batch-pipeline.consumer';
+import { BatchPipelineConsumer } from './batch-pipeline.consumer';
 import { PipelineRunService, BatchIncrement } from './pipeline-run.service';
 import { RetryService } from './retry.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
@@ -17,12 +14,18 @@ class TestBatchConsumer extends BatchPipelineConsumer<{ ids: number[] }> {
   protected logicalStep = PipelineStep.SYNC_BASE_PRODUCT;
   public lastInvoked = 0;
   public failNext = false;
-  public successorsToReturn: PipelineMessage[] = [];
+  public successorsCalled = 0;
+  public successorsToReturn: PipelineMessage<unknown>[] = [];
 
-  protected handle(): Promise<BatchHandleResult> {
+  protected handle(): Promise<void> {
     this.lastInvoked++;
     if (this.failNext) throw new Error('boom');
-    return Promise.resolve({ successors: this.successorsToReturn });
+    return Promise.resolve();
+  }
+
+  protected successors(): Promise<PipelineMessage<unknown>[]> {
+    this.successorsCalled++;
+    return Promise.resolve(this.successorsToReturn);
   }
 }
 
@@ -121,27 +124,18 @@ describe('BatchPipelineConsumer', () => {
     );
   });
 
-  it('does NOT publish successors when not the last batch', async () => {
-    consumer.successorsToReturn = [
-      {
-        pipelineRunId: 'run1',
-        tenantId: 'acme',
-        step: PipelineStep.SYNC_BASE_PRODUCT_STOCK,
-        attempt: 1,
-        publishedAt: 'now',
-        payload: {},
-      },
-    ];
+  it('does NOT call successors() or publish when not the last batch', async () => {
     runs.incrementBatchDone.mockResolvedValue({
       done: 2,
       planned: 4,
       isLast: false,
     });
     await consumer.process(buildMsg(2));
+    expect(consumer.successorsCalled).toBe(0);
     expect(publisher.publishStep).not.toHaveBeenCalled();
   });
 
-  it('publishes successors when isLast', async () => {
+  it('calls successors() once and publishes them when isLast', async () => {
     const successor: PipelineMessage = {
       pipelineRunId: 'run1',
       tenantId: 'acme',
@@ -157,6 +151,7 @@ describe('BatchPipelineConsumer', () => {
       isLast: true,
     });
     await consumer.process(buildMsg(4));
+    expect(consumer.successorsCalled).toBe(1);
     expect(publisher.publishStep).toHaveBeenCalledWith(successor);
   });
 

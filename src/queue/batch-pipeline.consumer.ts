@@ -9,15 +9,17 @@ import { IntegrationDataSourceFactory } from '../integration/integration-data-so
 import { PipelineMessage } from './types';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 
-export interface BatchHandleResult {
-  successors: PipelineMessage[];
-}
-
 export interface BatchHandleContext<TPayload = unknown> {
   message: PipelineMessage<TPayload>;
   em: EntityManager;
   integrationDs: DataSource | null;
   batchSeq: number;
+}
+
+export interface LastBatchContext<TPayload = unknown> {
+  message: PipelineMessage<TPayload>;
+  em: EntityManager;
+  integrationDs: DataSource | null;
 }
 
 /**
@@ -49,9 +51,22 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
     protected readonly publisher: PipelinePublisher,
   ) {}
 
-  protected abstract handle(
-    ctx: BatchHandleContext<TPayload>,
-  ): Promise<BatchHandleResult>;
+  /**
+   * Per-batch work. Runs inside the tenant transaction. Returning
+   * normally means the batch succeeded; throwing routes to retry/DLQ.
+   */
+  protected abstract handle(ctx: BatchHandleContext<TPayload>): Promise<void>;
+
+  /**
+   * Successors to publish when this batch closes the fan-in counter.
+   * Called only on the LAST batch; called inside a fresh tenant
+   * transaction so the subclass can consult the tenant schema (e.g. a
+   * join service) when deciding what to publish. Returning [] is
+   * legal — useful for branches that wait on a sibling step.
+   */
+  protected abstract successors(
+    ctx: LastBatchContext<TPayload>,
+  ): Promise<PipelineMessage<unknown>[]>;
 
   public async process(message: PipelineMessage<TPayload>): Promise<void> {
     const batchSeq = message.batchSeq ?? 0;
@@ -85,7 +100,7 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
         tenant.slug,
       );
 
-      const result = await this.tx.runWithTenant(tenant.schemaName, (em) =>
+      await this.tx.runWithTenant(tenant.schemaName, (em) =>
         this.handle({ message, em, integrationDs, batchSeq }),
       );
 
@@ -101,10 +116,14 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
       );
 
       if (inc.isLast) {
-        this.logger.log(
-          `${this.logicalStep} fan-in complete (${inc.done}/${inc.planned}); publishing ${result.successors.length} successor(s)`,
+        const successors = await this.tx.runWithTenant(
+          tenant.schemaName,
+          (em) => this.successors({ message, em, integrationDs }),
         );
-        for (const successor of result.successors) {
+        this.logger.log(
+          `${this.logicalStep} fan-in complete (${inc.done}/${inc.planned}); publishing ${successors.length} successor(s)`,
+        );
+        for (const successor of successors) {
           await this.publisher.publishStep(successor);
         }
       } else {

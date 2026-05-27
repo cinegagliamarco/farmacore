@@ -23,31 +23,28 @@ import { IntegrationDataSourceFactory } from '../../integration/integration-data
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
 
 const BATCH_SIZE = 500;
-const DISPATCH_QUEUE = dispatchStep(PipelineStep.SYNC_BASE_PRODUCT);
-const BATCH_QUEUE = batchStep(PipelineStep.SYNC_BASE_PRODUCT);
+const DISPATCH_QUEUE = dispatchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK);
+const BATCH_QUEUE = batchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK);
 
-export interface SyncBaseProductBatchPayload {
+export interface SyncBaseProductStockBatchPayload {
   embalagemIds: number[];
 }
 
 /**
- * Dispatcher for sync-base-product: scans valid embalagem rows in the
- * tenant's ERP, chunks the IDs into BATCH_SIZE slices, and publishes
- * one batch message per chunk. The successor (sync-base-product-stock)
- * is published as emptySuccessors when there is nothing to do; in the
- * normal case the LAST batch closes the fan-in counter and publishes
- * the successor itself.
+ * Dispatcher for sync-base-product-stock: scans the same valid embalagem
+ * universe as sync-base-product and emits one batch per BATCH_SIZE-slice
+ * of IDs. The successor (calc-base-product-metrics) is gated by the
+ * v1 PipelineJoinService — the batch consumer's successors() decides
+ * whether to publish CALC or just mark this branch complete.
  *
- * Note: legacy synchronize-base-product called offer_book.deleteAll()
- * here. We don't, on purpose — with dispatcher restart + per-batch
- * idempotency, a deleteAll() would erase rows the previously-completed
- * batches inserted. Stale offer_book rows (for eans that disappear
- * from the ERP) are tolerated for v2; a follow-up cleanup pass can
- * reconcile based on the EAN universe of a run.
+ * emptySuccessors is omitted on purpose: if there's nothing to do for
+ * this step, the join should still wait for the sibling branch
+ * (import-competitor-stock) before CALC fires. We mark the branch via
+ * an empty-data path inside the batch consumer when needed.
  */
 @Injectable()
-export class SyncBaseProductDispatchConsumer extends DispatchPipelineConsumer {
-  protected readonly logicalStep = PipelineStep.SYNC_BASE_PRODUCT;
+export class SyncBaseProductStockDispatchConsumer extends DispatchPipelineConsumer {
+  protected readonly logicalStep = PipelineStep.SYNC_BASE_PRODUCT_STOCK;
 
   constructor(
     runs: PipelineRunService,
@@ -76,34 +73,23 @@ export class SyncBaseProductDispatchConsumer extends DispatchPipelineConsumer {
   protected async handle(
     ctx: DispatchHandleContext,
   ): Promise<DispatchHandleResult> {
-    const successor = newPipelineMessage({
-      pipelineRunId: ctx.message.pipelineRunId,
-      tenantId: ctx.message.tenantId,
-      step: PipelineStep.SYNC_BASE_PRODUCT_STOCK,
-      queue: dispatchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK),
-      payload: {},
-    });
-
     if (!ctx.integrationDs) {
       this.logger.warn(
-        `No integration DataSource for tenant ${ctx.message.tenantId}; emitting empty successor only`,
+        `No integration DataSource for tenant ${ctx.message.tenantId}; emitting no batches`,
       );
-      return { batches: [], emptySuccessors: [successor] };
+      return { batches: [] };
     }
-
     const a7 = new A7PharmaRepositories(ctx.integrationDs);
     const ids = await a7.embalagem.findAllValidIds();
-    if (ids.length === 0) {
-      return { batches: [], emptySuccessors: [successor] };
-    }
+    if (ids.length === 0) return { batches: [] };
 
-    const batches: PipelineMessage<SyncBaseProductBatchPayload>[] = [];
+    const batches: PipelineMessage<SyncBaseProductStockBatchPayload>[] = [];
     for (let offset = 0, seq = 1; offset < ids.length; offset += BATCH_SIZE, seq++) {
       batches.push(
-        newPipelineMessage<SyncBaseProductBatchPayload>({
+        newPipelineMessage<SyncBaseProductStockBatchPayload>({
           pipelineRunId: ctx.message.pipelineRunId,
           tenantId: ctx.message.tenantId,
-          step: PipelineStep.SYNC_BASE_PRODUCT,
+          step: PipelineStep.SYNC_BASE_PRODUCT_STOCK,
           queue: BATCH_QUEUE,
           batchSeq: seq,
           payload: { embalagemIds: ids.slice(offset, offset + BATCH_SIZE) },
@@ -112,16 +98,10 @@ export class SyncBaseProductDispatchConsumer extends DispatchPipelineConsumer {
     }
 
     this.logger.log(
-      `sync-base-product dispatch: ${ids.length} embalagens -> ${batches.length} batch(es) of <= ${BATCH_SIZE}`,
+      `sync-base-product-stock dispatch: ${ids.length} embalagens -> ${batches.length} batch(es) of <= ${BATCH_SIZE}`,
     );
-    return { batches, emptySuccessors: [successor] };
+    return { batches };
   }
 
-  /**
-   * Touch to keep the dispatch queue's prefetch wired (for parity with
-   * the v1 consumer registration pattern; the value is read by the
-   * @golevelup decorator on construction). Calling it from a const
-   * keeps the lookup compile-checked without runtime side effects.
-   */
   protected static readonly _prefetchAck = STEP_PREFETCH[DISPATCH_QUEUE];
 }
