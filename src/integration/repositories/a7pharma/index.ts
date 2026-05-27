@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { CadernoOfertaEntity } from '../../entities/a7pharma/caderno-oferta.entity';
 import { ClassificacaoProdutoEntity } from '../../entities/a7pharma/classificacao-produto.entity';
 import { CustoProdutoEntity } from '../../entities/a7pharma/custo-produto.entity';
 import { EmbalagemEntity } from '../../entities/a7pharma/embalagem.entity';
@@ -7,6 +8,7 @@ import { ItemCadernoOfertaEntity } from '../../entities/a7pharma/item-caderno-of
 import { ItemCadernoOfertaQuantidadeEntity } from '../../entities/a7pharma/item-caderno-oferta-quantidade.entity';
 import { ItemRecebimentoFisicoEntity } from '../../entities/a7pharma/item-recebimento-fisico.entity';
 
+import { CadernoOfertaRepository } from './caderno-oferta.repository';
 import { ClassificacaoProdutoRepository } from './classificacao-produto.repository';
 import { CustoProdutoRepository } from './custo-produto.repository';
 import { EmbalagemRepository } from './embalagem.repository';
@@ -16,6 +18,7 @@ import { ItemCadernoOfertaQuantidadeRepository } from './item-caderno-oferta-qua
 import { ItemRecebimentoFisicoRepository } from './item-recebimento-fisico.repository';
 
 export {
+  CadernoOfertaRepository,
   ClassificacaoProdutoRepository,
   CustoProdutoRepository,
   EmbalagemRepository,
@@ -35,6 +38,7 @@ export type { EmbalagemBatchSlice } from './embalagem-chunker';
  * after IntegrationDataSourceFactory.forTenantSlug returns the DS.
  */
 export class A7PharmaRepositories {
+  public readonly cadernoOferta: CadernoOfertaRepository;
   public readonly embalagem: EmbalagemRepository;
   public readonly classificacaoProduto: ClassificacaoProdutoRepository;
   public readonly custoProduto: CustoProdutoRepository;
@@ -44,6 +48,9 @@ export class A7PharmaRepositories {
   public readonly itemRecebimentoFisico: ItemRecebimentoFisicoRepository;
 
   constructor(ds: DataSource) {
+    this.cadernoOferta = new CadernoOfertaRepository(
+      ds.getRepository(CadernoOfertaEntity),
+    );
     this.embalagem = new EmbalagemRepository(ds.getRepository(EmbalagemEntity));
     this.classificacaoProduto = new ClassificacaoProdutoRepository(
       ds.getRepository(ClassificacaoProdutoEntity),
