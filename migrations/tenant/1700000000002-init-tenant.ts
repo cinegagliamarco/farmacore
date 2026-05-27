@@ -242,6 +242,43 @@ export class InitTenant1700000000002 implements MigrationInterface {
       );
     `);
 
+    // Per-tenant subsidiary label lookup. The sync-base-product-stock
+    // step imports every store's stock from the ERP regardless of what
+    // is configured here; this table only carries human-readable names
+    // (e.g. "LOJA 1") so the UI can label rows. Replaces the legacy
+    // hardcoded SubsidiaryMaping enum.
+    await queryRunner.query(`
+      CREATE TABLE tenant_subsidiary (
+        id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+        external_id bigint NOT NULL,
+        name text NOT NULL,
+        active boolean NOT NULL DEFAULT true,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        deleted_at timestamptz
+      );
+      CREATE UNIQUE INDEX "UQ_TENANT_SUBSIDIARY_EXTERNAL_ID"
+        ON tenant_subsidiary(external_id);
+    `);
+
+    // Per-tenant ERP stock, keyed on (ean, subsidiary_external_id). No
+    // FK to tenant_subsidiary so unknown stores can still land — the
+    // operator labels them later by inserting a tenant_subsidiary row.
+    await queryRunner.query(`
+      CREATE TABLE tenant_product_stock (
+        id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+        ean bigint NOT NULL,
+        subsidiary_external_id bigint NOT NULL,
+        quantity int NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        deleted_at timestamptz
+      );
+      CREATE UNIQUE INDEX "UQ_TENANT_PRODUCT_STOCK_EAN_SUBSIDIARY"
+        ON tenant_product_stock(ean, subsidiary_external_id);
+      CREATE INDEX "IX_TENANT_PRODUCT_STOCK_EAN" ON tenant_product_stock(ean);
+    `);
+
     // Deferred FKs (tables created out of dependency order).
     await queryRunner.query(`
       ALTER TABLE tenant_product
