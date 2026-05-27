@@ -94,9 +94,9 @@ export function mapProduct(
     found: true,
     name: p.name ?? null,
     brand: p.brand ?? null,
+    sku: p.erp_internal_code ?? null,
     price: toNumericString(p.min_price_valid),
     metadata: {
-      sku: p.erp_internal_code ? Number(p.erp_internal_code) : undefined,
       description: p.description,
       image: p.images?.[0] ? IMAGE_URL(p.images[0]) : undefined,
       stockBalance: p.stock_infos?.stock_balance ?? 0,

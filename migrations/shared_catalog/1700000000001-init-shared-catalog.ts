@@ -33,6 +33,7 @@ export class InitSharedCatalog1700000000001 implements MigrationInterface {
         unit_sale_price numeric(12,2),
         supplier text,
         brand text,
+        sku text,
         weight numeric(10,3),
         height numeric(10,4),
         length numeric(10,4),

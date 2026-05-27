@@ -29,7 +29,11 @@ import {
   ImportCompetitorProductsDrogasilConsumer,
   ImportCompetitorProductsMichelassiConsumer,
 } from './consumers/import-competitor-products.batch.consumers';
-import { ImportCompetitorStockConsumer } from './consumers/import-competitor-stock.consumer';
+import { ImportCompetitorStockDispatchConsumer } from './consumers/import-competitor-stock.dispatch.consumer';
+import {
+  ImportCompetitorStockDrogalConsumer,
+  ImportCompetitorStockDrogasilConsumer,
+} from './consumers/import-competitor-stock.batch.consumers';
 import { CalcBaseProductMetricsDispatchConsumer } from './consumers/calc-base-product-metrics.dispatch.consumer';
 import { CalcBaseProductMetricsBatchConsumer } from './consumers/calc-base-product-metrics.batch.consumer';
 import { UpdateBaseProductPropertiesDispatchConsumer } from './consumers/update-base-product-properties.dispatch.consumer';
@@ -59,7 +63,9 @@ const CONSUMERS = [
   ImportCompetitorProductsDrogalConsumer,
   ImportCompetitorProductsDrogasilConsumer,
   ImportCompetitorProductsMichelassiConsumer,
-  ImportCompetitorStockConsumer,
+  ImportCompetitorStockDispatchConsumer,
+  ImportCompetitorStockDrogalConsumer,
+  ImportCompetitorStockDrogasilConsumer,
   CalcBaseProductMetricsDispatchConsumer,
   CalcBaseProductMetricsBatchConsumer,
   UpdateBaseProductPropertiesDispatchConsumer,

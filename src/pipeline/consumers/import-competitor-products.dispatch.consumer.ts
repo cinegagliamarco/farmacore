@@ -79,6 +79,7 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
       pipelineRunId: ctx.message.pipelineRunId,
       tenantId: ctx.message.tenantId,
       step: PipelineStep.IMPORT_COMPETITOR_STOCK,
+      queue: dispatchStep(PipelineStep.IMPORT_COMPETITOR_STOCK),
       payload: {},
     });
 

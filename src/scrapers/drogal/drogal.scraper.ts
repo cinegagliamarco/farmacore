@@ -133,15 +133,13 @@ export class DrogalScraper implements ProductScraper, StockScraper {
       found: true,
       name: product.productName ?? null,
       brand: product.brand ?? null,
+      sku: product.productReferenceCode ?? null,
       price: toNumericString(price),
       weight: toNumericString(measures?.weight),
       height: toNumericString(measures?.height),
       length: toNumericString(measures?.length),
       width: toNumericString(measures?.width),
       metadata: {
-        sku: product.productReferenceCode
-          ? Number(product.productReferenceCode)
-          : undefined,
         description: stripHtml(product.description),
         image: product.items?.[0]?.images?.[0]?.imageUrl,
         observation: offer.PromotionTeasers?.[0]?.Name,

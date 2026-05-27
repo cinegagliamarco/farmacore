@@ -14,42 +14,39 @@ import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
-import { ImportCompetitorProductsStep } from '../steps/import-competitor-products.step';
+import { ImportCompetitorStockStep } from '../steps/import-competitor-stock.step';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
 import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
-import type { ImportCompetitorProductsBatchPayload } from './import-competitor-products.dispatch.consumer';
+import { PipelineJoinService } from '../pipeline-join.service';
+import type { ImportCompetitorStockBatchPayload } from './import-competitor-stock.dispatch.consumer';
 
 const QUEUE_DROGAL = originStep(
-  PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+  PipelineStep.IMPORT_COMPETITOR_STOCK,
   CompetitorOrigin.DROGAL,
 );
 const QUEUE_DROGASIL = originStep(
-  PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+  PipelineStep.IMPORT_COMPETITOR_STOCK,
   CompetitorOrigin.DROGASIL,
-);
-const QUEUE_MICHELASSI = originStep(
-  PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
-  CompetitorOrigin.MICHELASSI,
 );
 
 /**
- * One thin per-origin batch consumer per scrape queue. They all share
- * the same logicalStep (IMPORT_COMPETITOR_PRODUCTS) so the fan-in
- * counter on the dispatch row spans all three origins — the last
- * batch from ANY origin closes the run.
- *
- * Three separate classes (instead of one with three decorators)
- * because @RabbitSubscribe binds to a single queue per method.
+ * Per-origin stock batch consumers. Same fan-in counter pattern as
+ * import-competitor-products: all per-origin batches share one
+ * dispatch row. On the LAST batch (from any origin),
+ * PipelineJoinService.markBranchComplete fires for 'stock-b' — and
+ * publishes CALC_BASE_PRODUCT_METRICS only when 'stock-a' is also
+ * complete (legacy two-branch join, owned by Phase D to refactor).
  */
-abstract class CompetitorProductsBatchBase extends BatchPipelineConsumer<ImportCompetitorProductsBatchPayload> {
-  protected readonly logicalStep = PipelineStep.IMPORT_COMPETITOR_PRODUCTS;
+abstract class CompetitorStockBatchBase extends BatchPipelineConsumer<ImportCompetitorStockBatchPayload> {
+  protected readonly logicalStep = PipelineStep.IMPORT_COMPETITOR_STOCK;
 
   protected constructor(
-    private readonly stepImpl: ImportCompetitorProductsStep,
+    private readonly stepImpl: ImportCompetitorStockStep,
+    private readonly join: PipelineJoinService,
     runs: PipelineRunService,
     retry: RetryService,
     tx: TenantTransactionService,
@@ -61,34 +58,41 @@ abstract class CompetitorProductsBatchBase extends BatchPipelineConsumer<ImportC
   }
 
   protected handle(
-    ctx: BatchHandleContext<ImportCompetitorProductsBatchPayload>,
+    ctx: BatchHandleContext<ImportCompetitorStockBatchPayload>,
   ): Promise<void> {
     return this.stepImpl.run(
       ctx.em,
       ctx.message.payload.origin,
-      ctx.message.payload.eans,
+      ctx.message.payload.items,
     );
   }
 
-  protected successors(
-    ctx: LastBatchContext<ImportCompetitorProductsBatchPayload>,
+  protected async successors(
+    ctx: LastBatchContext<ImportCompetitorStockBatchPayload>,
   ): Promise<PipelineMessage<unknown>[]> {
-    return Promise.resolve([
+    const outcome = await this.join.markBranchComplete(
+      ctx.message.pipelineRunId,
+      ctx.message.tenantId,
+      'stock-b',
+    );
+    if (outcome === 'wait') return [];
+    return [
       newPipelineMessage({
         pipelineRunId: ctx.message.pipelineRunId,
         tenantId: ctx.message.tenantId,
-        step: PipelineStep.IMPORT_COMPETITOR_STOCK,
-        queue: dispatchStep(PipelineStep.IMPORT_COMPETITOR_STOCK),
+        step: PipelineStep.CALC_BASE_PRODUCT_METRICS,
+        queue: dispatchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS),
         payload: {},
       }),
-    ]);
+    ];
   }
 }
 
 @Injectable()
-export class ImportCompetitorProductsDrogalConsumer extends CompetitorProductsBatchBase {
+export class ImportCompetitorStockDrogalConsumer extends CompetitorStockBatchBase {
   constructor(
-    stepImpl: ImportCompetitorProductsStep,
+    stepImpl: ImportCompetitorStockStep,
+    join: PipelineJoinService,
     runs: PipelineRunService,
     retry: RetryService,
     tx: TenantTransactionService,
@@ -96,7 +100,7 @@ export class ImportCompetitorProductsDrogalConsumer extends CompetitorProductsBa
     integration: IntegrationDataSourceFactory,
     publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, join, runs, retry, tx, tenants, integration, publisher);
   }
 
   @RabbitSubscribe({
@@ -107,16 +111,17 @@ export class ImportCompetitorProductsDrogalConsumer extends CompetitorProductsBa
     queueOptions: { channel: QUEUE_DROGAL },
   })
   public consume(
-    message: PipelineMessage<ImportCompetitorProductsBatchPayload>,
+    message: PipelineMessage<ImportCompetitorStockBatchPayload>,
   ): Promise<void> {
     return this.process(message);
   }
 }
 
 @Injectable()
-export class ImportCompetitorProductsDrogasilConsumer extends CompetitorProductsBatchBase {
+export class ImportCompetitorStockDrogasilConsumer extends CompetitorStockBatchBase {
   constructor(
-    stepImpl: ImportCompetitorProductsStep,
+    stepImpl: ImportCompetitorStockStep,
+    join: PipelineJoinService,
     runs: PipelineRunService,
     retry: RetryService,
     tx: TenantTransactionService,
@@ -124,7 +129,7 @@ export class ImportCompetitorProductsDrogasilConsumer extends CompetitorProducts
     integration: IntegrationDataSourceFactory,
     publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, join, runs, retry, tx, tenants, integration, publisher);
   }
 
   @RabbitSubscribe({
@@ -135,35 +140,7 @@ export class ImportCompetitorProductsDrogasilConsumer extends CompetitorProducts
     queueOptions: { channel: QUEUE_DROGASIL },
   })
   public consume(
-    message: PipelineMessage<ImportCompetitorProductsBatchPayload>,
-  ): Promise<void> {
-    return this.process(message);
-  }
-}
-
-@Injectable()
-export class ImportCompetitorProductsMichelassiConsumer extends CompetitorProductsBatchBase {
-  constructor(
-    stepImpl: ImportCompetitorProductsStep,
-    runs: PipelineRunService,
-    retry: RetryService,
-    tx: TenantTransactionService,
-    tenants: TenantService,
-    integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
-  ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
-  }
-
-  @RabbitSubscribe({
-    exchange: EXCHANGE_NAME,
-    routingKey: `*.${QUEUE_MICHELASSI}`,
-    createQueueIfNotExists: false,
-    queue: QUEUE_MICHELASSI,
-    queueOptions: { channel: QUEUE_MICHELASSI },
-  })
-  public consume(
-    message: PipelineMessage<ImportCompetitorProductsBatchPayload>,
+    message: PipelineMessage<ImportCompetitorStockBatchPayload>,
   ): Promise<void> {
     return this.process(message);
   }

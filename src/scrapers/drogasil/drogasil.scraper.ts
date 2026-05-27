@@ -239,10 +239,10 @@ export function mapProduct(
     name: p.name ?? null,
     brand,
     supplier,
+    sku: p.sku ?? null,
     price: toNumericString(finalPrice),
     weight: toNumericString(p.weight),
     metadata: {
-      sku: p.sku ? Number(p.sku) : undefined,
       description,
       category,
       image: p.media_gallery_entries?.[0]?.file,

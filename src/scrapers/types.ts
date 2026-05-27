@@ -19,6 +19,7 @@ export interface ScrapedProduct {
   unitSalePrice?: string | null;
   supplier?: string | null;
   brand?: string | null;
+  sku?: string | null;
   weight?: string | null;
   height?: string | null;
   length?: string | null;

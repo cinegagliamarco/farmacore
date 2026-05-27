@@ -35,6 +35,9 @@ export class ProductEntity extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   public brand?: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  public sku?: string | null;
+
   @Column({ type: 'numeric', precision: 10, scale: 3, nullable: true })
   public weight?: string | null;
 

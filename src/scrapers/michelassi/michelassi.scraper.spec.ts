@@ -39,9 +39,9 @@ describe('mapProduct', () => {
       found: true,
       name: 'Sabonete',
       brand: 'Dove',
+      sku: '999',
       price: '4.5',
       metadata: {
-        sku: 999,
         description: 'Sabonete em barra',
         image: 'https://ibassets.com.br/ib.item.image.large/l-abc123.jpeg',
         stockBalance: 50,

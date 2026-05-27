@@ -18,7 +18,6 @@ export const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
  */
 export const STEP_QUEUES: ReadonlyArray<PipelineStep> = [
   PipelineStep.SYNC_OFFER_BOOKS_INFO,
-  PipelineStep.IMPORT_COMPETITOR_STOCK,
   PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT,
 ];
 
@@ -50,6 +49,10 @@ export const PER_ORIGIN_STEPS: Readonly<
     CompetitorOrigin.DROGASIL,
     CompetitorOrigin.MICHELASSI,
   ],
+  [PipelineStep.IMPORT_COMPETITOR_STOCK]: [
+    CompetitorOrigin.DROGAL,
+    CompetitorOrigin.DROGASIL,
+  ],
 };
 
 export const dispatchStep = (step: PipelineStep): string =>
@@ -63,7 +66,6 @@ export const originStep = (
 /** Per-queue prefetch. Keyed by actual queue name (= step + suffix). */
 export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [PipelineStep.SYNC_OFFER_BOOKS_INFO]: 2,
-  [PipelineStep.IMPORT_COMPETITOR_STOCK]: 2,
   [PipelineStep.UPDATE_ACTIVE_INGREDIENT_MAT]: 2,
 
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 1,
@@ -71,6 +73,7 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [dispatchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 1,
   [dispatchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 1,
   [dispatchStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS)]: 1,
+  [dispatchStep(PipelineStep.IMPORT_COMPETITOR_STOCK)]: 1,
   [batchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 4,
   [batchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 4,
   [batchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 2,
@@ -80,6 +83,8 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [originStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS, CompetitorOrigin.DROGAL)]: 8,
   [originStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS, CompetitorOrigin.DROGASIL)]: 8,
   [originStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS, CompetitorOrigin.MICHELASSI)]: 2,
+  [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGAL)]: 4,
+  [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGASIL)]: 4,
 };
 
 /**
@@ -94,4 +99,16 @@ export const PER_ORIGIN_BATCH_SIZE: Readonly<Record<CompetitorOrigin, number>> =
   [CompetitorOrigin.MICHELASSI]: 1,
   [CompetitorOrigin.PAGUE_MENOS]: 20,
   [CompetitorOrigin.IKESAKI]: 10,
+};
+
+/**
+ * Per-origin batch size for stock fetches. Legacy ran 50 SKUs per call
+ * on Drogal (one drogalCheckout POST with all SKUs) and 30 on Drogasil
+ * (one GraphQL call). Michelassi is not in stock — products-only.
+ */
+export const PER_ORIGIN_STOCK_BATCH_SIZE: Readonly<
+  Partial<Record<CompetitorOrigin, number>>
+> = {
+  [CompetitorOrigin.DROGAL]: 50,
+  [CompetitorOrigin.DROGASIL]: 30,
 };
