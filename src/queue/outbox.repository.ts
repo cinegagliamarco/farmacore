@@ -4,6 +4,36 @@ import { EntityManager, IsNull, Repository } from 'typeorm';
 import { PipelineOutboxEntity } from '../database/entities/core/pipeline-outbox.entity';
 import { PipelineMessage } from './types';
 
+interface PipelineOutboxRow {
+  id: string;
+  pipeline_run_id: string;
+  tenant_id: string;
+  routing_key: string;
+  message: Record<string, unknown>;
+  attempts: number;
+  claimed_at: Date | null;
+  published_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+}
+
+function rowToEntity(r: PipelineOutboxRow): PipelineOutboxEntity {
+  return {
+    id: r.id,
+    pipelineRunId: r.pipeline_run_id,
+    tenantId: r.tenant_id,
+    routingKey: r.routing_key,
+    message: r.message,
+    attempts: r.attempts,
+    claimedAt: r.claimed_at,
+    publishedAt: r.published_at,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    deletedAt: r.deleted_at,
+  } as PipelineOutboxEntity;
+}
+
 /**
  * Lease window: a claimed row is excluded from re-claim until this
  * many ms have passed since claimed_at. Comfortably larger than a
@@ -57,7 +87,7 @@ export class OutboxRepository {
    * row becomes claimable again after the grace expires.
    */
   public async claimPending(limit: number): Promise<PipelineOutboxEntity[]> {
-    const picked: Array<{ id: string }> = await this.repo.query(
+    const rows: PipelineOutboxRow[] = await this.repo.query(
       `WITH chosen AS (
         SELECT id FROM core.pipeline_outbox
         WHERE published_at IS NULL
@@ -69,11 +99,12 @@ export class OutboxRepository {
       UPDATE core.pipeline_outbox
       SET attempts = attempts + 1, claimed_at = now(), updated_at = now()
       WHERE id IN (SELECT id FROM chosen)
-      RETURNING id`,
+      RETURNING id, pipeline_run_id, tenant_id, routing_key, message,
+                attempts, claimed_at, published_at, created_at, updated_at,
+                deleted_at`,
       [limit, CLAIM_GRACE_MS],
     );
-    if (picked.length === 0) return [];
-    return this.repo.find({ where: picked.map((p) => ({ id: p.id })) });
+    return rows.map(rowToEntity);
   }
 
   public async markPublished(id: string): Promise<void> {
