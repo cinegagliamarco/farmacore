@@ -7,7 +7,9 @@ import { AppModule } from '../src/app.module';
 import { EXCHANGE_NAME } from '../src/queue/constants';
 
 async function main(): Promise<void> {
-  execSync('npm run migration:run:app', { stdio: 'inherit' });
+  // Run from compiled dist/. The npm-script path uses ts-node which is
+  // pruned in the production image.
+  execSync('node dist/scripts/migrate-app.js', { stdio: 'inherit' });
 
   const app = await NestFactory.createApplicationContext(AppModule);
   const ds = app.get(DataSource);
