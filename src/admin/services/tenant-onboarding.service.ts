@@ -65,7 +65,12 @@ export class TenantOnboardingService {
       await this.dataSource.query(
         `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`,
       );
-      execSync(`npm run migration:tenant ${dto.slug}`, { stdio: 'inherit' });
+      // Run from compiled dist/. The npm-script path uses ts-node which
+      // is pruned in the production image. CreateTenantDto's slug regex
+      // restricts to [a-z0-9-], so this shell interpolation is safe.
+      execSync(`node dist/scripts/migrate-tenant.js ${dto.slug}`, {
+        stdio: 'inherit',
+      });
     } catch (err) {
       this.logger.error(
         `Tenant onboarding failed for ${dto.slug}: ${(err as Error).message}`,
