@@ -1,8 +1,15 @@
 import 'dotenv/config';
+import path from 'node:path';
 import { DataSource } from 'typeorm';
 
 const url = process.env.DATABASE_DIRECT_URL ?? process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_DIRECT_URL or DATABASE_URL must be set');
+
+// __dirname is:
+//   <root>/src/database         when running .ts via ts-node (dev)
+//   <root>/dist/src/database    when running compiled .js (prod)
+// The {ts,js} glob lets both work without branching on NODE_ENV.
+const here = __dirname;
 
 export default new DataSource({
   type: 'postgres',
@@ -11,7 +18,10 @@ export default new DataSource({
     process.env.NODE_ENV === 'production'
       ? { rejectUnauthorized: false }
       : false,
-  entities: ['src/database/entities/**/*.entity.ts'],
-  migrations: ['migrations/core/*.ts', 'migrations/shared_catalog/*.ts'],
+  entities: [path.join(here, 'entities/**/*.entity.{ts,js}')],
+  migrations: [
+    path.join(here, '../../migrations/core/*.{ts,js}'),
+    path.join(here, '../../migrations/shared_catalog/*.{ts,js}'),
+  ],
   migrationsTableName: 'migrations_app',
 });

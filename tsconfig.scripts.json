@@ -9,6 +9,6 @@
     "sourceMap": false,
     "removeComments": true
   },
-  "include": ["src/**/*.ts", "scripts/**/*.ts"],
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "migrations/**/*.ts"],
   "exclude": ["**/*.spec.ts", "node_modules", "dist", "test", "legacy-app", "plans", "arc"]
 }
