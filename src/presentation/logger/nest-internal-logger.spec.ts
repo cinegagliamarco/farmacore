@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { trace } from '@opentelemetry/api';
 import { NestInternalLogger } from './nest-internal-logger';
 
 describe('NestInternalLogger', () => {
@@ -37,5 +38,32 @@ describe('NestInternalLogger', () => {
       { code: 'X', detail: 1 },
       undefined,
     );
+  });
+
+  it('stamps traceId/spanId on object payloads when a span is active', () => {
+    const fakeSpan = {
+      spanContext: () => ({ traceId: 'abc', spanId: 'def' }),
+    } as never;
+    const spy = jest
+      .spyOn(trace, 'getActiveSpan')
+      .mockReturnValue(fakeSpan);
+    log.log({ event: 'hello' });
+    expect(underlying.log).toHaveBeenCalledWith(
+      { event: 'hello', traceId: 'abc', spanId: 'def' },
+      undefined,
+    );
+    spy.mockRestore();
+  });
+
+  it('leaves string payloads untouched (no IDs to stamp on)', () => {
+    const fakeSpan = {
+      spanContext: () => ({ traceId: 'abc', spanId: 'def' }),
+    } as never;
+    const spy = jest
+      .spyOn(trace, 'getActiveSpan')
+      .mockReturnValue(fakeSpan);
+    log.log('plain string');
+    expect(underlying.log).toHaveBeenCalledWith('plain string', undefined);
+    spy.mockRestore();
   });
 });

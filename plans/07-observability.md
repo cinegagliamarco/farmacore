@@ -1,5 +1,12 @@
 # 07 — Observability Implementation Plan
 
+> **Status: ✅ Executed.** All 11 tasks landed. Deviations:
+> - **T5** wrapped the v2 base classes (`BatchPipelineConsumer` + `DispatchPipelineConsumer`) in addition to the v1 `BasePipelineConsumer`. The v1 base still services the single-shot `sync-offer-books-info` consumer.
+> - **T6** the poller comment + smoke doc explicitly call out that the same `CLOUDAMQP_API_*` env vars point at the local `rabbitmq:management` API on `:15672/api` (`guest:guest`) — the management API shape is identical.
+> - **T7** `ObservabilityModule` imports `AppConfigModule` so the poller can resolve `AppConfigService` from a context that doesn't otherwise pull config in (worker).
+> - **T9** uses `@nestjs/terminus` `HealthIndicatorResult` shape; spec mocks `HealthCheckService` to call each indicator directly.
+> - **T11** ships as `docs/observability/local-smoke.md` rather than a runnable spec; the smoke needs a live OTel collector + RabbitMQ + Postgres and isn't reproducible from CI.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Instrument the app and worker so per-tenant pipeline runs are visible end-to-end: OTel spans on every consumer, request-correlated logs, RMQ queue/depth metrics, and an alerting baseline on DLQ size + queue backlog.

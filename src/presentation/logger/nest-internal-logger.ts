@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { trace } from '@opentelemetry/api';
 import { InternalLogger } from '../../interfaces';
 
 function resolveContext(ctx: unknown): string | undefined {
@@ -18,16 +19,30 @@ function resolveContext(ctx: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * If an OTel span is active, stamp its traceId/spanId on object
+ * payloads so log aggregators can click-through to the trace.
+ * Strings are forwarded unchanged — the trace IDs only attach where
+ * they have a structured payload to ride on.
+ */
+function enrichWithTrace(payload: unknown): unknown {
+  if (payload === null || typeof payload !== 'object') return payload;
+  const span = trace.getActiveSpan();
+  if (!span) return payload;
+  const { traceId, spanId } = span.spanContext();
+  return { ...(payload as Record<string, unknown>), traceId, spanId };
+}
+
 @Injectable()
 export class NestInternalLogger implements InternalLogger {
   constructor(private readonly nest: Logger = new Logger('App')) {}
 
   public log(payload: unknown, ctx?: unknown): void {
-    this.nest.log(payload, resolveContext(ctx));
+    this.nest.log(enrichWithTrace(payload), resolveContext(ctx));
   }
 
   public warn(payload: unknown, ctx?: unknown): void {
-    this.nest.warn(payload, resolveContext(ctx));
+    this.nest.warn(enrichWithTrace(payload), resolveContext(ctx));
   }
 
   public error(message: string, ctx?: unknown): void {
@@ -35,6 +50,6 @@ export class NestInternalLogger implements InternalLogger {
   }
 
   public debug(payload: unknown, ctx?: unknown): void {
-    this.nest.debug(payload, resolveContext(ctx));
+    this.nest.debug(enrichWithTrace(payload), resolveContext(ctx));
   }
 }

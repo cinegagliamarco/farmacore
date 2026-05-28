@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { EntityManager, DataSource } from 'typeorm';
 import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService } from './pipeline-run.service';
@@ -7,6 +8,7 @@ import { PipelinePublisher } from './pipeline-publisher.service';
 import { TenantService } from '../tenant/tenant.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
 import { IntegrationDataSourceFactory } from '../integration/integration-data-source.factory';
+import { withPipelineSpan } from '../observability/pipeline-span.helper';
 import { PipelineMessage } from './types';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 
@@ -70,88 +72,104 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
   ): Promise<DispatchHandleResult>;
 
   public async process(message: PipelineMessage<TPayload>): Promise<void> {
-    try {
-      const outcome = await this.runs.startOrRestartDispatch(
-        message.pipelineRunId,
-        message.tenantId,
-        this.logicalStep,
-        message.attempt,
-      );
-      if (outcome === 'already-completed') {
-        this.logger.debug(
-          `Skipping ${this.logicalStep}.dispatch for run ${message.pipelineRunId}: already completed`,
-        );
-        return;
-      }
-
-      const tenant = await this.tenants.findActive(message.tenantId);
-      const integrationDs = await this.integrationFactory.forTenantSlug(
-        tenant.slug,
-      );
-
-      // Empty path is atomic via the tenant tx (recordDispatch +
-      // complete + outbox-staged emptySuccessors all-or-nothing).
-      // The batches path keeps direct AMQP publish — batches are
-      // re-emittable via startOrRestartDispatch on crash, and the
-      // 1-to-1 outbox staging of N batches would balloon the table.
-      const result = await this.tx.runWithTenant(
-        tenant.schemaName,
-        async (em) => {
-          const r = await this.handle({ message, em, integrationDs });
-          if (r.batches.length === 0) {
-            await this.runs.recordDispatch(
-              message.pipelineRunId,
-              this.logicalStep,
-              0,
-              em,
+    await withPipelineSpan(
+      {
+        tenantId: message.tenantId,
+        pipelineRunId: message.pipelineRunId,
+        step: `${this.logicalStep}.dispatch`,
+        attempt: message.attempt,
+      },
+      async () => {
+        try {
+          const outcome = await this.runs.startOrRestartDispatch(
+            message.pipelineRunId,
+            message.tenantId,
+            this.logicalStep,
+            message.attempt,
+          );
+          if (outcome === 'already-completed') {
+            this.logger.debug(
+              `Skipping ${this.logicalStep}.dispatch for run ${message.pipelineRunId}: already completed`,
             );
-            await this.runs.complete(
-              message.pipelineRunId,
-              this.logicalStep,
-              undefined,
-              em,
-            );
-            await this.outbox.insertMany(
-              em,
-              message.pipelineRunId,
-              message.tenantId,
-              r.emptySuccessors ?? [],
-            );
+            return;
           }
-          return r;
-        },
-      );
 
-      if (result.batches.length === 0) {
-        this.logger.log(
-          `${this.logicalStep}.dispatch: no batches; ${(result.emptySuccessors ?? []).length} empty-successor(s) staged to outbox`,
-        );
-        return;
-      }
+          const tenant = await this.tenants.findActive(message.tenantId);
+          const integrationDs = await this.integrationFactory.forTenantSlug(
+            tenant.slug,
+          );
 
-      await this.runs.recordDispatch(
-        message.pipelineRunId,
-        this.logicalStep,
-        result.batches.length,
-      );
-      for (const batch of result.batches) {
-        await this.publisher.publishStep(batch);
-      }
-      await this.runs.complete(message.pipelineRunId, this.logicalStep);
-      this.logger.log(
-        `${this.logicalStep}.dispatch: published ${result.batches.length} batches`,
-      );
-    } catch (err) {
-      const errMessage = (err as Error).message || String(err);
-      this.logger.error(
-        `${this.logicalStep}.dispatch failed for run ${message.pipelineRunId}: ${errMessage}`,
-      );
-      const outcome = await this.retry.republishOnFailure(message);
-      await this.runs.fail(
-        message.pipelineRunId,
-        this.logicalStep,
-        `${errMessage} (retry=${outcome})`,
-      );
-    }
+          // Empty path is atomic via the tenant tx (recordDispatch +
+          // complete + outbox-staged emptySuccessors all-or-nothing).
+          // The batches path keeps direct AMQP publish — batches are
+          // re-emittable via startOrRestartDispatch on crash, and the
+          // 1-to-1 outbox staging of N batches would balloon the table.
+          const result = await this.tx.runWithTenant(
+            tenant.schemaName,
+            async (em) => {
+              const r = await this.handle({ message, em, integrationDs });
+              if (r.batches.length === 0) {
+                await this.runs.recordDispatch(
+                  message.pipelineRunId,
+                  this.logicalStep,
+                  0,
+                  em,
+                );
+                await this.runs.complete(
+                  message.pipelineRunId,
+                  this.logicalStep,
+                  undefined,
+                  em,
+                );
+                await this.outbox.insertMany(
+                  em,
+                  message.pipelineRunId,
+                  message.tenantId,
+                  r.emptySuccessors ?? [],
+                );
+              }
+              return r;
+            },
+          );
+
+          if (result.batches.length === 0) {
+            this.logger.log(
+              `${this.logicalStep}.dispatch: no batches; ${(result.emptySuccessors ?? []).length} empty-successor(s) staged to outbox`,
+            );
+            return;
+          }
+
+          await this.runs.recordDispatch(
+            message.pipelineRunId,
+            this.logicalStep,
+            result.batches.length,
+          );
+          for (const batch of result.batches) {
+            await this.publisher.publishStep(batch);
+          }
+          await this.runs.complete(message.pipelineRunId, this.logicalStep);
+          this.logger.log(
+            `${this.logicalStep}.dispatch: published ${result.batches.length} batches`,
+          );
+        } catch (err) {
+          const errMessage = (err as Error).message || String(err);
+          this.logger.error(
+            `${this.logicalStep}.dispatch failed for run ${message.pipelineRunId}: ${errMessage}`,
+          );
+          const outcome = await this.retry.republishOnFailure(message);
+          await this.runs.fail(
+            message.pipelineRunId,
+            this.logicalStep,
+            `${errMessage} (retry=${outcome})`,
+          );
+          // Don't re-throw: RetryService routed the message. Mark the
+          // active span as ERROR so traces still show the failure.
+          trace.getActiveSpan()?.recordException(err as Error);
+          trace
+            .getActiveSpan()
+            ?.setStatus({ code: SpanStatusCode.ERROR, message: errMessage });
+        }
+      },
+    );
   }
 }

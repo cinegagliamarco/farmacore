@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { EntityManager, DataSource } from 'typeorm';
 import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService } from './pipeline-run.service';
@@ -7,6 +8,7 @@ import { PipelinePublisher } from './pipeline-publisher.service';
 import { TenantService } from '../tenant/tenant.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
 import { IntegrationDataSourceFactory } from '../integration/integration-data-source.factory';
+import { withPipelineSpan } from '../observability/pipeline-span.helper';
 import { PipelineMessage } from './types';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 
@@ -76,89 +78,106 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
 
   public async process(message: PipelineMessage<TPayload>): Promise<void> {
     const batchSeq = message.batchSeq ?? 0;
-    try {
-      if (batchSeq <= 0) {
-        throw new Error(
-          `BatchPipelineConsumer requires batchSeq >= 1 (got ${batchSeq}) for step ${this.logicalStep}`,
-        );
-      }
-      const outcome = await this.runs.start(
-        message.pipelineRunId,
-        message.tenantId,
-        this.logicalStep,
-        message.attempt,
+    await withPipelineSpan(
+      {
+        tenantId: message.tenantId,
+        pipelineRunId: message.pipelineRunId,
+        step: this.logicalStep,
+        attempt: message.attempt,
         batchSeq,
-      );
-      if (outcome === 'already-completed') {
-        this.logger.debug(
-          `Skipping ${this.logicalStep}#${batchSeq} for run ${message.pipelineRunId}: already completed`,
-        );
-        return;
-      }
-      if (outcome === 'in-progress') {
-        throw new Error(
-          `In-progress lock held for ${this.logicalStep}#${batchSeq} run ${message.pipelineRunId}`,
-        );
-      }
-
-      const tenant = await this.tenants.findActive(message.tenantId);
-      const integrationDs = await this.integrationFactory.forTenantSlug(
-        tenant.slug,
-      );
-
-      // Handle + complete + counter increment + (last-batch) outbox
-      // staging all in ONE tenant tx. The atomic CTE closes the
-      // complete↔counter deadlock (bug #1 window 1); the outbox
-      // insert closes the counter↔publish gap (bug #1 window 2).
-      // OutboxPublisher drains the outbox + actually publishes to AMQP.
-      const inc = await this.tx.runWithTenant(
-        tenant.schemaName,
-        async (em) => {
-          await this.handle({ message, em, integrationDs, batchSeq });
-          const incResult = await this.runs.completeBatchAndIncrement(
-            em,
-            message.pipelineRunId,
-            this.logicalStep,
-            batchSeq,
-          );
-          if (incResult.isLast) {
-            const successors = await this.successors({
-              message,
-              em,
-              integrationDs,
-            });
-            await this.outbox.insertMany(
-              em,
-              message.pipelineRunId,
-              message.tenantId,
-              successors,
+      },
+      async () => {
+        try {
+          if (batchSeq <= 0) {
+            throw new Error(
+              `BatchPipelineConsumer requires batchSeq >= 1 (got ${batchSeq}) for step ${this.logicalStep}`,
             );
           }
-          return incResult;
-        },
-      );
+          const outcome = await this.runs.start(
+            message.pipelineRunId,
+            message.tenantId,
+            this.logicalStep,
+            message.attempt,
+            batchSeq,
+          );
+          if (outcome === 'already-completed') {
+            this.logger.debug(
+              `Skipping ${this.logicalStep}#${batchSeq} for run ${message.pipelineRunId}: already completed`,
+            );
+            return;
+          }
+          if (outcome === 'in-progress') {
+            throw new Error(
+              `In-progress lock held for ${this.logicalStep}#${batchSeq} run ${message.pipelineRunId}`,
+            );
+          }
 
-      if (inc.isLast) {
-        this.logger.log(
-          `${this.logicalStep} fan-in complete (${inc.done}/${inc.planned}); successors staged to outbox`,
-        );
-      } else {
-        this.logger.debug(
-          `${this.logicalStep}#${batchSeq} done (${inc.done}/${inc.planned})`,
-        );
-      }
-    } catch (err) {
-      const errMessage = (err as Error).message || String(err);
-      this.logger.error(
-        `${this.logicalStep}#${batchSeq} failed for run ${message.pipelineRunId}: ${errMessage}`,
-      );
-      const outcome = await this.retry.republishOnFailure(message);
-      await this.runs.fail(
-        message.pipelineRunId,
-        this.logicalStep,
-        `${errMessage} (retry=${outcome})`,
-        batchSeq,
-      );
-    }
+          const tenant = await this.tenants.findActive(message.tenantId);
+          const integrationDs = await this.integrationFactory.forTenantSlug(
+            tenant.slug,
+          );
+
+          // Handle + complete + counter increment + (last-batch) outbox
+          // staging all in ONE tenant tx. The atomic CTE closes the
+          // complete↔counter deadlock (bug #1 window 1); the outbox
+          // insert closes the counter↔publish gap (bug #1 window 2).
+          // OutboxPublisher drains the outbox + actually publishes to AMQP.
+          const inc = await this.tx.runWithTenant(
+            tenant.schemaName,
+            async (em) => {
+              await this.handle({ message, em, integrationDs, batchSeq });
+              const incResult = await this.runs.completeBatchAndIncrement(
+                em,
+                message.pipelineRunId,
+                this.logicalStep,
+                batchSeq,
+              );
+              if (incResult.isLast) {
+                const successors = await this.successors({
+                  message,
+                  em,
+                  integrationDs,
+                });
+                await this.outbox.insertMany(
+                  em,
+                  message.pipelineRunId,
+                  message.tenantId,
+                  successors,
+                );
+              }
+              return incResult;
+            },
+          );
+
+          if (inc.isLast) {
+            this.logger.log(
+              `${this.logicalStep} fan-in complete (${inc.done}/${inc.planned}); successors staged to outbox`,
+            );
+          } else {
+            this.logger.debug(
+              `${this.logicalStep}#${batchSeq} done (${inc.done}/${inc.planned})`,
+            );
+          }
+        } catch (err) {
+          const errMessage = (err as Error).message || String(err);
+          this.logger.error(
+            `${this.logicalStep}#${batchSeq} failed for run ${message.pipelineRunId}: ${errMessage}`,
+          );
+          const outcome = await this.retry.republishOnFailure(message);
+          await this.runs.fail(
+            message.pipelineRunId,
+            this.logicalStep,
+            `${errMessage} (retry=${outcome})`,
+            batchSeq,
+          );
+          // Don't re-throw: RetryService routed the message. Mark the
+          // active span as ERROR so traces still show the failure.
+          trace.getActiveSpan()?.recordException(err as Error);
+          trace
+            .getActiveSpan()
+            ?.setStatus({ code: SpanStatusCode.ERROR, message: errMessage });
+        }
+      },
+    );
   }
 }
