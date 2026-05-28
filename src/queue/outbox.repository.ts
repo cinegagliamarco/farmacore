@@ -31,7 +31,7 @@ function rowToEntity(r: PipelineOutboxRow): PipelineOutboxEntity {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     deletedAt: r.deleted_at,
-  } as PipelineOutboxEntity;
+  };
 }
 
 /**
@@ -90,7 +90,7 @@ export class OutboxRepository {
     // TypeORM's query() for UPDATE/INSERT/DELETE returns
     // `[returningRows, rowCount]`, not the rows array. Destructure
     // so we only iterate the actual rows.
-    const result = (await this.repo.query(
+    const result: unknown = await this.repo.query(
       `WITH chosen AS (
         SELECT id FROM core.pipeline_outbox
         WHERE published_at IS NULL
@@ -106,8 +106,8 @@ export class OutboxRepository {
                 attempts, claimed_at, published_at, created_at, updated_at,
                 deleted_at`,
       [limit, CLAIM_GRACE_MS],
-    )) as [PipelineOutboxRow[], number];
-    const [rows] = result;
+    );
+    const [rows] = result as [PipelineOutboxRow[], number];
     return rows.map(rowToEntity);
   }
 
