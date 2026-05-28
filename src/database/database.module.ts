@@ -5,6 +5,7 @@ import { TenantEntity } from './entities/core/tenant.entity';
 import { UserEntity } from './entities/core/user.entity';
 import { RefreshTokenEntity } from './entities/core/refresh-token.entity';
 import { PipelineRunEntity } from './entities/core/pipeline-run.entity';
+import { PipelineOutboxEntity } from './entities/core/pipeline-outbox.entity';
 import { IntegrationDatabaseConnectionEntity } from './entities/core/integration-database-connection.entity';
 
 const CORE_ENTITIES = [
@@ -12,6 +13,7 @@ const CORE_ENTITIES = [
   UserEntity,
   RefreshTokenEntity,
   PipelineRunEntity,
+  PipelineOutboxEntity,
   IntegrationDatabaseConnectionEntity,
 ];
 
