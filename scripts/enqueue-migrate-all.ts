@@ -7,9 +7,12 @@ import { AppModule } from '../src/app.module';
 import { EXCHANGE_NAME } from '../src/queue/constants';
 
 async function main(): Promise<void> {
-  // Run from compiled dist/. The npm-script path uses ts-node which is
-  // pruned in the production image.
-  execSync('node dist/scripts/migrate-app.js', { stdio: 'inherit' });
+  // Runtime-aware: prod runs compiled JS (ts-node pruned in the image),
+  // dev runs .ts via ts-node through the npm script.
+  const cmd = __dirname.includes('/dist/')
+    ? 'node dist/scripts/migrate-app.js'
+    : 'npm run migration:run:app';
+  execSync(cmd, { stdio: 'inherit' });
 
   const app = await NestFactory.createApplicationContext(AppModule);
   const ds = app.get(DataSource);

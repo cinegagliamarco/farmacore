@@ -21,8 +21,11 @@ export class MigrateTenantConsumer {
   })
   public handle(message: MigrateTenantMessage): void {
     this.logger.log(`Migrating tenant ${message.tenantSlug}`);
-    execSync(`npm run migration:tenant ${message.tenantSlug}`, {
-      stdio: 'inherit',
-    });
+    // Runtime-aware: prod runs compiled JS (ts-node pruned), dev runs
+    // .ts via ts-node through the npm script.
+    const cmd = __dirname.includes('/dist/')
+      ? `node dist/scripts/migrate-tenant.js ${message.tenantSlug}`
+      : `npm run migration:tenant ${message.tenantSlug}`;
+    execSync(cmd, { stdio: 'inherit' });
   }
 }

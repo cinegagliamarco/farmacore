@@ -69,10 +69,7 @@ export class OutboxRepository {
       routingKey: `${m.tenantId}.${m.queue ?? m.step}`,
       message: m,
     }));
-    await em
-      .getRepository(PipelineOutboxEntity)
-
-      .insert(rows as any);
+    await em.getRepository(PipelineOutboxEntity).insert(rows as any);
   }
 
   /**

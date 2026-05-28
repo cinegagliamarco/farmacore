@@ -65,18 +65,35 @@ export class TenantOnboardingService {
       await this.dataSource.query(
         `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`,
       );
-      // Run from compiled dist/. The npm-script path uses ts-node which
-      // is pruned in the production image. CreateTenantDto's slug regex
-      // restricts to [a-z0-9-], so this shell interpolation is safe.
-      execSync(`node dist/scripts/migrate-tenant.js ${dto.slug}`, {
-        stdio: 'inherit',
-      });
+      // Runtime-aware: prod runs from dist/ (ts-node is pruned), dev runs
+      // from src/ via ts-node. CreateTenantDto's slug regex restricts to
+      // [a-z0-9-], so this shell interpolation is safe.
+      const cmd = __dirname.includes('/dist/')
+        ? `node dist/scripts/migrate-tenant.js ${dto.slug}`
+        : `npm run migration:tenant ${dto.slug}`;
+      execSync(cmd, { stdio: 'inherit' });
     } catch (err) {
       this.logger.error(
         `Tenant onboarding failed for ${dto.slug}: ${(err as Error).message}`,
       );
-      tenant.status = TenantStatus.SUSPENDED;
-      await this.tenants.save(tenant);
+      // Rollback so retries work without manual DROP SCHEMA / DELETE.
+      // Best-effort: log cleanup failures but always re-throw the original.
+      try {
+        await this.dataSource.query(
+          `DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`,
+        );
+      } catch (e) {
+        this.logger.warn(
+          `Cleanup DROP SCHEMA "${schemaName}" failed: ${(e as Error).message}`,
+        );
+      }
+      try {
+        await this.tenants.delete({ id: tenant.id });
+      } catch (e) {
+        this.logger.warn(
+          `Cleanup DELETE tenant "${dto.slug}" failed: ${(e as Error).message}`,
+        );
+      }
       throw err;
     }
 
