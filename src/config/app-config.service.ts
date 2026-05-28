@@ -47,4 +47,24 @@ export class AppConfigService {
       keyPrefix: this.config.get('R2_KEY_PREFIX') ?? '',
     };
   }
+
+  get otelDisabled(): boolean {
+    return this.config.get('OTEL_DISABLED') === '1';
+  }
+  get otelServiceName(): string {
+    return this.config.get('OTEL_SERVICE_NAME') ?? 'farmacore';
+  }
+  get otelEndpoint(): string | undefined {
+    return this.config.get('OTEL_EXPORTER_OTLP_ENDPOINT');
+  }
+  get otelHeaders(): string | undefined {
+    return this.config.get('OTEL_EXPORTER_OTLP_HEADERS');
+  }
+  get cloudamqp(): { apiUrl?: string; user?: string; pass?: string } {
+    return {
+      apiUrl: this.config.get('CLOUDAMQP_API_URL'),
+      user: this.config.get('CLOUDAMQP_API_USER'),
+      pass: this.config.get('CLOUDAMQP_API_PASS'),
+    };
+  }
 }

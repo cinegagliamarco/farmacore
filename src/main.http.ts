@@ -1,3 +1,6 @@
+import { startOtel } from './observability/otel-bootstrap';
+startOtel();
+
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';

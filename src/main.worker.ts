@@ -1,5 +1,8 @@
 process.env.WORKER_MODE = '1';
 
+import { startOtel } from './observability/otel-bootstrap';
+startOtel();
+
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { WorkerModule } from './worker.module';
