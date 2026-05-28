@@ -23,9 +23,7 @@ const buildIntegrationDs = (
     },
   }) as unknown as DataSource;
 
-const buildEm = (
-  captures: { upsertArgs: unknown[] },
-): EntityManager =>
+const buildEm = (captures: { upsertArgs: unknown[] }): EntityManager =>
   ({
     getRepository: (entity: unknown) => {
       if (entity !== TenantOfferCampaignEntity) {

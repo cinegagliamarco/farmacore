@@ -103,12 +103,12 @@ export class CalcBaseProductMetricsStep {
     const priceForOffer = Number(r.target_price) || 0;
     const basePrice = priceForOffer || priceForSell;
 
-    const margin = basePrice > 0 ? ((basePrice - cost) / basePrice) * 100 : null;
+    const margin =
+      basePrice > 0 ? ((basePrice - cost) / basePrice) * 100 : null;
 
     const drogalPrice = Number(r.drogal_price) || 0;
     const drogasilPrice = Number(r.drogasil_price) || 0;
-    const validCount =
-      (drogalPrice > 0 ? 1 : 0) + (drogasilPrice > 0 ? 1 : 0);
+    const validCount = (drogalPrice > 0 ? 1 : 0) + (drogasilPrice > 0 ? 1 : 0);
     const avgCompetitor =
       validCount > 0 ? (drogalPrice + drogasilPrice) / validCount : 0;
     const averageVariation =

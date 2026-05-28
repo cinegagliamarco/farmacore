@@ -45,9 +45,7 @@ export class ImportCompetitorStockStep {
       case CompetitorOrigin.DROGASIL:
         return this.drogasil;
       default:
-        throw new Error(
-          `No stock scraper registered for origin ${origin}`,
-        );
+        throw new Error(`No stock scraper registered for origin ${origin}`);
     }
   }
 }

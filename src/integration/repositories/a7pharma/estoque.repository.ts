@@ -15,9 +15,7 @@ export class EstoqueRepository {
    * Pre-filtered to estoque > 0 so the caller's grouping/upsert sees
    * only positive quantities (legacy import skipped zeros anyway).
    */
-  public findByEmbalagemIds(
-    embalagemIds: number[],
-  ): Promise<EstoqueEntity[]> {
+  public findByEmbalagemIds(embalagemIds: number[]): Promise<EstoqueEntity[]> {
     if (embalagemIds.length === 0) return Promise.resolve([]);
     return this.repository
       .createQueryBuilder('e')

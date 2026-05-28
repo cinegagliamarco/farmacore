@@ -44,9 +44,7 @@ describe('NestInternalLogger', () => {
     const fakeSpan = {
       spanContext: () => ({ traceId: 'abc', spanId: 'def' }),
     } as never;
-    const spy = jest
-      .spyOn(trace, 'getActiveSpan')
-      .mockReturnValue(fakeSpan);
+    const spy = jest.spyOn(trace, 'getActiveSpan').mockReturnValue(fakeSpan);
     log.log({ event: 'hello' });
     expect(underlying.log).toHaveBeenCalledWith(
       { event: 'hello', traceId: 'abc', spanId: 'def' },
@@ -59,9 +57,7 @@ describe('NestInternalLogger', () => {
     const fakeSpan = {
       spanContext: () => ({ traceId: 'abc', spanId: 'def' }),
     } as never;
-    const spy = jest
-      .spyOn(trace, 'getActiveSpan')
-      .mockReturnValue(fakeSpan);
+    const spy = jest.spyOn(trace, 'getActiveSpan').mockReturnValue(fakeSpan);
     log.log('plain string');
     expect(underlying.log).toHaveBeenCalledWith('plain string', undefined);
     spy.mockRestore();

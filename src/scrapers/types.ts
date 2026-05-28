@@ -53,5 +53,7 @@ export interface StockScraper {
    * stock APIs key on their internal SKU. The caller resolves
    * (ean -> sku) from a previous product scrape.
    */
-  scrapeStock(items: Array<{ ean: string; sku: string }>): Promise<ScrapedStock[]>;
+  scrapeStock(
+    items: Array<{ ean: string; sku: string }>,
+  ): Promise<ScrapedStock[]>;
 }

@@ -89,7 +89,10 @@ export class ImportCompetitorStockDispatchConsumer extends DispatchPipelineConsu
       .filter((o): o is CompetitorOrigin => STOCK_ORIGINS.includes(o));
 
     if (enabledOrigins.length === 0) {
-      return { batches: [], emptySuccessors: await this.markBranchAndSuccessor(ctx) };
+      return {
+        batches: [],
+        emptySuccessors: await this.markBranchAndSuccessor(ctx),
+      };
     }
 
     const productRepo = new SharedProductRepository(ctx.em);
@@ -117,7 +120,10 @@ export class ImportCompetitorStockDispatchConsumer extends DispatchPipelineConsu
     }
 
     if (batches.length === 0) {
-      return { batches: [], emptySuccessors: await this.markBranchAndSuccessor(ctx) };
+      return {
+        batches: [],
+        emptySuccessors: await this.markBranchAndSuccessor(ctx),
+      };
     }
 
     this.logger.log(

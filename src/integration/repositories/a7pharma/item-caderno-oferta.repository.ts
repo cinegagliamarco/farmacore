@@ -16,7 +16,9 @@ export type ItemCadernoOfertaWithPrice = ItemCadernoOfertaEntity & {
  * the legacy filter set verbatim so behavior is preserved.
  */
 export class ItemCadernoOfertaRepository {
-  constructor(private readonly repository: Repository<ItemCadernoOfertaEntity>) {}
+  constructor(
+    private readonly repository: Repository<ItemCadernoOfertaEntity>,
+  ) {}
 
   public async findBestOffersWithDealsByEmbalagemIds(
     embalagemIds: number[],
@@ -61,12 +63,15 @@ export class ItemCadernoOfertaRepository {
       .orderBy('ico.embalagemid', 'ASC')
       .addOrderBy('effective_price', 'ASC', 'NULLS LAST');
 
-    const { entities, raw } = await query.getRawAndEntities();
-    return entities.map((entity, i) => ({
-      ...entity,
-      effective_price: raw[i]?.effective_price
-        ? Number(raw[i].effective_price)
-        : undefined,
-    }));
+    const { entities, raw } = await query.getRawAndEntities<{
+      effective_price?: number | string | null;
+    }>();
+    return entities.map((entity, i) => {
+      const ep = raw[i]?.effective_price;
+      return {
+        ...entity,
+        effective_price: ep != null ? Number(ep) : undefined,
+      };
+    });
   }
 }

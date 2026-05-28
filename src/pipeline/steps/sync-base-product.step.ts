@@ -173,16 +173,15 @@ export class SyncBaseProductStep {
 
     await baseProductRepo.upsertManyByEan(baseProductInputs);
 
-    const productInputs: ProductUpsertInput[] =
-      productSeeds.map((seed) => {
-        const { classificationPath, ...rest } = seed;
-        return {
-          ...rest,
-          classificationId: classificationPath
-            ? (classificationIdByPath.get(classificationPath) ?? null)
-            : null,
-        };
-      });
+    const productInputs: ProductUpsertInput[] = productSeeds.map((seed) => {
+      const { classificationPath, ...rest } = seed;
+      return {
+        ...rest,
+        classificationId: classificationPath
+          ? (classificationIdByPath.get(classificationPath) ?? null)
+          : null,
+      };
+    });
     await productRepo.upsertManyByEan(productInputs);
 
     await offerBookRepo.upsertManyByEan(offerInputs);

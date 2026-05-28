@@ -59,25 +59,32 @@ class EnvVars {
   @IsString()
   R2_KEY_PREFIX!: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   OTEL_SERVICE_NAME?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   OTEL_EXPORTER_OTLP_ENDPOINT?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   OTEL_EXPORTER_OTLP_HEADERS?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   OTEL_DISABLED?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   CLOUDAMQP_API_URL?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   CLOUDAMQP_API_USER?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   CLOUDAMQP_API_PASS?: string;
 }
 

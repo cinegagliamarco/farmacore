@@ -90,7 +90,11 @@ describe('PipelineRunService', () => {
   });
 
   it('completeBatchAndIncrement: returns isLast=true when done reaches planned', async () => {
-    const em = { query: jest.fn().mockResolvedValue([{ batches_done: 4, batches_planned: 4 }]) };
+    const em = {
+      query: jest
+        .fn()
+        .mockResolvedValue([{ batches_done: 4, batches_planned: 4 }]),
+    };
     const out = await svc.completeBatchAndIncrement(
       em as unknown as Parameters<typeof svc.completeBatchAndIncrement>[0],
       'run1',
@@ -105,7 +109,11 @@ describe('PipelineRunService', () => {
   });
 
   it('completeBatchAndIncrement: returns isLast=false when done < planned', async () => {
-    const em = { query: jest.fn().mockResolvedValue([{ batches_done: 1, batches_planned: 4 }]) };
+    const em = {
+      query: jest
+        .fn()
+        .mockResolvedValue([{ batches_done: 1, batches_planned: 4 }]),
+    };
     const out = await svc.completeBatchAndIncrement(
       em as unknown as Parameters<typeof svc.completeBatchAndIncrement>[0],
       'run1',

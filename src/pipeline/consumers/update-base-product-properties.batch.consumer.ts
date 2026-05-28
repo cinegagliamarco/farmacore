@@ -21,8 +21,7 @@ const BATCH_QUEUE = batchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES);
 
 @Injectable()
 export class UpdateBaseProductPropertiesBatchConsumer extends BatchPipelineConsumer<UpdateBaseProductPropertiesBatchPayload> {
-  protected readonly logicalStep =
-    PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES;
+  protected readonly logicalStep = PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES;
 
   constructor(
     private readonly stepImpl: UpdateBaseProductPropertiesStep,

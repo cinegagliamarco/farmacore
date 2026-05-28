@@ -54,8 +54,7 @@ export const PER_ORIGIN_STEPS: Readonly<
   ],
 };
 
-export const dispatchStep = (step: PipelineStep): string =>
-  `${step}.dispatch`;
+export const dispatchStep = (step: PipelineStep): string => `${step}.dispatch`;
 export const batchStep = (step: PipelineStep): string => `${step}.batch`;
 export const originStep = (
   step: PipelineStep,
@@ -78,11 +77,22 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [batchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 4,
 
   // per-origin scrape consumers: prefetch IS the rate limit
-  [originStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS, CompetitorOrigin.DROGAL)]: 8,
-  [originStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS, CompetitorOrigin.DROGASIL)]: 8,
-  [originStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS, CompetitorOrigin.MICHELASSI)]: 2,
-  [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGAL)]: 4,
-  [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGASIL)]: 4,
+  [originStep(
+    PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+    CompetitorOrigin.DROGAL,
+  )]: 8,
+  [originStep(
+    PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+    CompetitorOrigin.DROGASIL,
+  )]: 8,
+  [originStep(
+    PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+    CompetitorOrigin.MICHELASSI,
+  )]: 2,
+  [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGAL)]:
+    4,
+  [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGASIL)]:
+    4,
 };
 
 /**
@@ -91,13 +101,14 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
  * EANs serially per message; Michelassi gets 1 (legacy aggressive
  * rate limiting).
  */
-export const PER_ORIGIN_BATCH_SIZE: Readonly<Record<CompetitorOrigin, number>> = {
-  [CompetitorOrigin.DROGAL]: 20,
-  [CompetitorOrigin.DROGASIL]: 10,
-  [CompetitorOrigin.MICHELASSI]: 1,
-  [CompetitorOrigin.PAGUE_MENOS]: 20,
-  [CompetitorOrigin.IKESAKI]: 10,
-};
+export const PER_ORIGIN_BATCH_SIZE: Readonly<Record<CompetitorOrigin, number>> =
+  {
+    [CompetitorOrigin.DROGAL]: 20,
+    [CompetitorOrigin.DROGASIL]: 10,
+    [CompetitorOrigin.MICHELASSI]: 1,
+    [CompetitorOrigin.PAGUE_MENOS]: 20,
+    [CompetitorOrigin.IKESAKI]: 10,
+  };
 
 /**
  * Per-origin batch size for stock fetches. Legacy ran 50 SKUs per call

@@ -34,9 +34,7 @@ export class ProductRepository {
    * external_ids so the unique constraint on external_id never trips
    * when an embalagem id is reassigned to a new barcode.
    */
-  public async upsertManyByEan(
-    inputs: ProductUpsertInput[],
-  ): Promise<void> {
+  public async upsertManyByEan(inputs: ProductUpsertInput[]): Promise<void> {
     if (inputs.length === 0) return;
     const repo = this.em.getRepository(ProductEntity);
     const deduped = this.dedupeByEan(inputs);
@@ -51,9 +49,7 @@ export class ProductRepository {
     );
   }
 
-  private dedupeByEan(
-    inputs: ProductUpsertInput[],
-  ): ProductUpsertInput[] {
+  private dedupeByEan(inputs: ProductUpsertInput[]): ProductUpsertInput[] {
     const byEan = new Map<string, ProductUpsertInput>();
     for (const i of inputs) byEan.set(String(i.ean), i);
     return [...byEan.values()];
@@ -111,7 +107,9 @@ export class ProductRepository {
     const params: unknown[] = [];
     for (const r of rows) {
       const i = params.length;
-      values.push(`($${i + 1}::bigint, $${i + 2}::numeric, $${i + 3}::numeric, $${i + 4}::text)`);
+      values.push(
+        `($${i + 1}::bigint, $${i + 2}::numeric, $${i + 3}::numeric, $${i + 4}::text)`,
+      );
       params.push(r.ean, r.margin, r.averageVariation, r.status);
     }
     await this.em.query(

@@ -1,6 +1,7 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import type { AxiosResponse } from 'axios';
+import type { Readable } from 'node:stream';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import {
   ProductScraper,
@@ -17,7 +18,8 @@ import {
 
 const SEARCH_URL = (ean: string) =>
   `https://www.drogasil.com.br/search?w=${ean}&facets=filters.Vendido+por%3ADrogasil&p=1`;
-const GRAPHQL_PRODUCT_URL = 'https://www.drogaraia.com.br/api/next/middlewareGraphql';
+const GRAPHQL_PRODUCT_URL =
+  'https://www.drogaraia.com.br/api/next/middlewareGraphql';
 const GRAPHQL_STOCK_URL =
   'https://www.drogasil.com.br/api/next/cesta-checkout/graphql';
 const SKU_PATTERN = /<article[^>]*data-item-id="([^"]+)"[^>]*>/;
@@ -31,7 +33,8 @@ const COMMON_HEADERS = {
   'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
   'cache-control': 'no-cache',
   'content-type': 'application/json',
-  'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
+  'sec-ch-ua':
+    '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
   'sec-ch-ua-mobile': '?0',
   'sec-ch-ua-platform': '"macOS"',
   'sec-fetch-dest': 'empty',
@@ -130,7 +133,9 @@ export class DrogasilScraper implements ProductScraper, StockScraper {
       }));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`scrapeStock for ${items.length} SKUs failed: ${message}`);
+      this.logger.error(
+        `scrapeStock for ${items.length} SKUs failed: ${message}`,
+      );
       return items.map((i) => ({
         ean: i.ean,
         origin: this.origin,
@@ -184,6 +189,9 @@ function consumeForPattern(
   pattern: RegExp,
   maxBytes: number,
 ): Promise<string | null> {
+  // Axios types response.data as `any` for stream responses. We asked
+  // for responseType: 'stream', so it's a node Readable in practice.
+  const stream = response.data as Readable;
   return new Promise((resolve, reject) => {
     let buffer = '';
     let totalBytes = 0;
@@ -192,11 +200,11 @@ function consumeForPattern(
     const finish = (value: string | null) => {
       if (done) return;
       done = true;
-      response.data.destroy();
+      stream.destroy();
       resolve(value);
     };
 
-    response.data.on('data', (chunk: Buffer) => {
+    stream.on('data', (chunk: Buffer) => {
       if (done) return;
       totalBytes += chunk.length;
       if (totalBytes > maxBytes) return finish(null);
@@ -207,8 +215,8 @@ function consumeForPattern(
         buffer = buffer.slice(-BUFFER_TAIL_BYTES);
       }
     });
-    response.data.on('end', () => finish(null));
-    response.data.on('error', reject);
+    stream.on('end', () => finish(null));
+    stream.on('error', reject);
   });
 }
 
@@ -217,7 +225,9 @@ export function mapProduct(
   p: DrogasilProductBySku,
 ): ScrapedProduct {
   const attrs = p.custom_attributes ?? [];
-  const description = stripHtml(joinValueStrings(attrFor(attrs, 'description')));
+  const description = stripHtml(
+    joinValueStrings(attrFor(attrs, 'description')),
+  );
   const category = joinValueStrings(attrFor(attrs, 'grupo'));
   const brand = labelOf(attrFor(attrs, 'marca'));
   const supplier = labelOf(attrFor(attrs, 'fabricante'));

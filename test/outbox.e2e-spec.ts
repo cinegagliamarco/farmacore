@@ -138,9 +138,14 @@ describe('OutboxPublisher (real Postgres + RabbitMQ)', () => {
     expect(firstClaim.filter((r) => r.pipelineRunId === runId)).toHaveLength(2);
 
     const secondClaim = await outbox.claimPending(10);
-    expect(secondClaim.filter((r) => r.pipelineRunId === runId)).toHaveLength(0);
+    expect(secondClaim.filter((r) => r.pipelineRunId === runId)).toHaveLength(
+      0,
+    );
 
     // Cleanup
-    await ds.query(`DELETE FROM core.pipeline_outbox WHERE pipeline_run_id = $1`, [runId]);
+    await ds.query(
+      `DELETE FROM core.pipeline_outbox WHERE pipeline_run_id = $1`,
+      [runId],
+    );
   });
 });

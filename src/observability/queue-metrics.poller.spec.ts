@@ -4,7 +4,9 @@ import { AppConfigService } from '../config/app-config.service';
 
 describe('QueueMetricsPoller', () => {
   let poller: QueueMetricsPoller;
-  let configValue: { cloudamqp: { apiUrl?: string; user?: string; pass?: string } };
+  let configValue: {
+    cloudamqp: { apiUrl?: string; user?: string; pass?: string };
+  };
 
   beforeEach(async () => {
     configValue = { cloudamqp: {} };
@@ -25,10 +27,11 @@ describe('QueueMetricsPoller', () => {
     configValue.cloudamqp = { apiUrl: 'https://x/api', user: 'u', pass: 'p' };
     const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
       ok: true,
-      json: async () => [
-        { name: 'sync-base-product', messages: 3 },
-        { name: 'sync-base-product.dlq', messages: 0 },
-      ],
+      json: () =>
+        Promise.resolve([
+          { name: 'sync-base-product', messages: 3 },
+          { name: 'sync-base-product.dlq', messages: 0 },
+        ]),
     } as never);
     await poller.poll();
     const last = (poller as unknown as { last: Array<{ name: string }> }).last;

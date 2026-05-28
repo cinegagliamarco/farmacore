@@ -103,9 +103,7 @@ export class UpdateBaseProductPropertiesStep {
       });
     }
     await new BaseProductRepository(em).updateMeasures(updates);
-    this.logger.debug(
-      `update-properties[measures]: ${updates.length} updates`,
-    );
+    this.logger.debug(`update-properties[measures]: ${updates.length} updates`);
   }
 }
 

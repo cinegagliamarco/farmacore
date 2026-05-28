@@ -1,8 +1,5 @@
 import { Test } from '@nestjs/testing';
-import {
-  HealthCheckService,
-  TypeOrmHealthIndicator,
-} from '@nestjs/terminus';
+import { HealthCheckService, TypeOrmHealthIndicator } from '@nestjs/terminus';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { HealthController } from './health.controller';
 
@@ -15,12 +12,10 @@ describe('HealthController', () => {
   beforeEach(async () => {
     healthCheck = jest
       .fn()
-      .mockImplementation(
-        async (checks: Array<() => Promise<unknown> | unknown>) => {
-          const results = await Promise.all(checks.map((c) => c()));
-          return { status: 'ok', info: Object.assign({}, ...results) };
-        },
-      );
+      .mockImplementation(async (checks: Array<() => Promise<unknown>>) => {
+        const results = await Promise.all(checks.map((c) => c()));
+        return { status: 'ok', info: Object.assign({}, ...results) };
+      });
     pingCheck = jest.fn().mockResolvedValue({ postgres: { status: 'up' } });
     amqp = { connected: true };
 

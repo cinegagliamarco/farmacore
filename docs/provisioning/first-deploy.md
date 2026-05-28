@@ -114,7 +114,16 @@ echo "  INTEGRATION_DB_KEY=$INTEGRATION_DB_KEY"
 
 > **Critical:** `INTEGRATION_DB_KEY` decrypts integration credentials at runtime; if the worker's key doesn't match the API's, every pipeline run will fail to decrypt the per-tenant ERP credentials.
 
-Set secrets on the API app:
+> **Env var taxonomy.** `NODE_ENV`, `PORT`, and `OTEL_SERVICE_NAME`
+> ship as literal `[env]` values in `fly.api.toml` / `fly.worker.toml`
+> (per-app, not secret). Everything below is a runtime secret pushed
+> via `fly secrets set`. `OTEL_DISABLED` is intentionally NOT set in
+> production — the SDK auto-no-ops when `OTEL_EXPORTER_OTLP_ENDPOINT`
+> is empty, so leaving the OTel block out skips observability without
+> a flag.
+
+Set secrets on the API app — observability + queue metrics envs land
+together with the core ones:
 
 ```bash
 fly secrets set --config fly.api.toml --app farmacore-api \
@@ -127,10 +136,15 @@ fly secrets set --config fly.api.toml --app farmacore-api \
   R2_BUCKET="<existing-bucket-name>" \
   R2_KEY_PREFIX="farmacore-prod/" \
   JWT_SECRET="$JWT_SECRET" \
-  INTEGRATION_DB_KEY="$INTEGRATION_DB_KEY"
+  INTEGRATION_DB_KEY="$INTEGRATION_DB_KEY" \
+  OTEL_EXPORTER_OTLP_ENDPOINT="<vendor OTLP/HTTP collector URL>" \
+  OTEL_EXPORTER_OTLP_HEADERS="<comma-separated key=value auth>" \
+  CLOUDAMQP_API_URL="<https://<host>/api>" \
+  CLOUDAMQP_API_USER="<broker mgmt user>" \
+  CLOUDAMQP_API_PASS="<broker mgmt pass>"
 ```
 
-Mirror them to the worker app:
+Mirror them to the worker app (all values identical):
 
 ```bash
 fly secrets set --config fly.worker.toml --app farmacore-worker \
@@ -143,8 +157,24 @@ fly secrets set --config fly.worker.toml --app farmacore-worker \
   R2_BUCKET="<existing-bucket-name>" \
   R2_KEY_PREFIX="farmacore-prod/" \
   JWT_SECRET="$JWT_SECRET" \
-  INTEGRATION_DB_KEY="$INTEGRATION_DB_KEY"
+  INTEGRATION_DB_KEY="$INTEGRATION_DB_KEY" \
+  OTEL_EXPORTER_OTLP_ENDPOINT="<vendor OTLP/HTTP collector URL>" \
+  OTEL_EXPORTER_OTLP_HEADERS="<comma-separated key=value auth>" \
+  CLOUDAMQP_API_URL="<https://<host>/api>" \
+  CLOUDAMQP_API_USER="<broker mgmt user>" \
+  CLOUDAMQP_API_PASS="<broker mgmt pass>"
 ```
+
+> **Where the CloudAMQP mgmt creds come from.** CloudAMQP dashboard →
+> your instance → **Details** → "API access". The HTTPS URL ends with
+> `/api`; user + pass match the AMQP connection user (or a dedicated
+> mgmt user if you provisioned one).
+
+> **Observability is optional but ready.** If you don't have a vendor
+> picked yet, skip the `OTEL_*` and `CLOUDAMQP_API_*` secrets entirely
+> — `QueueMetricsPoller` and the OTel SDK both silently no-op when
+> their env vars aren't set. Add them later via `fly secrets set` and
+> restart both apps.
 
 Verify:
 
@@ -152,8 +182,6 @@ Verify:
 fly secrets list --app farmacore-api
 fly secrets list --app farmacore-worker
 ```
-
-(After Plan 07 lands observability, also set `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS` on both.)
 
 ---
 

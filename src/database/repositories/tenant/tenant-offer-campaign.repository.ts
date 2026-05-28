@@ -22,11 +22,9 @@ export class TenantOfferCampaignRepository {
     inputs: TenantOfferCampaignUpsertInput[],
   ): Promise<void> {
     if (inputs.length === 0) return;
-    await this.em
-      .getRepository(TenantOfferCampaignEntity)
-      .upsert(inputs, {
-        conflictPaths: ['externalId'],
-        skipUpdateIfNoValuesChanged: true,
-      });
+    await this.em.getRepository(TenantOfferCampaignEntity).upsert(inputs, {
+      conflictPaths: ['externalId'],
+      skipUpdateIfNoValuesChanged: true,
+    });
   }
 }

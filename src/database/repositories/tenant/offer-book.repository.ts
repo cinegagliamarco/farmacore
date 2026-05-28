@@ -38,9 +38,7 @@ export class OfferBookRepository {
     });
   }
 
-  private dedupeByEan(
-    inputs: OfferBookUpsertInput[],
-  ): OfferBookUpsertInput[] {
+  private dedupeByEan(inputs: OfferBookUpsertInput[]): OfferBookUpsertInput[] {
     const byEan = new Map<string, OfferBookUpsertInput>();
     for (const i of inputs) byEan.set(String(i.ean), i);
     return [...byEan.values()];

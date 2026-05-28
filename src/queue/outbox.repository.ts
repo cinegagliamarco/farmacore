@@ -41,7 +41,7 @@ export class OutboxRepository {
     }));
     await em
       .getRepository(PipelineOutboxEntity)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       .insert(rows as any);
   }
 
@@ -56,9 +56,7 @@ export class OutboxRepository {
    * window is excluded from subsequent claims. A crashed publisher's
    * row becomes claimable again after the grace expires.
    */
-  public async claimPending(
-    limit: number,
-  ): Promise<PipelineOutboxEntity[]> {
+  public async claimPending(limit: number): Promise<PipelineOutboxEntity[]> {
     const picked: Array<{ id: string }> = await this.repo.query(
       `WITH chosen AS (
         SELECT id FROM core.pipeline_outbox

@@ -17,9 +17,7 @@ export interface ProductStockUpsertInput {
 export class ProductStockRepository {
   constructor(private readonly em: EntityManager) {}
 
-  public async upsertMany(
-    inputs: ProductStockUpsertInput[],
-  ): Promise<void> {
+  public async upsertMany(inputs: ProductStockUpsertInput[]): Promise<void> {
     if (inputs.length === 0) return;
     const repo = this.em.getRepository(ProductStockEntity);
     const deduped = this.dedupe(inputs);
@@ -37,14 +35,10 @@ export class ProductStockRepository {
    */
   public async deleteByEans(eans: string[]): Promise<void> {
     if (eans.length === 0) return;
-    await this.em
-      .getRepository(ProductStockEntity)
-      .delete({ ean: In(eans) });
+    await this.em.getRepository(ProductStockEntity).delete({ ean: In(eans) });
   }
 
-  private dedupe(
-    inputs: ProductStockUpsertInput[],
-  ): ProductStockUpsertInput[] {
+  private dedupe(inputs: ProductStockUpsertInput[]): ProductStockUpsertInput[] {
     const byPair = new Map<string, ProductStockUpsertInput>();
     for (const i of inputs) {
       byPair.set(`${i.ean}|${i.subsidiaryExternalId}`, i);

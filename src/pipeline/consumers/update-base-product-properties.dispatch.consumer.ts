@@ -5,11 +5,7 @@ import {
   DispatchHandleResult,
   DispatchPipelineConsumer,
 } from '../../queue/dispatch-pipeline.consumer';
-import {
-  EXCHANGE_NAME,
-  batchStep,
-  dispatchStep,
-} from '../../queue/constants';
+import { EXCHANGE_NAME, batchStep, dispatchStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
@@ -42,8 +38,7 @@ export interface UpdateBaseProductPropertiesBatchPayload {
  */
 @Injectable()
 export class UpdateBaseProductPropertiesDispatchConsumer extends DispatchPipelineConsumer {
-  protected readonly logicalStep =
-    PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES;
+  protected readonly logicalStep = PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES;
 
   constructor(
     runs: PipelineRunService,
@@ -77,10 +72,14 @@ export class UpdateBaseProductPropertiesDispatchConsumer extends DispatchPipelin
       { pass: 'supplier', eans: await productRepo.findEansMissingSupplier() },
       { pass: 'name', eans: await productRepo.findEansMissingName() },
       { pass: 'weight', eans: await baseProductRepo.findEansMissingWeight() },
-      { pass: 'measures', eans: await baseProductRepo.findEansMissingMeasures() },
+      {
+        pass: 'measures',
+        eans: await baseProductRepo.findEansMissingMeasures(),
+      },
     ];
 
-    const batches: PipelineMessage<UpdateBaseProductPropertiesBatchPayload>[] = [];
+    const batches: PipelineMessage<UpdateBaseProductPropertiesBatchPayload>[] =
+      [];
     let seq = 1;
     for (const { pass, eans } of passCandidates) {
       for (let offset = 0; offset < eans.length; offset += BATCH_SIZE) {

@@ -4,7 +4,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppConfigService } from '../config/app-config.service';
 import { PipelineOutboxEntity } from '../database/entities/core/pipeline-outbox.entity';
 import { PipelineRunEntity } from '../database/entities/core/pipeline-run.entity';
-import { CompetitorOrigin } from '../database/enums/competitor-origin.enum';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 import {
   BATCHED_STEPS,
@@ -100,8 +99,14 @@ const perOriginQueueNames = (): string[] => {
           ),
           ...Object.fromEntries(
             BATCHED_STEPS.flatMap((step) => [
-              [dispatchStep(step), { prefetchCount: STEP_PREFETCH[dispatchStep(step)] }],
-              [batchStep(step), { prefetchCount: STEP_PREFETCH[batchStep(step)] }],
+              [
+                dispatchStep(step),
+                { prefetchCount: STEP_PREFETCH[dispatchStep(step)] },
+              ],
+              [
+                batchStep(step),
+                { prefetchCount: STEP_PREFETCH[batchStep(step)] },
+              ],
             ]),
           ),
           ...Object.fromEntries(

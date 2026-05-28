@@ -1,7 +1,12 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
-import { ProductScraper, ScrapedProduct, ScrapedStock, StockScraper } from '../types';
+import {
+  ProductScraper,
+  ScrapedProduct,
+  ScrapedStock,
+  StockScraper,
+} from '../types';
 import {
   DrogalCustomData,
   DrogalMeasures,
@@ -19,7 +24,8 @@ const HEADERS = {
   'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
   'cache-control': 'no-cache',
   'content-type': 'application/json',
-  'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
+  'sec-ch-ua':
+    '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
   'sec-ch-ua-mobile': '?0',
   'sec-ch-ua-platform': '"macOS"',
   'sec-fetch-dest': 'empty',
@@ -82,7 +88,9 @@ export class DrogalScraper implements ProductScraper, StockScraper {
       }));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`scrapeStock for ${items.length} SKUs failed: ${message}`);
+      this.logger.error(
+        `scrapeStock for ${items.length} SKUs failed: ${message}`,
+      );
       return items.map((i) => ({
         ean: i.ean,
         origin: this.origin,
@@ -102,13 +110,18 @@ export class DrogalScraper implements ProductScraper, StockScraper {
     return data?.length ? data[0] : null;
   }
 
-  private async fetchMeasures(productId: string): Promise<DrogalMeasures | undefined> {
+  private async fetchMeasures(
+    productId: string,
+  ): Promise<DrogalMeasures | undefined> {
     try {
       const url = `${BASE_URL}/api/catalog_system/pub/products/variations/${productId}`;
-      const { data } = await this.http.axiosRef.get<DrogalVariationsResponse>(url, {
-        headers: HEADERS,
-        timeout: TIMEOUT_MS,
-      });
+      const { data } = await this.http.axiosRef.get<DrogalVariationsResponse>(
+        url,
+        {
+          headers: HEADERS,
+          timeout: TIMEOUT_MS,
+        },
+      );
       return data?.skus?.[0]?.measures;
     } catch (err) {
       this.logger.warn(
@@ -182,7 +195,8 @@ export function sumStockForSku(
       (p) => p.CodigoFilial === subsidiaryId,
     );
     const item = point?.CartDetail?.find((c) => c.productRefId === skuNum);
-    if (item?.avaliable && item.quantityAvaliable) total += item.quantityAvaliable;
+    if (item?.avaliable && item.quantityAvaliable)
+      total += item.quantityAvaliable;
   }
   return total;
 }

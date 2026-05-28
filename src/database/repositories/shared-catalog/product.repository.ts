@@ -59,7 +59,7 @@ export class SharedProductRepository {
     if (scrapes.length === 0) return;
     const repo = this.em.getRepository(ProductEntity);
     const rows = scrapes.map((s) => {
-      const baseMetadata = (s.metadata ?? {}) as Record<string, unknown>;
+      const baseMetadata = s.metadata ?? {};
       const metadata = s.error
         ? { ...baseMetadata, error: s.error, found: s.found }
         : { ...baseMetadata, found: s.found };

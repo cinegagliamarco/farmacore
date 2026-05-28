@@ -5,11 +5,7 @@ import {
   DispatchHandleResult,
   DispatchPipelineConsumer,
 } from '../../queue/dispatch-pipeline.consumer';
-import {
-  EXCHANGE_NAME,
-  batchStep,
-  dispatchStep,
-} from '../../queue/constants';
+import { EXCHANGE_NAME, batchStep, dispatchStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
@@ -81,7 +77,11 @@ export class CalcBaseProductMetricsDispatchConsumer extends DispatchPipelineCons
     }
 
     const batches: PipelineMessage<CalcBaseProductMetricsBatchPayload>[] = [];
-    for (let offset = 0, seq = 1; offset < eans.length; offset += BATCH_SIZE, seq++) {
+    for (
+      let offset = 0, seq = 1;
+      offset < eans.length;
+      offset += BATCH_SIZE, seq++
+    ) {
       batches.push(
         newPipelineMessage<CalcBaseProductMetricsBatchPayload>({
           pipelineRunId: ctx.message.pipelineRunId,

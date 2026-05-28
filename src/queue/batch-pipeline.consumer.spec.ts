@@ -44,9 +44,7 @@ describe('BatchPipelineConsumer', () => {
   let publisher: { publishStep: jest.Mock };
   let outbox: { insertMany: jest.Mock };
 
-  const buildMsg = (
-    batchSeq: number,
-  ): PipelineMessage<{ ids: number[] }> => ({
+  const buildMsg = (batchSeq: number): PipelineMessage<{ ids: number[] }> => ({
     pipelineRunId: 'run1',
     tenantId: 'acme',
     step: PipelineStep.SYNC_BASE_PRODUCT,

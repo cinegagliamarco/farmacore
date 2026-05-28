@@ -32,9 +32,9 @@ describe('detectPbm', () => {
   });
 
   it('captures VAN[0] regardless of PBM state', () => {
-    expect(
-      detectPbm({ VAN: ['VANCODE-1'] } as DrogalProduct).van,
-    ).toBe('VANCODE-1');
+    expect(detectPbm({ VAN: ['VANCODE-1'] } as DrogalProduct).van).toBe(
+      'VANCODE-1',
+    );
   });
 
   it('ignores non-JSON CustomData entries', () => {
@@ -48,7 +48,7 @@ describe('detectPbm', () => {
 describe('sumStockForSku', () => {
   it('returns 0 when response is empty', () => {
     expect(sumStockForSku(undefined, '123')).toBe(0);
-    expect(sumStockForSku({} as DrogalStockResponse, '123')).toBe(0);
+    expect(sumStockForSku({}, '123')).toBe(0);
   });
 
   it('sums availability across subsidiaries 113 and 310', () => {
@@ -94,9 +94,11 @@ describe('DrogalScraper.scrapeProduct', () => {
   const buildHttp = (handler: (url: string) => unknown): HttpService =>
     ({
       axiosRef: {
-        get: jest.fn().mockImplementation((url: string) =>
-          Promise.resolve({ data: handler(url) }),
-        ),
+        get: jest
+          .fn()
+          .mockImplementation((url: string) =>
+            Promise.resolve({ data: handler(url) }),
+          ),
       },
     }) as unknown as HttpService;
 
@@ -131,7 +133,14 @@ describe('DrogalScraper.scrapeProduct', () => {
               description: '<p>Anti-inflamatório</p>',
               items: [
                 {
-                  sellers: [{ commertialOffer: { Price: 9.9, PromotionTeasers: [{ Name: '3 por 25' }] } }],
+                  sellers: [
+                    {
+                      commertialOffer: {
+                        Price: 9.9,
+                        PromotionTeasers: [{ Name: '3 por 25' }],
+                      },
+                    },
+                  ],
                   images: [{ imageUrl: 'https://x/img.jpg' }],
                 },
               ],

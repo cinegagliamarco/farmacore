@@ -66,9 +66,7 @@ export class QueueMetricsPoller {
       }
       this.last = (await res.json()) as QueueInfo[];
     } catch (err) {
-      this.logger.warn(
-        `Queue metrics poll failed: ${(err as Error).message}`,
-      );
+      this.logger.warn(`Queue metrics poll failed: ${(err as Error).message}`);
     }
   }
 }

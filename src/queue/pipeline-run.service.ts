@@ -53,9 +53,7 @@ export class PipelineRunService {
     batchSeq: number = DISPATCH_BATCH_SEQ,
     em?: EntityManager,
   ): Promise<void> {
-    const repo = em
-      ? em.getRepository(PipelineRunEntity)
-      : this.repo;
+    const repo = em ? em.getRepository(PipelineRunEntity) : this.repo;
     await repo.update(
       { pipelineRunId, step: step as PipelineStep, batchSeq },
       { status: PipelineRunStatus.COMPLETED, finishedAt: new Date() },
@@ -84,9 +82,7 @@ export class PipelineRunService {
     planned: number,
     em?: EntityManager,
   ): Promise<void> {
-    const repo = em
-      ? em.getRepository(PipelineRunEntity)
-      : this.repo;
+    const repo = em ? em.getRepository(PipelineRunEntity) : this.repo;
     await repo.update(
       {
         pipelineRunId,
@@ -173,9 +169,11 @@ export class PipelineRunService {
     step: PipelineStep | string,
     batchSeq: number,
   ): Promise<BatchIncrement> {
-    const rows: Array<{ batches_done: number; batches_planned: number | null }> =
-      await em.query(
-        `WITH batch_done AS (
+    const rows: Array<{
+      batches_done: number;
+      batches_planned: number | null;
+    }> = await em.query(
+      `WITH batch_done AS (
           UPDATE core.pipeline_run
           SET status = $4, finished_at = now(), updated_at = now()
           WHERE pipeline_run_id = $1 AND step = $2 AND batch_seq = $3
@@ -187,15 +185,15 @@ export class PipelineRunService {
             updated_at = now()
         WHERE pipeline_run_id = $1 AND step = $2 AND batch_seq = $6
         RETURNING batches_done, batches_planned`,
-        [
-          pipelineRunId,
-          step,
-          batchSeq,
-          PipelineRunStatus.COMPLETED,
-          PipelineRunStatus.RUNNING,
-          DISPATCH_BATCH_SEQ,
-        ],
-      );
+      [
+        pipelineRunId,
+        step,
+        batchSeq,
+        PipelineRunStatus.COMPLETED,
+        PipelineRunStatus.RUNNING,
+        DISPATCH_BATCH_SEQ,
+      ],
+    );
     if (rows.length === 0) {
       throw new Error(
         `completeBatchAndIncrement: no dispatch row for run=${pipelineRunId} step=${step}`,

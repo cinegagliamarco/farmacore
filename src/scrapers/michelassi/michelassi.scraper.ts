@@ -18,7 +18,8 @@ const HEADERS = {
   origin: 'https://supermercadomichelassi.instabuy.com.br',
   pragma: 'no-cache',
   referer: 'https://supermercadomichelassi.instabuy.com.br/',
-  'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+  'sec-ch-ua':
+    '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
   'sec-ch-ua-mobile': '?0',
   'sec-ch-ua-platform': '"macOS"',
   'sec-fetch-dest': 'empty',
@@ -84,10 +85,7 @@ export class MichelassiScraper implements ProductScraper {
   }
 }
 
-export function mapProduct(
-  ean: string,
-  p: MichelassiProduct,
-): ScrapedProduct {
+export function mapProduct(ean: string, p: MichelassiProduct): ScrapedProduct {
   return {
     ean,
     origin: CompetitorOrigin.MICHELASSI,

@@ -35,12 +35,9 @@ export class OutboxPublisher {
     if (rows.length === 0) return;
     for (const row of rows) {
       try {
-        await this.amqp.publish(
-          EXCHANGE_NAME,
-          row.routingKey,
-          row.message,
-          { persistent: true },
-        );
+        await this.amqp.publish(EXCHANGE_NAME, row.routingKey, row.message, {
+          persistent: true,
+        });
         await this.outbox.markPublished(row.id);
       } catch (err) {
         this.logger.error(

@@ -47,9 +47,10 @@ const buildIntegrationDs = (
     },
   }) as unknown as DataSource;
 
-const buildEm = (
-  captures: { upsertArgs: unknown[]; deleteArgs: unknown[] },
-): EntityManager =>
+const buildEm = (captures: {
+  upsertArgs: unknown[];
+  deleteArgs: unknown[];
+}): EntityManager =>
   ({
     getRepository: (entity: unknown) => {
       if (entity !== ProductStockEntity) {

@@ -1,29 +1,20 @@
-import {
-  buildStockMap,
-  detectPbm,
-  mapProduct,
-} from './drogasil.scraper';
-import type {
-  DrogasilProductBySku,
-  DrogasilStockResponse,
-} from './types';
+import { buildStockMap, detectPbm, mapProduct } from './drogasil.scraper';
+import type { DrogasilStockResponse } from './types';
 
 describe('detectPbm', () => {
   it('returns PBM via liveComposition.livePrice.type=PBM', () => {
     expect(
       detectPbm({
         liveComposition: { livePrice: { type: 'PBM', valueTo: 12.34 } },
-      } as DrogasilProductBySku),
+      }),
     ).toEqual({ isPbm: true, pbmPrice: 12.34 });
   });
 
   it('falls back to pbm[] when livePrice type is not PBM', () => {
     expect(
       detectPbm({
-        pbm: [
-          { products: [{ percentDiscountPbm: 10, valueSalePbm: 7.5 }] },
-        ],
-      } as DrogasilProductBySku),
+        pbm: [{ products: [{ percentDiscountPbm: 10, valueSalePbm: 7.5 }] }],
+      }),
     ).toEqual({ isPbm: true, pbmPrice: 7.5 });
   });
 
@@ -31,12 +22,12 @@ describe('detectPbm', () => {
     expect(
       detectPbm({
         pbm: [{ products: [{ percentDiscountPbm: 0, valueSalePbm: 0 }] }],
-      } as DrogasilProductBySku),
+      }),
     ).toEqual({ isPbm: false, pbmPrice: 0 });
   });
 
   it('returns no PBM when nothing is set', () => {
-    expect(detectPbm({} as DrogasilProductBySku)).toEqual({
+    expect(detectPbm({})).toEqual({
       isPbm: false,
       pbmPrice: 0,
     });
@@ -46,14 +37,19 @@ describe('detectPbm', () => {
 describe('buildStockMap', () => {
   it('returns empty map on null / errors', () => {
     expect(buildStockMap(undefined).size).toBe(0);
-    expect(buildStockMap({ errors: ['x'] } as DrogasilStockResponse).size).toBe(0);
+    expect(buildStockMap({ errors: ['x'] }).size).toBe(0);
   });
 
   it('maps the first branch stocks by sku', () => {
     const data: DrogasilStockResponse = {
       data: {
         getNearbyStockByZipCode: [
-          { stocks: [{ sku: '111', quantity: 5 }, { sku: '222', quantity: 0 }] },
+          {
+            stocks: [
+              { sku: '111', quantity: 5 },
+              { sku: '222', quantity: 0 },
+            ],
+          },
           { stocks: [{ sku: '111', quantity: 99 }] },
         ],
       },

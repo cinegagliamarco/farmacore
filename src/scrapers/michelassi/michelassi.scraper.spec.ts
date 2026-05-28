@@ -1,6 +1,5 @@
 import { AxiosError } from 'axios';
 import { isRateLimited, mapProduct } from './michelassi.scraper';
-import type { MichelassiProduct } from './types';
 
 describe('isRateLimited', () => {
   it('returns true for AxiosError with 429', () => {
@@ -32,7 +31,7 @@ describe('mapProduct', () => {
       images: ['abc123'],
       available_stock: true,
       stock_infos: { stock_balance: 50 },
-    } as MichelassiProduct);
+    });
     expect(out).toEqual({
       ean: '7891',
       origin: 'MICHELASSI',
@@ -51,12 +50,12 @@ describe('mapProduct', () => {
   });
 
   it('defaults stockBalance to 0 and availableStock to false', () => {
-    const out = mapProduct('7891', { name: 'X' } as MichelassiProduct);
+    const out = mapProduct('7891', { name: 'X' });
     expect(out.metadata?.stockBalance).toBe(0);
     expect(out.metadata?.availableStock).toBe(false);
   });
 
   it('returns null price when min_price_valid missing', () => {
-    expect(mapProduct('7891', {} as MichelassiProduct).price).toBeNull();
+    expect(mapProduct('7891', {}).price).toBeNull();
   });
 });

@@ -8,11 +8,9 @@ import { BaseEntity } from '../base.entity';
  * land without throwing.
  */
 @Entity({ name: 'product_stock' })
-@Index(
-  'UQ_PRODUCT_STOCK_EAN_SUBSIDIARY',
-  ['ean', 'subsidiaryExternalId'],
-  { unique: true },
-)
+@Index('UQ_PRODUCT_STOCK_EAN_SUBSIDIARY', ['ean', 'subsidiaryExternalId'], {
+  unique: true,
+})
 @Index('IX_PRODUCT_STOCK_EAN', ['ean'])
 export class ProductStockEntity extends BaseEntity {
   @Column({ type: 'bigint' })

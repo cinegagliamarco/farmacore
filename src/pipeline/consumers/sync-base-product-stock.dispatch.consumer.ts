@@ -5,11 +5,7 @@ import {
   DispatchHandleResult,
   DispatchPipelineConsumer,
 } from '../../queue/dispatch-pipeline.consumer';
-import {
-  EXCHANGE_NAME,
-  batchStep,
-  dispatchStep,
-} from '../../queue/constants';
+import { EXCHANGE_NAME, batchStep, dispatchStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
@@ -85,7 +81,10 @@ export class SyncBaseProductStockDispatchConsumer extends DispatchPipelineConsum
           `No integration DataSource for tenant ${ctx.message.tenantId}; marking stock-a branch complete`,
         );
       }
-      return { batches: [], emptySuccessors: await this.markBranchAndSuccessor(ctx) };
+      return {
+        batches: [],
+        emptySuccessors: await this.markBranchAndSuccessor(ctx),
+      };
     }
 
     const batches = slices.map((slice, i) =>

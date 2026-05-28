@@ -45,8 +45,7 @@ export function startOtel(): void {
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? 'farmacore',
       [ATTR_SERVICE_VERSION]: process.env.npm_package_version ?? 'dev',
-      [ATTR_DEPLOYMENT_ENVIRONMENT_NAME]:
-        process.env.NODE_ENV ?? 'development',
+      [ATTR_DEPLOYMENT_ENVIRONMENT_NAME]: process.env.NODE_ENV ?? 'development',
     }),
     traceExporter: new OTLPTraceExporter({
       url: `${endpoint}/v1/traces`,
