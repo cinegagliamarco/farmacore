@@ -1,14 +1,46 @@
 # 08 — Provisioning Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: ✅ Executed.** Cloud-side first deploy complete: `farmacore-api`
+> + `farmacore-worker` running on Fly.io (region `gru`), backed by Neon
+> Postgres (`farmacore-prod`, `sa-east-1`), CloudAMQP LavinMQ (lemming
+> free tier, `sa-east-1`), and Cloudflare R2. CI green via GitHub Actions
+> (test → deploy-api → deploy-worker, org-scoped FLY_API_TOKEN).
+>
+> **Bugs fixed during cloud execution** (each was a "works on local
+> ts-node but breaks in compiled prod container" class):
+> - `scripts/enqueue-migrate-all.ts` called `npm run migration:run:app` which
+>   shells to ts-node — ts-node is pruned in prod. Now invokes
+>   `node dist/scripts/migrate-app.js` directly.
+> - `src/database/data-source.ts` globbed `.ts` literals — matched zero
+>   files in compiled image. Now uses `__dirname`-relative `{ts,js}` glob.
+> - `tsconfig.scripts.json` didn't include `migrations/**/*.ts` — added.
+> - `src/database/database.module.ts` CORE_ENTITIES missed
+>   `PipelineOutboxEntity` (added in plan 05/D2 but never registered with
+>   the root DataSource). `forFeature` alone wasn't enough; TypeORM needed
+>   it in the root `entities` array for the OutboxPublisher cron to query.
+> - `OutboxRepository.claimPending` mapped TypeORM's `[returningRows,
+>   rowCount]` tuple as if it were a flat array, producing 2 garbage
+>   entities on every tick (even when the outbox table was empty).
+>   Destructures the tuple now.
+> - `TenantOnboardingService.create` shelled to
+>   `npm run migration:tenant <slug>` (same ts-node trap). Now calls
+>   `node dist/scripts/migrate-tenant.js <slug>`.
+> - `CI lint` rejected `as` cast over TypeORM's `any` return type — use
+>   `unknown`-then-cast pattern.
+>
+> **What the deploy proved end-to-end:**
+> - `POST /auth/login` issues JWT for the seeded system admin.
+> - `POST /admin/tenants` creates a tenant, runs per-tenant migrations
+>   against the `tenant_<slug>` schema, and seeds the tenant admin row
+>   (one-time-password returned in response).
+> - Worker drains `system.migrate-tenant` from RMQ on boot.
+> - `OutboxPublisher` cron runs every 5s without errors.
+> - `/health` reports both Postgres + RabbitMQ up.
+> - CI on push to `main` runs lint + 131 unit tests, then deploys API
+>   then worker (`needs: deploy-api` order preserved so migrations land
+>   before consumers restart).
 
-> **Status: ⚙️ Artifacts committed; cloud execution deferred to LAST.** All in-repo files are in place — `tsconfig.scripts.json`, `Dockerfile` (with `npm run build:scripts`), `fly.api.toml`, `fly.worker.toml`, `.github/workflows/deploy.yml`, `.github/workflows/pr-preview.yml`, and `docs/provisioning/{first-deploy,teardown}.md`. The cloud-side steps (R2 token, Neon project, CloudAMQP instance, Fly apps; secrets; first deploy; CI token) are documented in `docs/provisioning/first-deploy.md` and **must not be executed until every other plan is done locally**.
->
-> **Do not run any task in this plan until both are true:**
-> 1. **Plan 05 v2 is complete** — the dispatcher/batch design from [`notes/pipeline-throughput.md`](./notes/pipeline-throughput.md) replaces the stub consumers, ported from the legacy synchronizers. Deploying with v1 stubs means a paid cloud environment that does no real work.
-> 2. **Plan 07 is complete** — observability (OTEL traces, queue depth metrics, structured logs). Deploying without it means flying blind on prod throughput tuning, and the prefetch numbers in plan 05 v2 stay un-measured.
->
-> Rationale: every Fly/Neon/CloudAMQP day costs money. Burning cycles on a deployment we'll redeploy a dozen times as v2 lands is wasted spend. Keep development local (`docker compose up -d`) until the app does the real work, then push once.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Bring up every cloud resource the app needs (Cloudflare R2, Neon, CloudAMQP, two Fly apps) and wire CI/CD via GitHub Actions. Output: a production environment that runs the same Docker image on `farmacore-api` (HTTP) and `farmacore-worker` (`WORKER_MODE=1`), backed by Neon + CloudAMQP + R2.
 
