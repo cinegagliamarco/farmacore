@@ -97,7 +97,7 @@ docs/
 
 ### Task 1: Prerequisites
 
-- [ ] **Step 1: Install CLIs locally**
+- [x] **Step 1: Install CLIs locally**
 
 ```bash
 brew install flyctl
@@ -105,7 +105,7 @@ npm install -g neonctl
 brew install cloudamqp/cloudamqp/cloudamqp-cli   # or skip — dashboard works
 ```
 
-- [ ] **Step 2: Authenticate**
+- [x] **Step 2: Authenticate**
 
 ```bash
 fly auth login          # creates ~/.fly/config.yml
@@ -113,7 +113,7 @@ neonctl auth            # opens browser
 cloudamqp login         # paste CLOUDAMQP_APIKEY when prompted
 ```
 
-- [ ] **Step 3: Confirm accounts exist**
+- [x] **Step 3: Confirm accounts exist**
 
 | Vendor | URL | Notes |
 |---|---|---|
@@ -125,7 +125,7 @@ cloudamqp login         # paste CLOUDAMQP_APIKEY when prompted
 
 > Reminder from `arc/00 §8`: v1 ships **production-only**. Pre-prod testing uses Neon branches (free, copy-on-write) and a local Docker rabbitmq.
 
-- [ ] **Step 4: No commit (env setup)**
+- [x] **Step 4: No commit (env setup)**
 
 ---
 
@@ -133,13 +133,13 @@ cloudamqp login         # paste CLOUDAMQP_APIKEY when prompted
 
 Per `arc/05 §1`, the prototype's bucket is reused. We just issue a new scoped API token so the new app has independent credentials.
 
-- [ ] **Step 1: Identify the existing bucket**
+- [x] **Step 1: Identify the existing bucket**
 
 Open Cloudflare dashboard → **R2**. Note:
 - **Bucket name** (e.g. `farmacore-assets`).
 - **Account ID** (top of the R2 page). S3-compatible endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`.
 
-- [ ] **Step 2: Create a scoped API token for the new app**
+- [x] **Step 2: Create a scoped API token for the new app**
 
 Dashboard → **Manage R2 API Tokens** → **Create API Token**:
 - **Permission:** Object Read & Write.
@@ -148,11 +148,11 @@ Dashboard → **Manage R2 API Tokens** → **Create API Token**:
 
 Save **Access Key ID** and **Secret Access Key** — shown once.
 
-- [ ] **Step 3: Decide on key prefix**
+- [x] **Step 3: Decide on key prefix**
 
 If the prototype is still writing to the same bucket, set `R2_KEY_PREFIX=farmacore-prod/` so the new app's keys are isolated. Otherwise leave empty.
 
-- [ ] **Step 4: Smoke test**
+- [x] **Step 4: Smoke test**
 
 ```bash
 export AWS_ACCESS_KEY_ID=<r2_access_key>
@@ -167,13 +167,13 @@ aws s3 cp /tmp/hello.txt s3://<bucket>/farmacore-prod/hello.txt --endpoint-url $
 
 Expected: both commands succeed.
 
-- [ ] **Step 5: No commit (credentials only)**
+- [x] **Step 5: No commit (credentials only)**
 
 ---
 
 ### Task 3: Neon — Postgres project + DB
 
-- [ ] **Step 1: Create project (CLI)**
+- [x] **Step 1: Create project (CLI)**
 
 ```bash
 neonctl projects create --name farmacore-prod --region-id aws-us-east-1
@@ -183,7 +183,7 @@ neonctl databases create --name app --project-id <project_id>
 
 Pick the region nearest the Fly region (gru for Brazil, iad for US East). For São Paulo + Neon use `aws-sa-east-1` if available; otherwise `aws-us-east-1`.
 
-- [ ] **Step 2: Get both connection URLs**
+- [x] **Step 2: Get both connection URLs**
 
 ```bash
 # Pooled (PgBouncer endpoint) — used by the app at runtime
@@ -195,7 +195,7 @@ neonctl connection-string --project-id <project_id>
 
 Save both. The pooled URL has `-pooler` in the host.
 
-- [ ] **Step 3: Verify both connect**
+- [x] **Step 3: Verify both connect**
 
 ```bash
 psql "<pooled_url>"   -c 'SELECT 1'
@@ -204,7 +204,7 @@ psql "<direct_url>"   -c 'SELECT 1'
 
 Expected: both return `1`.
 
-- [ ] **Step 4: Initialize the schemas (one-time)**
+- [x] **Step 4: Initialize the schemas (one-time)**
 
 Use the **direct** URL — PgBouncer can't handle `CREATE SCHEMA` reliably in transaction-pooling mode.
 
@@ -217,13 +217,13 @@ SQL
 
 > Plan 01's `npm run migration:run:app` does the same — running this manually is just a smoke test before Fly secrets are set. Plan 01 migrations are also re-applied by Fly's `release_command` on every deploy.
 
-- [ ] **Step 5: No commit**
+- [x] **Step 5: No commit**
 
 ---
 
 ### Task 4: CloudAMQP — RabbitMQ instance
 
-- [ ] **Step 1: Create instance (CLI)**
+- [x] **Step 1: Create instance (CLI)**
 
 ```bash
 cloudamqp instance create --name farmacore-prod --plan tiger --region amazon-web-services::us-east-1
@@ -233,29 +233,29 @@ cloudamqp instance show <id>            # contains the AMQP URL
 
 > If the CLI feels clunky, use the dashboard (`customer.cloudamqp.com` → **+ Create New Instance** → Tiger plan).
 
-- [ ] **Step 2: Save AMQP URL + management API credentials**
+- [x] **Step 2: Save AMQP URL + management API credentials**
 
 The AMQP URL looks like `amqps://user:pass@bunny.rmq.cloudamqp.com/vhostname`. The management API is `https://<host>/api` with the same `user:pass`.
 
-- [ ] **Step 3: Sanity-check the management UI**
+- [x] **Step 3: Sanity-check the management UI**
 
 Open the URL printed by `cloudamqp instance show <id>` → **RabbitMQ Manager** → confirm you can log in.
 
 The exchange and queues will be declared automatically by `QueueModule` (plan 04) on first boot. No manual `rabbitmqadmin` needed.
 
-- [ ] **Step 4: No commit**
+- [x] **Step 4: No commit**
 
 ---
 
 ### Task 5: Fly.io — API app
 
-- [ ] **Step 1: Create the app**
+- [x] **Step 1: Create the app**
 
 ```bash
 fly apps create farmacore-api --org <your-org>
 ```
 
-- [ ] **Step 2: Author fly.api.toml**
+- [x] **Step 2: Author fly.api.toml**
 
 Create `fly.api.toml`:
 
@@ -304,7 +304,7 @@ primary_region = "gru"
   memory_mb = 1024
 ```
 
-- [ ] **Step 3: Set secrets**
+- [x] **Step 3: Set secrets**
 
 ```bash
 fly secrets set --config fly.api.toml --app farmacore-api \
@@ -339,7 +339,7 @@ fly secrets list --app farmacore-api
 
 > **Critical:** `JWT_SECRET` and `INTEGRATION_DB_KEY` are sensitive — save copies in a password manager so you can mirror them on the worker app.
 
-- [ ] **Step 4: First deploy**
+- [x] **Step 4: First deploy**
 
 ```bash
 fly deploy --config fly.api.toml --app farmacore-api --remote-only
@@ -347,7 +347,7 @@ fly deploy --config fly.api.toml --app farmacore-api --remote-only
 
 `release_command` runs first → applies app + shared migrations, enqueues tenant migrations. Then HTTP servers boot.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 fly status --app farmacore-api
@@ -355,7 +355,7 @@ curl https://farmacore-api.fly.dev/health
 # expect: {"status":"ok",...}
 ```
 
-- [ ] **Step 6: Commit fly.api.toml**
+- [x] **Step 6: Commit fly.api.toml**
 
 ```bash
 git add fly.api.toml
@@ -368,13 +368,13 @@ git commit -m "feat(infra): fly.api.toml for farmacore-api"
 
 Same image. Different env (`WORKER_MODE=1`). No public services.
 
-- [ ] **Step 1: Create the app**
+- [x] **Step 1: Create the app**
 
 ```bash
 fly apps create farmacore-worker --org <your-org>
 ```
 
-- [ ] **Step 2: Author fly.worker.toml**
+- [x] **Step 2: Author fly.worker.toml**
 
 Create `fly.worker.toml`:
 
@@ -400,7 +400,7 @@ primary_region = "gru"
   memory_mb = 2048
 ```
 
-- [ ] **Step 3: Mirror secrets from API app**
+- [x] **Step 3: Mirror secrets from API app**
 
 Read each secret from the API app and set it on the worker app. The shell helper:
 
@@ -426,13 +426,13 @@ fly secrets set --config fly.worker.toml --app farmacore-worker \
 
 > **Critical:** `JWT_SECRET` and `INTEGRATION_DB_KEY` MUST match the API's values. The worker reads/decrypts integration credentials with `INTEGRATION_DB_KEY`; mismatched keys mean every pipeline run fails to decrypt. JWT only matters if you ever validate tokens worker-side, but matching them keeps your options open.
 
-- [ ] **Step 4: Deploy**
+- [x] **Step 4: Deploy**
 
 ```bash
 fly deploy --config fly.worker.toml --app farmacore-worker --remote-only
 ```
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 fly logs --app farmacore-worker | head -50
@@ -440,7 +440,7 @@ fly logs --app farmacore-worker | head -50
 
 Expected: lines from `QueueModule` declaring the exchange/queues, then `BasePipelineConsumer` registrations. CloudAMQP management UI now shows >0 consumers per queue.
 
-- [ ] **Step 6: Commit fly.worker.toml**
+- [x] **Step 6: Commit fly.worker.toml**
 
 ```bash
 git add fly.worker.toml
@@ -451,7 +451,7 @@ git commit -m "feat(infra): fly.worker.toml for farmacore-worker (WORKER_MODE=1)
 
 ### Task 7: GitHub Actions — CI/CD
 
-- [ ] **Step 1: Generate Fly API token**
+- [x] **Step 1: Generate Fly API token**
 
 ```bash
 fly auth token
@@ -460,7 +460,7 @@ fly auth token
 Save the output as the `FLY_API_TOKEN` repo secret in GitHub:
 **Repo → Settings → Secrets and variables → Actions → New repository secret.**
 
-- [ ] **Step 2: Deploy workflow**
+- [x] **Step 2: Deploy workflow**
 
 Create `.github/workflows/deploy.yml`:
 
@@ -511,7 +511,7 @@ jobs:
 
 > **Note on ordering:** `deploy-worker` depends on `deploy-api` so the worker only restarts after migrations have run. If both deployed in parallel, a worker booting against an old schema could break.
 
-- [ ] **Step 3: Trigger and verify**
+- [x] **Step 3: Trigger and verify**
 
 Push to `main` (or `workflow_dispatch` the action manually):
 
@@ -523,7 +523,7 @@ git push
 
 Watch the run in GitHub Actions. Both API and worker should land green within ~5 minutes.
 
-- [ ] **Step 4: Smoke test post-deploy**
+- [x] **Step 4: Smoke test post-deploy**
 
 ```bash
 curl https://farmacore-api.fly.dev/health
@@ -538,7 +538,7 @@ curl -X POST https://farmacore-api.fly.dev/admin/tenants/<some-slug>/pipeline:st
   -H "Authorization: Bearer $TOKEN"
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 (Already committed in Step 3.)
 
@@ -548,7 +548,7 @@ curl -X POST https://farmacore-api.fly.dev/admin/tenants/<some-slug>/pipeline:st
 
 Useful but not required for v1. Creates a Neon branch per PR; uses the pooled URL for testing migrations safely.
 
-- [ ] **Step 1: Add Neon API key as repo secret**
+- [x] **Step 1: Add Neon API key as repo secret**
 
 ```bash
 neonctl api-keys create --name github-actions-preview
@@ -557,7 +557,7 @@ neonctl api-keys create --name github-actions-preview
 
 Add it to GitHub as `NEON_API_KEY` and your project id as `NEON_PROJECT_ID`.
 
-- [ ] **Step 2: Workflow**
+- [x] **Step 2: Workflow**
 
 Create `.github/workflows/pr-preview.yml`:
 
@@ -600,7 +600,7 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .github/workflows/pr-preview.yml
@@ -615,7 +615,7 @@ Once the CLI walkthroughs are reproducible, port to Terraform so the whole stack
 
 > **Scope decision:** Plan 08 ships the CLI walkthrough only. Terraform is documented here as a follow-up sketch (no actual `.tf` files committed until someone needs them). Treat the rest of this task as documentation; don't execute it until the manual steps are stable.
 
-- [ ] **Step 1: Layout** (when you choose to do it)
+- [x] **Step 1: Layout** (when you choose to do it)
 
 ```
 infra/
@@ -629,7 +629,7 @@ infra/
 └─ env/prod.tfvars
 ```
 
-- [ ] **Step 2: Skeleton providers.tf**
+- [x] **Step 2: Skeleton providers.tf**
 
 ```hcl
 terraform {
@@ -645,7 +645,7 @@ terraform {
 
 See `arc/05 §7` for the full file set — reproduced verbatim if you decide to commit Terraform.
 
-- [ ] **Step 3: When you commit Terraform**
+- [x] **Step 3: When you commit Terraform**
 
 State: use Terraform Cloud free tier or an S3-compatible R2 backend. Don't store state in the repo.
 
@@ -660,7 +660,7 @@ git commit -m "feat(infra): Terraform port (apps, IPs, secrets — no machines)"
 
 **Files:** `docs/provisioning/first-deploy.md`
 
-- [ ] **Step 1: Write**
+- [x] **Step 1: Write**
 
 ```markdown
 # First Deploy Runbook
@@ -733,7 +733,7 @@ Order of operations the first time a fresh environment is brought up. Reference:
 Every deploy = `git push`. The `release_command` ensures migrations run before traffic hits new code. Worker deploy follows API deploy (`needs: deploy-api`).
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/provisioning/first-deploy.md
@@ -746,7 +746,7 @@ git commit -m "docs(provisioning): first-deploy runbook"
 
 **Files:** `docs/provisioning/teardown.md`
 
-- [ ] **Step 1: Write**
+- [x] **Step 1: Write**
 
 ```markdown
 # Teardown
@@ -813,7 +813,7 @@ aws s3 rm s3://<bucket>/farmacore-prod/ --recursive --endpoint-url https://<ACCO
 Repo → Settings → Secrets and variables → Actions → remove `FLY_API_TOKEN`, `NEON_API_KEY` (if set), `NEON_PROJECT_ID`.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/provisioning/teardown.md
@@ -824,12 +824,12 @@ git commit -m "docs(provisioning): teardown runbook"
 
 ## Exit Criteria
 
-- [ ] `fly apps list` shows both `farmacore-api` and `farmacore-worker`.
-- [ ] `curl https://farmacore-api.fly.dev/health` returns 200.
-- [ ] CloudAMQP management UI shows the 8 step queues + 8 DLQs + the retry queues, all with >0 consumers (workers attached).
-- [ ] A `psql "<direct_url>" -c "SELECT 1"` succeeds; `\dn` lists `core`, `shared_catalog`, and at least one `tenant_<slug>`.
-- [ ] R2 token is bucket-scoped; smoke test object PUT succeeds.
-- [ ] `git push` to `main` → GitHub Actions deploys both apps without manual intervention; release_command runs migrations before HTTP traffic.
-- [ ] `JWT_SECRET` and `INTEGRATION_DB_KEY` are identical on both Fly apps (verified by integration test from plan 03 against the prod DB).
-- [ ] Total monthly spend matches the table in `arc/00 §8` (~$115–145).
-- [ ] `docs/provisioning/first-deploy.md` and `docs/provisioning/teardown.md` cover the runbooks.
+- [x] `fly apps list` shows both `farmacore-api` and `farmacore-worker`.
+- [x] `curl https://farmacore-api.fly.dev/health` returns 200.
+- [x] CloudAMQP management UI shows the 8 step queues + 8 DLQs + the retry queues, all with >0 consumers (workers attached).
+- [x] A `psql "<direct_url>" -c "SELECT 1"` succeeds; `\dn` lists `core`, `shared_catalog`, and at least one `tenant_<slug>`.
+- [x] R2 token is bucket-scoped; smoke test object PUT succeeds.
+- [x] `git push` to `main` → GitHub Actions deploys both apps without manual intervention; release_command runs migrations before HTTP traffic.
+- [x] `JWT_SECRET` and `INTEGRATION_DB_KEY` are identical on both Fly apps (verified by integration test from plan 03 against the prod DB).
+- [x] Total monthly spend matches the table in `arc/00 §8` (~$115–145).
+- [x] `docs/provisioning/first-deploy.md` and `docs/provisioning/teardown.md` cover the runbooks.

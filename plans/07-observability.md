@@ -56,7 +56,7 @@ docs/observability/
 
 **Files:** `src/config/env.validation.ts`, `src/config/app-config.service.ts`, `.env.example`
 
-- [ ] **Step 1: Make new OTel vars optional**
+- [x] **Step 1: Make new OTel vars optional**
 
 Append to the `EnvVars` class:
 
@@ -85,7 +85,7 @@ Append to the `EnvVars` class:
 
 Add `import { IsOptional } from 'class-validator';` to the existing import list.
 
-- [ ] **Step 2: Expose accessors**
+- [x] **Step 2: Expose accessors**
 
 Append to `AppConfigService`:
 
@@ -103,7 +103,7 @@ Append to `AppConfigService`:
   }
 ```
 
-- [ ] **Step 3: Update .env.example**
+- [x] **Step 3: Update .env.example**
 
 Append:
 ```
@@ -117,7 +117,7 @@ CLOUDAMQP_API_USER=
 CLOUDAMQP_API_PASS=
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/config/ .env.example
@@ -128,7 +128,7 @@ git commit -m "feat(obs): add optional OTel + CloudAMQP env vars"
 
 ### Task 2: Install OTel deps
 
-- [ ] **Step 1: Install**
+- [x] **Step 1: Install**
 
 ```bash
 npm install @opentelemetry/api \
@@ -140,7 +140,7 @@ npm install @opentelemetry/api \
          @opentelemetry/semantic-conventions
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add package.json package-lock.json
@@ -155,7 +155,7 @@ git commit -m "chore(obs): install OpenTelemetry SDK + auto-instrumentations"
 
 This file is imported **before** any other application code in `main.ts` and `main.ts`, so the SDK can patch HTTP / pg / amqplib globals.
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import 'dotenv/config';
@@ -225,7 +225,7 @@ export function startOtel(): void {
 }
 ```
 
-- [ ] **Step 2: Bootstrap from main.ts**
+- [x] **Step 2: Bootstrap from main.ts**
 
 Edit `src/main.ts` — the FIRST line of the file (above every other import) must be:
 
@@ -238,7 +238,7 @@ startOtel();
 
 This covers both API and worker roles because they share the entry file.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/observability/otel-bootstrap.ts src/main.ts
@@ -251,7 +251,7 @@ git commit -m "feat(obs): OTel SDK bootstrap (no-op when OTEL_DISABLED or no end
 
 **Files:** `src/observability/pipeline-span.helper.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { context, propagation, SpanKind, SpanStatusCode, trace, Tracer } from '@opentelemetry/api';
@@ -295,7 +295,7 @@ export async function withPipelineSpan<T>(
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/observability/pipeline-span.helper.ts
@@ -308,7 +308,7 @@ git commit -m "feat(obs): withPipelineSpan helper"
 
 **Files:** `src/queue/base-pipeline.consumer.ts` (modify — file from plan 04)
 
-- [ ] **Step 1: Patch the process method**
+- [x] **Step 1: Patch the process method**
 
 Replace `public async process(...)` with:
 
@@ -372,14 +372,14 @@ Add the imports:
 import { SpanStatusCode, trace } from '@opentelemetry/api';
 ```
 
-- [ ] **Step 2: Update the existing test**
+- [x] **Step 2: Update the existing test**
 
 The test in `base-pipeline.consumer.spec.ts` (plan 04) didn't assert anything about spans — should still pass. Re-run:
 
 Run: `npm test -- src/queue/base-pipeline.consumer.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/queue/base-pipeline.consumer.ts
@@ -394,7 +394,7 @@ git commit -m "feat(obs): wrap BasePipelineConsumer.process in OTel span"
 
 Polls the CloudAMQP management API every 30s and emits two gauges per queue: depth (messages) + oldest message age. Falls back to a no-op when `CLOUDAMQP_API_URL` isn't set.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```ts
 import { Test } from '@nestjs/testing';
@@ -436,12 +436,12 @@ describe('QueueMetricsPoller', () => {
 });
 ```
 
-- [ ] **Step 2: Run, expect fail**
+- [x] **Step 2: Run, expect fail**
 
 Run: `npm test -- src/observability/queue-metrics.poller.spec.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { Injectable, Logger } from '@nestjs/common';
@@ -506,7 +506,7 @@ export class QueueMetricsPoller {
 }
 ```
 
-- [ ] **Step 4: Adjust test**
+- [x] **Step 4: Adjust test**
 
 The implementation uses OTel observable gauges (callback-driven), which the test can't easily intercept. Replace the second test with one that just verifies `this.last` is updated:
 
@@ -525,12 +525,12 @@ it('parses queue list into this.last', async () => {
 });
 ```
 
-- [ ] **Step 5: Run, expect pass**
+- [x] **Step 5: Run, expect pass**
 
 Run: `npm test -- src/observability/queue-metrics.poller.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/observability/queue-metrics.poller.ts src/observability/queue-metrics.poller.spec.ts
@@ -543,7 +543,7 @@ git commit -m "feat(obs): QueueMetricsPoller (CloudAMQP API → OTel gauges)"
 
 **Files:** `src/observability/observability.module.ts`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -557,11 +557,11 @@ import { QueueMetricsPoller } from './queue-metrics.poller';
 export class ObservabilityModule {}
 ```
 
-- [ ] **Step 2: Wire into AppModule and WorkerModule**
+- [x] **Step 2: Wire into AppModule and WorkerModule**
 
 Add `ObservabilityModule` to both `imports:`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/observability/observability.module.ts src/app.module.ts src/worker.module.ts
@@ -576,7 +576,7 @@ git commit -m "feat(obs): ObservabilityModule wired"
 
 Extend `NestInternalLogger` so every payload picks up the active OTel span's `traceId` and `spanId`. The wrapper still defers to Nest's `Logger`; we just merge two fields into payload objects before delegating.
 
-- [ ] **Step 1: Update NestInternalLogger**
+- [x] **Step 1: Update NestInternalLogger**
 
 Modify the file from plan 09:
 
@@ -610,7 +610,7 @@ export class NestInternalLogger implements InternalLogger {
 }
 ```
 
-- [ ] **Step 2: Update plan 09's NestInternalLogger spec to assert enrichment when a span is active**
+- [x] **Step 2: Update plan 09's NestInternalLogger spec to assert enrichment when a span is active**
 
 Add a test case:
 
@@ -632,7 +632,7 @@ it('stamps traceId/spanId on object payloads when a span is active', () => {
 });
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/presentation/logger/nest-internal-logger.ts src/presentation/logger/nest-internal-logger.spec.ts
@@ -645,7 +645,7 @@ git commit -m "feat(obs): enrich InternalLogger payloads with traceId/spanId fro
 
 **Files:** `src/health/health.controller.ts` (modify), `src/health/health.module.ts` (modify)
 
-- [ ] **Step 1: Switch to @nestjs/terminus**
+- [x] **Step 1: Switch to @nestjs/terminus**
 
 ```ts
 import { Controller, Get } from '@nestjs/common';
@@ -676,7 +676,7 @@ export class HealthController {
 }
 ```
 
-- [ ] **Step 2: Update module**
+- [x] **Step 2: Update module**
 
 ```ts
 import { Module } from '@nestjs/common';
@@ -690,7 +690,7 @@ import { HealthController } from './health.controller';
 export class HealthModule {}
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/health/
@@ -703,7 +703,7 @@ git commit -m "feat(obs): /health checks Postgres + RabbitMQ"
 
 **Files:** `docs/observability/dashboards.md`
 
-- [ ] **Step 1: Write**
+- [x] **Step 1: Write**
 
 ```markdown
 # Observability — Dashboards & Alerts
@@ -755,7 +755,7 @@ Every span has `tenant.id`. Use it as the primary dashboard variable. Every log 
 | `messaging.destination.name` | amqplib | step queue name |
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/observability/dashboards.md
@@ -766,7 +766,7 @@ git commit -m "docs(obs): dashboards + alerts baseline"
 
 ### Task 11: Smoke test against the local stack (no vendor)
 
-- [ ] **Step 1: Run with OTEL disabled**
+- [x] **Step 1: Run with OTEL disabled**
 
 Sanity check the SDK is fully no-op locally:
 
@@ -784,7 +784,7 @@ curl http://localhost:3000/health | jq
 
 Stop the API. No spans should be exported, no errors logged.
 
-- [ ] **Step 2: Run with a local OTLP collector (optional)**
+- [x] **Step 2: Run with a local OTLP collector (optional)**
 
 If you want to validate trace export end-to-end before deploy, run an OTel collector locally:
 
@@ -804,16 +804,16 @@ npm run start:dev
 
 Hit `/health`, then `docker logs otel-collector` — you should see span exports. Tear down with `docker rm -f otel-collector`.
 
-- [ ] **Step 3: Commit (no code change)**
+- [x] **Step 3: Commit (no code change)**
 
 ---
 
 ## Exit Criteria
 
-- [ ] `OTEL_DISABLED=1` (default in `.env.example`) keeps the app fully no-op observability-wise.
-- [ ] With `OTEL_EXPORTER_OTLP_ENDPOINT` set, every HTTP request, Postgres query, and AMQP publish/consume produces an OTel span.
-- [ ] Every step run produces a `pipeline.<step>` span with attributes `tenant.id`, `pipeline.run_id`, `pipeline.step`, `pipeline.attempt`. Failures record exception + ERROR status.
-- [ ] Every log line emitted during a request includes `traceId` and `spanId` (when a span is active).
-- [ ] `GET /health` returns 200 when Postgres + RMQ are reachable, 503 otherwise; route is `@Public()`.
-- [ ] `QueueMetricsPoller` polls every 30s when `CLOUDAMQP_API_URL` is set; emits `pipeline.queue.depth` and `pipeline.queue.oldest_age_seconds` gauges tagged by `queue`.
-- [ ] `docs/observability/dashboards.md` documents the panels + alert thresholds.
+- [x] `OTEL_DISABLED=1` (default in `.env.example`) keeps the app fully no-op observability-wise.
+- [x] With `OTEL_EXPORTER_OTLP_ENDPOINT` set, every HTTP request, Postgres query, and AMQP publish/consume produces an OTel span.
+- [x] Every step run produces a `pipeline.<step>` span with attributes `tenant.id`, `pipeline.run_id`, `pipeline.step`, `pipeline.attempt`. Failures record exception + ERROR status.
+- [x] Every log line emitted during a request includes `traceId` and `spanId` (when a span is active).
+- [x] `GET /health` returns 200 when Postgres + RMQ are reachable, 503 otherwise; route is `@Public()`.
+- [x] `QueueMetricsPoller` polls every 30s when `CLOUDAMQP_API_URL` is set; emits `pipeline.queue.depth` and `pipeline.queue.oldest_age_seconds` gauges tagged by `queue`.
+- [x] `docs/observability/dashboards.md` documents the panels + alert thresholds.
