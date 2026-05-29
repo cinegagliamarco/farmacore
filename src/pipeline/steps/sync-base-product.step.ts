@@ -171,7 +171,7 @@ export class SyncBaseProductStep {
       }
     }
 
-    await baseProductRepo.upsertManyByEan(baseProductInputs);
+    await baseProductRepo.insertNewByEan(baseProductInputs);
 
     const productInputs: ProductUpsertInput[] = productSeeds.map((seed) => {
       const { classificationPath, ...rest } = seed;

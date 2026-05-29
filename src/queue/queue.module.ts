@@ -12,14 +12,12 @@ import {
   MIGRATE_TENANT_QUEUE,
   PER_ORIGIN_STEPS,
   PIPELINE_START_QUEUE,
-  RETRY_DELAYS_MS,
   STEP_PREFETCH,
   STEP_QUEUES,
   batchStep,
   dispatchStep,
   originStep,
 } from './constants';
-import { delayQueueName } from './retry.service';
 import { OutboxPublisher } from './outbox-publisher.service';
 import { OutboxRepository } from './outbox.repository';
 import { PipelinePublisher } from './pipeline-publisher.service';
@@ -27,13 +25,12 @@ import { PipelineRunService } from './pipeline-run.service';
 import { RetryService } from './retry.service';
 
 /**
- * Build the queue + DLQ + retry-delay declarations for one queue
- * name. Used for every kind of step (v1 single-queue, v2 batched
- * dispatch+batch, v2 per-origin). The shape is identical: main queue
- * with DLX wiring, a .dlq mirror under DLX, plus one delay queue
- * per RETRY_DELAYS_MS entry.
+ * Build the queue + DLQ declarations for one queue name. Used for every
+ * kind of step (v1 single-queue, v2 batched dispatch+batch, v2
+ * per-origin): the main queue with DLX wiring + a `.dlq` mirror under
+ * the DLX. No retry/delay queues — a failed message dead-letters once.
  */
-const queueWithDlqAndRetries = (q: string) => [
+const queueWithDlq = (q: string) => [
   {
     name: q,
     exchange: EXCHANGE_NAME,
@@ -54,20 +51,6 @@ const queueWithDlqAndRetries = (q: string) => [
     createQueueIfNotExists: true,
     options: { durable: true },
   },
-  ...RETRY_DELAYS_MS.map((ms) => ({
-    name: delayQueueName(q, ms),
-    exchange: '',
-    routingKey: delayQueueName(q, ms),
-    createQueueIfNotExists: true,
-    options: {
-      durable: true,
-      arguments: {
-        'x-message-ttl': ms,
-        'x-dead-letter-exchange': EXCHANGE_NAME,
-        'x-dead-letter-routing-key': `retry.${q}`,
-      },
-    },
-  })),
 ];
 
 const perOriginQueueNames = (): string[] => {
@@ -122,12 +105,12 @@ const perOriginQueueNames = (): string[] => {
           { name: DLX_NAME, type: 'topic', options: { durable: true } },
         ],
         queues: [
-          ...STEP_QUEUES.flatMap((step) => queueWithDlqAndRetries(step)),
+          ...STEP_QUEUES.flatMap((step) => queueWithDlq(step)),
           ...BATCHED_STEPS.flatMap((step) => [
-            ...queueWithDlqAndRetries(dispatchStep(step)),
-            ...queueWithDlqAndRetries(batchStep(step)),
+            ...queueWithDlq(dispatchStep(step)),
+            ...queueWithDlq(batchStep(step)),
           ]),
-          ...perOriginQueueNames().flatMap(queueWithDlqAndRetries),
+          ...perOriginQueueNames().flatMap(queueWithDlq),
           {
             name: PIPELINE_START_QUEUE,
             exchange: EXCHANGE_NAME,

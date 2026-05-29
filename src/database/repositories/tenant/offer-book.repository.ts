@@ -41,6 +41,10 @@ export class OfferBookRepository {
   private dedupeByEan(inputs: OfferBookUpsertInput[]): OfferBookUpsertInput[] {
     const byEan = new Map<string, OfferBookUpsertInput>();
     for (const i of inputs) byEan.set(String(i.ean), i);
-    return [...byEan.values()];
+    // Sort by ean so concurrent batches lock rows in the same order —
+    // otherwise batches sharing eans deadlock on the ON CONFLICT upsert.
+    return [...byEan.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([, v]) => v);
   }
 }

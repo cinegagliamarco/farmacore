@@ -7,7 +7,6 @@ import {
 } from '../../queue/dispatch-pipeline.consumer';
 import {
   EXCHANGE_NAME,
-  PER_ORIGIN_BATCH_SIZE,
   dispatchStep,
   originStep,
 } from '../../queue/constants';
@@ -92,12 +91,14 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
       return { batches: [], emptySuccessors: [successor] };
     }
 
+    // One message per EAN per origin — prefetch on each per-origin queue
+    // is the rate limit (see STEP_PREFETCH). Mirrors legacy's per-origin
+    // parallelism without an in-process batch loop.
     const batches: PipelineMessage<ImportCompetitorProductsBatchPayload>[] = [];
     let seq = 1;
     for (const origin of enabledOrigins) {
-      const size = PER_ORIGIN_BATCH_SIZE[origin] ?? 1;
       const queue = originStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS, origin);
-      for (let offset = 0; offset < eans.length; offset += size) {
+      for (const ean of eans) {
         batches.push(
           newPipelineMessage<ImportCompetitorProductsBatchPayload>({
             pipelineRunId: ctx.message.pipelineRunId,
@@ -105,14 +106,14 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
             step: PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
             queue,
             batchSeq: seq++,
-            payload: { origin, eans: eans.slice(offset, offset + size) },
+            payload: { origin, eans: [ean] },
           }),
         );
       }
     }
 
     this.logger.log(
-      `import-competitor-products dispatch: ${batches.length} batch(es) across ${enabledOrigins.length} origins`,
+      `import-competitor-products dispatch: ${batches.length} message(s) (1/EAN) across ${enabledOrigins.length} origins`,
     );
     return { batches, emptySuccessors: [successor] };
   }

@@ -6,15 +6,18 @@ import { DataSource } from 'typeorm';
 // Local-dev seed: the first tenant and the ERP integration it points at.
 // Reproducible counterpart to TUTORIAL.md §2 — replaces the manual
 // `tenant:create` + `curl PUT .../integration` dance with one command.
+// Points at the local docker `erp` container (seeded with the A7Pharma sample
+// via docker/erp-seed). The real customer ERP lives behind an ngrok tunnel —
+// that connection is wired per environment, not in the local seed.
 const SLUG = 'macfarma';
 const INTEGRATION = {
   origin: 'a7pharma',
-  name: 'Macfarma ERP (ngrok)',
-  host: '5.tcp.ngrok.io',
-  port: 28501,
-  database: 'ultrapopularbariri_loja01_20231116',
-  username: 'leitura_053401619_101224',
-  password: 'qnseXKaq1HXtxR8',
+  name: 'Local ERP',
+  host: 'localhost',
+  port: 5435,
+  database: 'erp',
+  username: 'erp',
+  password: 'erp',
   sslMode: 'disable',
 };
 

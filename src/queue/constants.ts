@@ -4,13 +4,6 @@ import { PipelineStep } from '../database/enums/pipeline-step.enum';
 export const EXCHANGE_NAME = `pipeline.${process.env.NODE_ENV ?? 'development'}`;
 export const DLX_NAME = `${EXCHANGE_NAME}.dlx`;
 
-export const RETRY_DELAYS_MS: ReadonlyArray<number> = [
-  60_000,
-  5 * 60_000,
-  30 * 60_000,
-];
-export const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
-
 /**
  * v1 single-queue steps — those that still ship one queue per logical
  * step. Steps migrated to the v2 dispatcher/batch shape leave this
@@ -61,9 +54,17 @@ export const originStep = (
   origin: CompetitorOrigin,
 ): string => `${step}.${origin}`;
 
-/** Per-queue prefetch. Keyed by actual queue name (= step + suffix). */
+/**
+ * Per-queue prefetch (= concurrency). Keyed by actual queue name.
+ * Mirrors legacy per-process concurrency: the bulk-DB steps ran their
+ * 1000-row batches sequentially (prefetch 1); the scrapers ran N
+ * requests in parallel per origin (DROGAL 20, DROGASIL 10, MICHELASSI 1
+ * — see legacy ORIGIN_CONFIGS), and since each scrape is now one
+ * message per EAN, that concurrency IS the prefetch. Stock fetches were
+ * sequential batched calls (50/30 SKUs each), so prefetch 1.
+ */
 export const STEP_PREFETCH: Readonly<Record<string, number>> = {
-  [PipelineStep.SYNC_OFFER_BOOKS_INFO]: 2,
+  [PipelineStep.SYNC_OFFER_BOOKS_INFO]: 1,
 
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 1,
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 1,
@@ -71,44 +72,30 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [dispatchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 1,
   [dispatchStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS)]: 1,
   [dispatchStep(PipelineStep.IMPORT_COMPETITOR_STOCK)]: 1,
-  [batchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 4,
-  [batchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 4,
-  [batchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 2,
-  [batchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 4,
+  [batchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 1,
+  [batchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 1,
+  [batchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 1,
+  [batchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 1,
 
-  // per-origin scrape consumers: prefetch IS the rate limit
+  // per-origin scrape consumers: one message per EAN, prefetch = legacy
+  // per-origin parallel request count.
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.DROGAL,
-  )]: 8,
+  )]: 20,
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.DROGASIL,
-  )]: 8,
+  )]: 10,
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.MICHELASSI,
-  )]: 2,
-  [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGAL)]:
-    4,
+  )]: 1,
+  // stock: sequential batched calls per origin (50/30 SKUs each).
+  [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGAL)]: 1,
   [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGASIL)]:
-    4,
+    1,
 };
-
-/**
- * Per-origin batch sizes (EANs per message). The v2 plan matches the
- * legacy ORIGIN_CONFIGS in-process batch sizes. Drogal can handle 20
- * EANs serially per message; Michelassi gets 1 (legacy aggressive
- * rate limiting).
- */
-export const PER_ORIGIN_BATCH_SIZE: Readonly<Record<CompetitorOrigin, number>> =
-  {
-    [CompetitorOrigin.DROGAL]: 20,
-    [CompetitorOrigin.DROGASIL]: 10,
-    [CompetitorOrigin.MICHELASSI]: 1,
-    [CompetitorOrigin.PAGUE_MENOS]: 20,
-    [CompetitorOrigin.IKESAKI]: 10,
-  };
 
 /**
  * Per-origin batch size for stock fetches. Legacy ran 50 SKUs per call

@@ -1,4 +1,4 @@
-import { EntityManager, In } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import { BaseProductEntity } from '../../entities/shared-catalog/base-product.entity';
 
 export interface BaseProductUpsertInput {
@@ -20,29 +20,23 @@ export class BaseProductRepository {
   constructor(private readonly em: EntityManager) {}
 
   /**
-   * Bulk upsert by `ean`, returning a Map<ean, id>. Deduplicates the
-   * incoming batch by ean (last-write-wins) — embalagem can carry
-   * multiple packagings sharing one barcode, which would otherwise
-   * trip ON CONFLICT ("cannot affect row a second time").
+   * Insert-only by `ean`. base_product is shared identity data — a
+   * barcode's meaning doesn't change, so the ERP sync never refreshes
+   * existing rows; ON CONFLICT DO NOTHING makes re-syncs and
+   * cross-tenant overlap no-ops. Corrections are manual admin edits.
+   * Batch is deduped + ean-sorted so concurrent inserts lock in the
+   * same order (no deadlock).
    */
-  public async upsertManyByEan(
-    inputs: BaseProductUpsertInput[],
-  ): Promise<Map<string, string>> {
-    if (inputs.length === 0) return new Map();
+  public async insertNewByEan(inputs: BaseProductUpsertInput[]): Promise<void> {
+    if (inputs.length === 0) return;
     const deduped = this.dedupeByEan(inputs);
-    const repo = this.em.getRepository(BaseProductEntity);
-    await repo.upsert(deduped, {
-      conflictPaths: ['ean'],
-      skipUpdateIfNoValuesChanged: true,
-    });
-    const eans = deduped.map((d) => d.ean);
-    const rows = await repo.find({
-      where: { ean: In(eans) },
-      select: { id: true, ean: true },
-    });
-    const out = new Map<string, string>();
-    for (const row of rows) out.set(String(row.ean), row.id);
-    return out;
+    await this.em
+      .getRepository(BaseProductEntity)
+      .createQueryBuilder()
+      .insert()
+      .values(deduped)
+      .orIgnore()
+      .execute();
   }
 
   private dedupeByEan(
@@ -50,7 +44,11 @@ export class BaseProductRepository {
   ): BaseProductUpsertInput[] {
     const byEan = new Map<string, BaseProductUpsertInput>();
     for (const i of inputs) byEan.set(String(i.ean), i);
-    return [...byEan.values()];
+    // Sort by ean so concurrent batches lock rows in the same order —
+    // otherwise batches sharing eans deadlock on the ON CONFLICT insert.
+    return [...byEan.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([, v]) => v);
   }
 
   public async findEansMissingWeight(): Promise<string[]> {

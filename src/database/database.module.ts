@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppConfigService } from '../config/app-config.service';
@@ -28,7 +29,10 @@ const CORE_ENTITIES = [
           config.nodeEnv === 'production'
             ? { rejectUnauthorized: false }
             : false,
-        entities: CORE_ENTITIES,
+        // search_path switches schema per tenant at query time, but TypeORM
+        // still needs every entity's metadata registered on the connection —
+        // core + shared_catalog + tenant. Same glob the migration data-source uses.
+        entities: [path.join(__dirname, 'entities/**/*.entity.{ts,js}')],
         synchronize: false,
       }),
     }),
