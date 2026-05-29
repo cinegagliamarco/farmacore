@@ -5,11 +5,7 @@ import {
   DispatchHandleResult,
   DispatchPipelineConsumer,
 } from '../../queue/dispatch-pipeline.consumer';
-import {
-  EXCHANGE_NAME,
-  dispatchStep,
-  originStep,
-} from '../../queue/constants';
+import { EXCHANGE_NAME, dispatchStep, originStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import type { PipelineMessage } from '../../queue/types';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';

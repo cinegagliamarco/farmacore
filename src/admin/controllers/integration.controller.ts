@@ -8,13 +8,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../database/enums/user-role.enum';
 import { SystemAdminGuard } from '../guards/system-admin.guard';
 import { IntegrationConnectionService } from '../../integration/integration-connection.service';
 import { UpsertIntegrationDto } from '../../integration/dto/upsert-integration.dto';
 
 @Controller('admin/tenants/:slug/integration')
 @UseGuards(SystemAdminGuard)
-@Roles('admin')
+@Roles(UserRole.ADMIN)
 export class IntegrationController {
   constructor(private readonly svc: IntegrationConnectionService) {}
 

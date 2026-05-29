@@ -10,6 +10,7 @@ import { execSync } from 'node:child_process';
 import * as crypto from 'node:crypto';
 import { TenantEntity } from '../../database/entities/core/tenant.entity';
 import { UserEntity } from '../../database/entities/core/user.entity';
+import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantStatus } from '../../database/enums/tenant-status.enum';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
@@ -116,7 +117,7 @@ export class TenantOnboardingService {
       tenantId: dto.slug,
       email: dto.adminEmail,
       passwordHash: hash,
-      role: 'admin',
+      role: UserRole.ADMIN,
       status: 'active',
     });
 

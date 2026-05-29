@@ -133,11 +133,13 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
                 batchSeq,
               );
               if (incResult.isLast) {
-                const successors = await this.successors({
-                  message,
-                  em,
-                  integrationDs,
-                });
+                const successors = message.standalone
+                  ? []
+                  : await this.successors({
+                      message,
+                      em,
+                      integrationDs,
+                    });
                 await this.outbox.insertMany(
                   em,
                   message.pipelineRunId,

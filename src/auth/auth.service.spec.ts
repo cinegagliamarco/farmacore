@@ -5,6 +5,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PasswordService } from './password.service';
 import { UserEntity } from '../database/entities/core/user.entity';
+import { UserRole } from '../database/enums/user-role.enum';
 import { TenantEntity } from '../database/entities/core/tenant.entity';
 import { RefreshTokenEntity } from '../database/entities/core/refresh-token.entity';
 
@@ -78,7 +79,7 @@ describe('AuthService.login', () => {
       tenantId: 'acme',
       email: 'a@b.com',
       passwordHash: await passwords.hash('right'),
-      role: 'admin',
+      role: UserRole.ADMIN,
       status: 'active',
     });
     const res = await svc.login({

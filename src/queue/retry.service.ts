@@ -16,9 +16,14 @@ export class RetryService {
 
   public async republishOnFailure<P>(msg: PipelineMessage<P>): Promise<'dlq'> {
     const routingSegment = msg.queue ?? msg.step;
-    await this.amqp.publish(DLX_NAME, `${msg.tenantId}.${routingSegment}`, msg, {
-      persistent: true,
-    });
+    await this.amqp.publish(
+      DLX_NAME,
+      `${msg.tenantId}.${routingSegment}`,
+      msg,
+      {
+        persistent: true,
+      },
+    );
     return 'dlq';
   }
 }

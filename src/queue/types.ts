@@ -21,6 +21,12 @@ export interface PipelineMessage<TPayload = Record<string, unknown>> {
    * (runId, step, batchSeq) idempotency key on pipeline_run.
    */
   batchSeq?: number;
+  /**
+   * When true the step runs in isolation: its successors are not staged
+   * (no chaining into the rest of the graph). Set by the admin
+   * "trigger one routine" endpoint; propagated to fan-out batch messages.
+   */
+  standalone?: boolean;
 }
 
 export interface PipelineStartPayload {

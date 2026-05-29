@@ -169,10 +169,7 @@ export class PipelineRunService {
     step: PipelineStep | string,
     batchSeq: number,
   ): Promise<BatchIncrement> {
-    const rows: Array<{
-      batches_done: number;
-      batches_planned: number | null;
-    }> = await em.query(
+    const raw: unknown = await em.query(
       `WITH batch_done AS (
           UPDATE core.pipeline_run
           SET status = $4, finished_at = now(), updated_at = now()
@@ -194,6 +191,14 @@ export class PipelineRunService {
         DISPATCH_BATCH_SEQ,
       ],
     );
+    // em.query returns the rows array for SELECT-like statements but
+    // `[rows, affected]` for UPDATE/RETURNING depending on the driver path;
+    // normalize so a tuple result doesn't read back as undefined.
+    const arr = raw as unknown[];
+    const rows = (Array.isArray(arr[0]) ? arr[0] : arr) as Array<{
+      batches_done: number;
+      batches_planned: number | null;
+    }>;
     if (rows.length === 0) {
       throw new Error(
         `completeBatchAndIncrement: no dispatch row for run=${pipelineRunId} step=${step}`,

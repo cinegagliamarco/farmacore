@@ -16,7 +16,7 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 ## Legend
 
 - ✅ **Ported** — direct HTTP equivalent exists today
-- 🔄 **Moved to pipeline/cron** — now an async worker step, triggered by a run, not a dedicated HTTP route
+- ▶️ **Triggerable routine** — runs as an async worker step; an admin can fire it on demand and in isolation via `POST /admin/tenants/:slug/pipeline/steps/:step`
 - ❌ **Not yet ported** — no equivalent in the new app yet (future presentation-layer work)
 
 ---
@@ -40,23 +40,27 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | DELETE | `/admin/tenants/:slug/integration` | `src/admin/controllers/integration.controller.ts` |
 | PUT | `/admin/tenants/:slug/competitor-origins` | `src/admin/controllers/competitor-origins.controller.ts` |
 | POST | `/admin/tenants/:slug/pipeline/start` | `src/admin/controllers/pipeline.controller.ts` |
+| GET | `/admin/tenants/:slug/pipeline/steps` | `src/admin/controllers/pipeline.controller.ts` |
+| POST | `/admin/tenants/:slug/pipeline/steps/:step` | `src/admin/controllers/pipeline.controller.ts` |
 | GET | `/admin/dlq/:step` | `src/admin/controllers/dlq.controller.ts` |
 | POST | `/admin/dlq/:step/replay` | `src/admin/controllers/dlq.controller.ts` |
 
-## Pipeline steps (worker — no HTTP route)
+## Pipeline steps (worker)
 
-Run by `src/main.worker.ts` consumers; started by the cron or `pipeline/start`.
+Run by `src/main.worker.ts` consumers. Two ways to start them:
+- **Whole graph** — `POST /admin/tenants/:slug/pipeline/start` (or the daily cron) runs every step in order, chaining successors.
+- **One routine** — `POST /admin/tenants/:slug/pipeline/steps/:step` runs a single step **in isolation** (`standalone` flag suppresses its successors, so nothing downstream cascades). `GET …/pipeline/steps` lists the valid `:step` values.
 
-| Step | Replaces (legacy) |
+| Step (`:step`) | Replaces (legacy) |
 |---|---|
 | `sync-base-product` | `POST /products/base/synchronize` (+ `/synchronize-active-ingredients`) |
 | `sync-base-product-stock` | `POST /products/base/synchronize-stock` |
 | `sync-offer-books-info` | `POST /offer-books/info/synchronize` |
-| `import-competitor-products` (DROGAL/DROGASIL/MICHELASSI) | `POST /products/import/drogal`, `/import/drogasil` |
-| `import-competitor-stock` (DROGAL/DROGASIL) | `POST /products/import/drogal/stock`, `/import/drogasil/stock` |
+| `import-competitor-products` | `POST /products/import/drogal`, `/import/drogasil` (all enabled origins) |
+| `import-competitor-stock` | `POST /products/import/drogal/stock`, `/import/drogasil/stock` (all enabled origins) |
 | `calc-base-product-metrics` | `POST /products/base/synchronize-metrics` |
 | `update-base-product-properties` | `POST /products/base/generate-properties` |
-| `migrate-tenant` | (new — per-tenant schema migration) |
+| `migrate-tenant` | (new — per-tenant schema migration; not exposed as a routine trigger) |
 
 ---
 
@@ -72,12 +76,12 @@ Run by `src/main.worker.ts` consumers; started by the cron or `pipeline/start`.
 
 | Legacy | New | Status |
 |---|---|---|
-| `POST /products/base/run-daily-pipeline` | `DailyPipelineCron` + `POST /admin/tenants/:slug/pipeline/start` | 🔄 |
-| `POST /products/base/synchronize` | `sync-base-product` step | 🔄 |
-| `POST /products/base/synchronize-stock` | `sync-base-product-stock` step | 🔄 |
-| `POST /products/base/synchronize-metrics` | `calc-base-product-metrics` step | 🔄 |
-| `POST /products/base/synchronize-active-ingredients` | folded into `sync-base-product` step | 🔄 |
-| `POST /products/base/generate-properties` | `update-base-product-properties` step | 🔄 |
+| `POST /products/base/run-daily-pipeline` | `POST /admin/tenants/:slug/pipeline/start` (whole graph) + `DailyPipelineCron` | ✅ |
+| `POST /products/base/synchronize` | `…/pipeline/steps/sync-base-product` | ▶️ |
+| `POST /products/base/synchronize-stock` | `…/pipeline/steps/sync-base-product-stock` | ▶️ |
+| `POST /products/base/synchronize-metrics` | `…/pipeline/steps/calc-base-product-metrics` | ▶️ |
+| `POST /products/base/synchronize-active-ingredients` | folded into `sync-base-product` step | ▶️ |
+| `POST /products/base/generate-properties` | `…/pipeline/steps/update-base-product-properties` | ▶️ |
 | `GET /products/base` | — | ❌ |
 | `GET /products/base/:id` | — | ❌ |
 | `PATCH /products/base/:id` | — | ❌ |
@@ -104,18 +108,20 @@ Run by `src/main.worker.ts` consumers; started by the cron or `pipeline/start`.
 
 | Legacy | New | Status |
 |---|---|---|
-| `POST /products/import/drogal` | `import-competitor-products` (DROGAL) step | 🔄 |
-| `POST /products/import/drogasil` | `import-competitor-products` (DROGASIL) step | 🔄 |
-| `POST /products/import/drogal/stock` | `import-competitor-stock` (DROGAL) step | 🔄 |
-| `POST /products/import/drogasil/stock` | `import-competitor-stock` (DROGASIL) step | 🔄 |
+| `POST /products/import/drogal` | `…/pipeline/steps/import-competitor-products` ¹ | ▶️ |
+| `POST /products/import/drogasil` | `…/pipeline/steps/import-competitor-products` ¹ | ▶️ |
+| `POST /products/import/drogal/stock` | `…/pipeline/steps/import-competitor-stock` ¹ | ▶️ |
+| `POST /products/import/drogasil/stock` | `…/pipeline/steps/import-competitor-stock` ¹ | ▶️ |
 | `GET /products/details/:ean` | — | ❌ |
 | `GET /products/export` | — | ❌ |
+
+> ¹ The routine trigger is per-**step**, not per-origin: it fans out to all origins enabled for the tenant (`tenant_competitor_origin`). Legacy's per-vendor `/import/drogal` vs `/import/drogasil` granularity isn't reproduced — toggle origins via `PUT /admin/tenants/:slug/competitor-origins` instead.
 
 ### `offer-book.controller.ts` (`/offer-books`)
 
 | Legacy | New | Status |
 |---|---|---|
-| `POST /offer-books/info/synchronize` | `sync-offer-books-info` step | 🔄 |
+| `POST /offer-books/info/synchronize` | `…/pipeline/steps/sync-offer-books-info` | ▶️ |
 | `GET /offer-books/info` | — | ❌ |
 
 ### `offer-book-rules.controller.ts` (`/offer-book-rules`)

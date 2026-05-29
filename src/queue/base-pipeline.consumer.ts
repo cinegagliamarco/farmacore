@@ -80,7 +80,8 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
 
           await this.runs.complete(message.pipelineRunId, this.step);
 
-          for (const successor of result.successors) {
+          const successors = message.standalone ? [] : result.successors;
+          for (const successor of successors) {
             await this.publisher.publishStep(successor);
           }
         } catch (err) {

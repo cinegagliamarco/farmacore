@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import type { JwtPayload } from '../../auth/jwt-payload.type';
+import { UserRole } from '../../database/enums/user-role.enum';
 
 @Injectable()
 export class SystemAdminGuard implements CanActivate {
@@ -16,7 +17,7 @@ export class SystemAdminGuard implements CanActivate {
       .getRequest<Request & { user?: JwtPayload }>();
     const user = req.user;
     if (!user) throw new UnauthorizedException();
-    if (user.tenantId !== 'system' || user.role !== 'admin') {
+    if (user.tenantId !== 'system' || user.role !== UserRole.ADMIN) {
       throw new ForbiddenException('System admin required');
     }
     return true;

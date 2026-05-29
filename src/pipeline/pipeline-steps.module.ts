@@ -38,6 +38,7 @@ import { CalcBaseProductMetricsBatchConsumer } from './consumers/calc-base-produ
 import { UpdateBaseProductPropertiesDispatchConsumer } from './consumers/update-base-product-properties.dispatch.consumer';
 import { UpdateBaseProductPropertiesBatchConsumer } from './consumers/update-base-product-properties.batch.consumer';
 import { MigrateTenantConsumer } from './consumers/migrate-tenant.consumer';
+import { BaseProductProjector } from './base-product.projector';
 
 const STEPS = [
   SyncBaseProductStep,
@@ -47,6 +48,7 @@ const STEPS = [
   ImportCompetitorStockStep,
   CalcBaseProductMetricsStep,
   UpdateBaseProductPropertiesStep,
+  BaseProductProjector,
 ];
 
 const CONSUMERS = [

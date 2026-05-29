@@ -87,6 +87,17 @@ export class ProductEntity extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   public status?: string | null;
+
+  // Base-product identity, denormalized here so the system build-base-
+  // products routine aggregates base_product from tenant rows (plan 10).
+  @Column({ type: 'text', nullable: true })
+  public description?: string | null;
+
+  @Column({ name: 'active_ingredient', type: 'text', nullable: true })
+  public activeIngredient?: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  public generic!: boolean;
 }
 
 export interface ProductDeal {
