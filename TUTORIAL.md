@@ -51,9 +51,13 @@ Apply migrations and seed:
 
 ```bash
 npm run migration:run:app                       # core + shared_catalog schemas
-npm run tenant:create acme                      # tenant_acme schema + migrations
+npm run seed:local-tenant                       # macfarma tenant + ERP integration (ngrok)
 npm run seed:system-admin                       # admin@system.local in core."user"
 ```
+
+> `seed:local-tenant` creates the `macfarma` tenant (schema + migrations) and wires
+> its A7Pharma ERP connection to the shared ngrok dev database. It does §5.3 + §5.4
+> for you — those manual curl steps are only needed for *additional* tenants.
 
 > Adjust seed credentials with env: `SEED_ADMIN_EMAIL=you@example.com SEED_ADMIN_PASSWORD=… npm run seed:system-admin`.
 
@@ -303,17 +307,23 @@ The admin API path also seeds `tenant_competitor_origin` rows and creates an ini
 
 ### Run the integration smoke against the local ERP
 
-```bash
-docker compose up -d erp
-docker exec -i farmacore-erp-1 psql -U erp -d erp <<'SQL'
-CREATE TABLE IF NOT EXISTS erp_product (id text PRIMARY KEY, ean text, name text);
-INSERT INTO erp_product VALUES ('1', '7891111111111', 'Sample') ON CONFLICT DO NOTHING;
-SQL
+The `erp` container auto-loads `docker/erp-seed/a7pharma-sample.sql` on first
+boot — a referentially-coherent A7Pharma slice rooted at 10k embalagens (the
+main integration entity) plus their produtos, estoque, custos, classificações,
+cadernos de oferta and recebimentos, so the real entity set is queryable offline.
 
+```bash
+docker compose up -d erp           # initdb loads the A7Pharma sample
 npx ts-node scripts/smoke-integration.ts acme
 # → test: { ok: true }
-# → rows: [ { id: '1', ean: '7891111111111', name: 'Sample' } ]
 ```
+
+> The seed only loads into a **fresh** erp volume. To reload after changing the
+> sample: `docker compose rm -sf erp && docker volume rm farmacore_erpdata && docker compose up -d erp`.
+>
+> Regenerate the sample from a live ERP (defaults to the macfarma ngrok dev DB;
+> override with `A7PHARMA_SOURCE_URL` / `A7PHARMA_SAMPLE_SIZE`):
+> `npx ts-node scripts/dump-a7pharma-sample.ts`.
 
 ### Trigger a pipeline run locally
 

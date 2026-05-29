@@ -22,7 +22,9 @@ services:
       POSTGRES_PASSWORD: erp
       POSTGRES_DB: erp
     ports: ["5435:5432"]
-    volumes: ["erpdata:/var/lib/postgresql/data"]
+    volumes:
+      - "erpdata:/var/lib/postgresql/data"
+      - "./docker/erp-seed:/docker-entrypoint-initdb.d:ro"
 
 volumes:
   pgdata:
