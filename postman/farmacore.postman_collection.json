@@ -7,7 +7,7 @@
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000" },
-    { "key": "tenantSlug", "value": "acme" },
+    { "key": "tenantSlug", "value": "macfarma" },
     { "key": "step", "value": "sync-base-product" },
     { "key": "accessToken", "value": "" },
     { "key": "refreshToken", "value": "" }
@@ -60,7 +60,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@system.local\",\n  \"password\": \"devpassword-please-change\",\n  \"tenantSlug\": \"system\"\n}"
+              "raw": "{\n  \"email\": \"admin@system.local\",\n  \"password\": \"changeme-please-32-chars-or-more\",\n  \"tenantSlug\": \"system\"\n}"
             },
             "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
             "description": "Returns `{ accessToken, refreshToken, expiresIn }`. The test script stores both tokens as collection variables for subsequent requests."
@@ -234,7 +234,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": true, \"priority\": 100 },\n    { \"origin\": \"DROGASIL\", \"enabled\": true, \"priority\": 50 },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false }\n  ]\n}"
+              "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": true, \"priority\": 100 },\n    { \"origin\": \"DROGASIL\", \"enabled\": true, \"priority\": 50 },\n    { \"origin\": \"MICHELASSI\", \"enabled\": true, \"priority\": 10 }\n  ]\n}"
             },
             "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "competitor-origins"] },
             "description": "Each entry has `{ origin, enabled, priority?, config? }`. Runs inside the tenant schema's transaction (search_path set)."
@@ -245,7 +245,7 @@
     },
     {
       "name": "Admin — Pipeline",
-      "description": "Plan 06 — `src/admin/controllers/pipeline.controller.ts`. Triggers a manual pipeline run.",
+      "description": "Plan 06 — `src/admin/controllers/pipeline.controller.ts`. Triggers the full pipeline run or a single routine.",
       "item": [
         {
           "name": "POST /admin/tenants/:slug/pipeline/start",
@@ -253,7 +253,27 @@
             "method": "POST",
             "header": [],
             "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/pipeline/start", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "pipeline", "start"] },
-            "description": "Publishes a `pipeline.start` AMQP message for the tenant. Returns `{ pipelineRunId }`. Track progress in `core.pipeline_run`."
+            "description": "Publishes a `pipeline.start` AMQP message for the tenant — runs the WHOLE step graph, chaining successors. Returns `{ pipelineRunId }`. Track progress in `core.pipeline_run`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/tenants/:slug/pipeline/steps",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/pipeline/steps", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "pipeline", "steps"] },
+            "description": "Lists the routines an admin can trigger individually. Returns `{ steps: [...] }` (the PipelineStep enum values)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/tenants/:slug/pipeline/steps/:step",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/pipeline/steps/{{step}}", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "pipeline", "steps", "{{step}}"] },
+            "description": "Runs a single routine IN ISOLATION (the `standalone` flag suppresses its successors, so nothing downstream cascades). New run id per call. `:step` must be one of the values from GET …/pipeline/steps (e.g. `sync-base-product`, `import-competitor-products`); 400 otherwise. Returns `{ pipelineRunId, step }`."
           },
           "response": []
         }

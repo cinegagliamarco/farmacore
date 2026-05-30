@@ -18,6 +18,9 @@ export interface ProductUpsertInput {
   monitored?: boolean;
   classificationId?: string | null;
   deals?: Record<string, ProductDeal> | null;
+  description?: string | null;
+  activeIngredient?: string | null;
+  generic?: boolean;
 }
 
 /**
@@ -44,6 +47,7 @@ export class ProductRepository {
         ...d,
         active: d.active ?? true,
         monitored: d.monitored ?? false,
+        generic: d.generic ?? false,
       })),
       { conflictPaths: ['ean'], skipUpdateIfNoValuesChanged: true },
     );

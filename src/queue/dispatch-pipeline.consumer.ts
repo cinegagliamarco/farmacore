@@ -125,7 +125,7 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
                   em,
                   message.pipelineRunId,
                   message.tenantId,
-                  r.emptySuccessors ?? [],
+                  message.standalone ? [] : (r.emptySuccessors ?? []),
                 );
               }
               return r;
@@ -145,7 +145,10 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
             result.batches.length,
           );
           for (const batch of result.batches) {
-            await this.publisher.publishStep(batch);
+            await this.publisher.publishStep({
+              ...batch,
+              standalone: message.standalone,
+            });
           }
           await this.runs.complete(message.pipelineRunId, this.logicalStep);
           this.logger.log(

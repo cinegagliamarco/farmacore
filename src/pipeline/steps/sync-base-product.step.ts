@@ -9,10 +9,8 @@ import {
 import { ItemCadernoOfertaQuantidadeEntity } from '../../integration/entities/a7pharma/item-caderno-oferta-quantidade.entity';
 import { ClassificacaoProdutoEntity } from '../../integration/entities/a7pharma/classificacao-produto.entity';
 import { CustoProdutoEntity } from '../../integration/entities/a7pharma/custo-produto.entity';
-import {
-  BaseProductRepository,
-  BaseProductUpsertInput,
-} from '../../database/repositories/shared-catalog/base-product.repository';
+import { BaseProductUpsertInput } from '../../database/repositories/shared-catalog/base-product.repository';
+import { BaseProductProjector } from '../base-product.projector';
 import {
   ProductRepository,
   ProductUpsertInput,
@@ -46,6 +44,8 @@ interface SyncBaseProductBatchResult {
 export class SyncBaseProductStep {
   private readonly logger = new Logger(SyncBaseProductStep.name);
 
+  constructor(private readonly baseProductProjector: BaseProductProjector) {}
+
   public async run(
     em: EntityManager,
     integrationDs: DataSource | null,
@@ -60,7 +60,6 @@ export class SyncBaseProductStep {
     if (embalagemIds.length === 0) return { processed: 0, skipped: 0 };
 
     const a7 = new A7PharmaRepositories(integrationDs);
-    const baseProductRepo = new BaseProductRepository(em);
     const productRepo = new ProductRepository(em);
     const classificationRepo = new ClassificationRepository(em);
     const offerBookRepo = new OfferBookRepository(em);
@@ -155,6 +154,10 @@ export class SyncBaseProductStep {
         monitored: record.produto?.tipopreco === 'M',
         classificationPath,
         deals: this.buildDeals(quantitiesByEmbalagemId[String(record.id)]),
+        // Base-product identity, denormalized for plan-10 aggregation.
+        description: record.apresentacao ?? null,
+        activeIngredient,
+        generic: isGeneric,
       });
 
       const offer = offerByEmbalagemId[String(record.id)];
@@ -171,7 +174,9 @@ export class SyncBaseProductStep {
       }
     }
 
-    await baseProductRepo.insertNewByEan(baseProductInputs);
+    // base_product is projected in its own tx (decoupled from this tenant
+    // batch) — created once per EAN, skipped if it already exists.
+    await this.baseProductProjector.project(baseProductInputs);
 
     const productInputs: ProductUpsertInput[] = productSeeds.map((seed) => {
       const { classificationPath, ...rest } = seed;

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { randomUUID } from 'node:crypto';
-import { EXCHANGE_NAME } from './constants';
+import { EXCHANGE_NAME, STEP_QUEUES, dispatchStep } from './constants';
 import {
   PipelineMessage,
   PipelineStartPayload,
@@ -32,6 +32,32 @@ export class PipelinePublisher {
         persistent: true,
       },
     );
+    return pipelineRunId;
+  }
+
+  /**
+   * Trigger a single step in isolation (admin "run one routine"). New
+   * run id, `standalone` set so the step doesn't chain its successors.
+   * Routes to the step's entry queue: its `.dispatch` for batched /
+   * per-origin steps, or the bare step queue for single-queue steps.
+   */
+  public async publishSingleStep(
+    tenantSlug: string,
+    step: PipelineStep,
+  ): Promise<string> {
+    const pipelineRunId = randomUUID();
+    const queue = STEP_QUEUES.includes(step) ? step : dispatchStep(step);
+    const message = newPipelineMessage({
+      pipelineRunId,
+      tenantId: tenantSlug,
+      step,
+      queue,
+      payload: {},
+      standalone: true,
+    });
+    await this.amqp.publish(EXCHANGE_NAME, `${tenantSlug}.${queue}`, message, {
+      persistent: true,
+    });
     return pipelineRunId;
   }
 

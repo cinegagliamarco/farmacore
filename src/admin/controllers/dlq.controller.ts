@@ -10,13 +10,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../database/enums/user-role.enum';
 import { SystemAdminGuard } from '../guards/system-admin.guard';
 import { DlqService } from '../services/dlq.service';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 
 @Controller('admin/dlq')
 @UseGuards(SystemAdminGuard)
-@Roles('admin')
+@Roles(UserRole.ADMIN)
 export class DlqController {
   constructor(private readonly svc: DlqService) {}
 

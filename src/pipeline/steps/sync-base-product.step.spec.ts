@@ -10,7 +10,10 @@ import type { ClassificacaoProdutoEntity } from '../../integration/entities/a7ph
  * against real Postgres + a stubbed A7Pharma DataSource.
  */
 describe('SyncBaseProductStep helpers', () => {
-  const step = new SyncBaseProductStep();
+  // Projector is unused by these pure-helper tests.
+  const step = new SyncBaseProductStep(
+    null as unknown as ConstructorParameters<typeof SyncBaseProductStep>[0],
+  );
   // Reach into private helpers via type-cast; pragmatic alternative to
   // a separate utility module just for testability. parseEan lives in
   // the a7pharma chunker module so dispatcher + step share one parser.

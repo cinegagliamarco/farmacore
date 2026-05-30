@@ -1,7 +1,7 @@
 import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '../base.entity';
+import { UserRole } from '../../enums/user-role.enum';
 
-export type UserRole = 'admin' | 'operator' | 'viewer';
 export type UserStatus = 'active' | 'disabled';
 
 @Entity({ schema: 'core', name: 'user' })

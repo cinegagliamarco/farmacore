@@ -1,4 +1,4 @@
-import type { UserRole } from '../database/entities/core/user.entity';
+import type { UserRole } from '../database/enums/user-role.enum';
 
 export interface JwtPayload {
   sub: string;
