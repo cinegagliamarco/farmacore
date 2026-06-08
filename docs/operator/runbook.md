@@ -200,20 +200,21 @@ Stuck:
 
 ## DLQ debugging
 
-> ⚠️ **Known gap (dlq-v2-coverage):** the admin DLQ API
-> (`GET/POST /admin/dlq/:step`) only works for `sync-offer-books-info`.
-> It validates `:step` against `STEP_QUEUES` (v1) and reads `<step>.dlq`,
-> which doesn't exist for the v2 batched/per-origin steps. For every
-> other step, use the AMQP management UI or the node snippet below
-> against the real DLQ name. Tracked by `TODO(dlq-v2-coverage)` in
-> `src/admin/services/dlq.service.ts`.
+The admin DLQ API operates on real queue names (every v1, v2 batched,
+and per-origin queue). Discover them, then peek/replay:
+
+```
+GET  /admin/dlq                        → { queues: [...] }
+GET  /admin/dlq/<queue>?limit=50       → peek (non-destructive)
+POST /admin/dlq/<queue>/replay?max=100 → re-publish with attempt=1
+```
 
 Per-queue DLQs follow `<queue>.dlq`. E.g.:
-- `sync-base-product.batch.dlq`
-- `import-competitor-products.DROGAL.dlq`
+- queue `sync-base-product.batch` → `sync-base-product.batch.dlq`
+- queue `import-competitor-products.DROGAL` → `import-competitor-products.DROGAL.dlq`
 
-Read messages without consuming via AMQP management UI ("Get
-messages" → "Ack mode: Reject requeue=false"). Or programmatically:
+You can also read messages without consuming via the AMQP management UI
+("Get messages" → "Ack mode: Reject requeue=false"). Or programmatically:
 
 ```bash
 node -e "

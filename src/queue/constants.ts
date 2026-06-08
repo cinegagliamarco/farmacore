@@ -55,6 +55,26 @@ export const originStep = (
 ): string => `${step}.${origin}`;
 
 /**
+ * Every consumer queue name that has a `<name>.dlq` mirror — the single
+ * source of truth for both queue declaration (QueueModule) and DLQ
+ * tooling (DlqService). Covers v1 single-queue steps, v2 batched steps
+ * (dispatch + batch), and per-origin scrape steps (dispatch + per origin).
+ */
+export const allStepQueueNames = (): string[] => {
+  const names: string[] = [...STEP_QUEUES];
+  for (const step of BATCHED_STEPS) {
+    names.push(dispatchStep(step), batchStep(step));
+  }
+  for (const [stepKey, origins] of Object.entries(PER_ORIGIN_STEPS)) {
+    const step = stepKey as PipelineStep;
+    if (!origins) continue;
+    names.push(dispatchStep(step));
+    for (const origin of origins) names.push(originStep(step, origin));
+  }
+  return names;
+};
+
+/**
  * Per-queue prefetch (= concurrency). Keyed by actual queue name.
  * Mirrors legacy per-process concurrency: the bulk-DB steps ran their
  * 1000-row batches sequentially (prefetch 1); the scrapers ran N

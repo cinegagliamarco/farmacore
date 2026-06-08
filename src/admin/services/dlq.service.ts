@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
-import { EXCHANGE_NAME, STEP_QUEUES } from '../../queue/constants';
-import { PipelineStep } from '../../database/enums/pipeline-step.enum';
+import { EXCHANGE_NAME, allStepQueueNames } from '../../queue/constants';
 
 export interface DlqMessage {
   routingKey: string;
@@ -11,27 +10,24 @@ export interface DlqMessage {
 }
 
 /**
- * TODO(dlq-v2-coverage): only covers v1 single-queue steps. After plan
- * 05 v2, STEP_QUEUES holds only `sync-offer-books-info`, so peek/replay
- * 404 for every batched/per-origin step. The real DLQs are `<queue>.dlq`
- * for each declared queue:
- *   - BATCHED_STEPS    → `<step>.dispatch.dlq` + `<step>.batch.dlq`
- *   - PER_ORIGIN_STEPS → `<step>.dispatch.dlq` + `<step>.<ORIGIN>.dlq`
- * Fix: make the controller/service operate on real queue names
- * (enumerate STEP_QUEUES + batched + per-origin) instead of the logical
- * PipelineStep, so the 6 high-volume steps become reachable. Found in QA
- * (validation test 8, 2026-06-08).
+ * Peek/replay dead-lettered messages. Operates on real queue names
+ * (`allStepQueueNames()` — v1 single-queue, v2 dispatch/batch, per-origin)
+ * so every step's DLQ is reachable, not just the v1 ones.
  */
 @Injectable()
 export class DlqService {
   constructor(private readonly amqp: AmqpConnection) {}
 
-  public async peek(step: PipelineStep, limit = 50): Promise<DlqMessage[]> {
-    this.assertStep(step);
+  public listQueues(): string[] {
+    return allStepQueueNames();
+  }
+
+  public async peek(queue: string, limit = 50): Promise<DlqMessage[]> {
+    this.assertQueue(queue);
     const channel = this.amqp.channel;
     const out: DlqMessage[] = [];
     for (let i = 0; i < limit; i++) {
-      const msg = await channel.get(`${step}.dlq`, { noAck: false });
+      const msg = await channel.get(`${queue}.dlq`, { noAck: false });
       if (!msg) break;
       out.push({
         routingKey: msg.fields.routingKey,
@@ -44,15 +40,12 @@ export class DlqService {
     return out;
   }
 
-  public async replay(
-    step: PipelineStep,
-    max = 100,
-  ): Promise<{ replayed: number }> {
-    this.assertStep(step);
+  public async replay(queue: string, max = 100): Promise<{ replayed: number }> {
+    this.assertQueue(queue);
     const channel = this.amqp.channel;
     let replayed = 0;
     for (let i = 0; i < max; i++) {
-      const msg = await channel.get(`${step}.dlq`, { noAck: false });
+      const msg = await channel.get(`${queue}.dlq`, { noAck: false });
       if (!msg) break;
       const body = JSON.parse(msg.content.toString()) as Record<
         string,
@@ -73,8 +66,8 @@ export class DlqService {
     return { replayed };
   }
 
-  private assertStep(step: PipelineStep): void {
-    if (!STEP_QUEUES.includes(step))
-      throw new NotFoundException(`Unknown step ${step}`);
+  private assertQueue(queue: string): void {
+    if (!allStepQueueNames().includes(queue))
+      throw new NotFoundException(`Unknown queue ${queue}`);
   }
 }
