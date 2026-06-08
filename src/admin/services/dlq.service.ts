@@ -10,6 +10,18 @@ export interface DlqMessage {
   headers: Record<string, unknown>;
 }
 
+/**
+ * TODO(dlq-v2-coverage): only covers v1 single-queue steps. After plan
+ * 05 v2, STEP_QUEUES holds only `sync-offer-books-info`, so peek/replay
+ * 404 for every batched/per-origin step. The real DLQs are `<queue>.dlq`
+ * for each declared queue:
+ *   - BATCHED_STEPS    → `<step>.dispatch.dlq` + `<step>.batch.dlq`
+ *   - PER_ORIGIN_STEPS → `<step>.dispatch.dlq` + `<step>.<ORIGIN>.dlq`
+ * Fix: make the controller/service operate on real queue names
+ * (enumerate STEP_QUEUES + batched + per-origin) instead of the logical
+ * PipelineStep, so the 6 high-volume steps become reachable. Found in QA
+ * (validation test 8, 2026-06-08).
+ */
 @Injectable()
 export class DlqService {
   constructor(private readonly amqp: AmqpConnection) {}

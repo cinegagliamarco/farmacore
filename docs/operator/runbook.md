@@ -200,6 +200,14 @@ Stuck:
 
 ## DLQ debugging
 
+> ⚠️ **Known gap (dlq-v2-coverage):** the admin DLQ API
+> (`GET/POST /admin/dlq/:step`) only works for `sync-offer-books-info`.
+> It validates `:step` against `STEP_QUEUES` (v1) and reads `<step>.dlq`,
+> which doesn't exist for the v2 batched/per-origin steps. For every
+> other step, use the AMQP management UI or the node snippet below
+> against the real DLQ name. Tracked by `TODO(dlq-v2-coverage)` in
+> `src/admin/services/dlq.service.ts`.
+
 Per-queue DLQs follow `<queue>.dlq`. E.g.:
 - `sync-base-product.batch.dlq`
 - `import-competitor-products.DROGAL.dlq`
