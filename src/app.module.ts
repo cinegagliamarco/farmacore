@@ -10,6 +10,7 @@ import { IntegrationModule } from './integration/integration.module';
 import { QueueModule } from './queue/queue.module';
 import { PipelineStepsModule } from './pipeline/pipeline-steps.module';
 import { AdminModule } from './admin/admin.module';
+import { ProductsModule } from './products/products.module';
 import { ObservabilityModule } from './observability/observability.module';
 
 @Module({
@@ -24,6 +25,7 @@ import { ObservabilityModule } from './observability/observability.module';
     QueueModule,
     PipelineStepsModule.forRoot({ withConsumers: false }),
     AdminModule,
+    ProductsModule,
     ObservabilityModule,
   ],
   providers: [

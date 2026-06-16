@@ -82,6 +82,7 @@ export class SharedProductRepository {
     });
     await repo.upsert(rows, {
       conflictPaths: ['ean', 'origin'],
+      indexPredicate: 'deleted_at IS NULL',
       skipUpdateIfNoValuesChanged: true,
     });
   }

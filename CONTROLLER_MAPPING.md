@@ -44,6 +44,7 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | POST | `/admin/tenants/:slug/pipeline/steps/:step` | `src/admin/controllers/pipeline.controller.ts` |
 | GET | `/admin/dlq/:step` | `src/admin/controllers/dlq.controller.ts` |
 | POST | `/admin/dlq/:step/replay` | `src/admin/controllers/dlq.controller.ts` |
+| POST | `/products/:ean/import` | `src/products/products.controller.ts` |
 
 ## Pipeline steps (worker)
 
@@ -112,10 +113,12 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `POST /products/import/drogasil` | `…/pipeline/steps/import-competitor-products` ¹ | ▶️ |
 | `POST /products/import/drogal/stock` | `…/pipeline/steps/import-competitor-stock` ¹ | ▶️ |
 | `POST /products/import/drogasil/stock` | `…/pipeline/steps/import-competitor-stock` ¹ | ▶️ |
-| `GET /products/details/:ean` | — | ❌ |
+| `GET /products/details/:ean` | `POST /products/:ean/import` | ✅ ² |
 | `GET /products/export` | — | ❌ |
 
 > ¹ The routine trigger is per-**step**, not per-origin: it fans out to all origins enabled for the tenant (`tenant_competitor_origin`). Legacy's per-vendor `/import/drogal` vs `/import/drogasil` granularity isn't reproduced — toggle origins via `PUT /admin/tenants/:slug/competitor-origins` instead.
+>
+> ² Synchronous single-EAN port of legacy `GetSingleProductUseCase`: live-scrapes every implemented origin (Drogal, Drogasil, Michelassi — Pague Menos/Ikesaki aren't ported), persists into `shared_catalog` (`product`, `product_image`, `product_stock`, `base_product`), and returns the merged cross-origin view. Touches the shared catalog only — no tenant data — so it's JWT-guarded but not tenant-scoped.
 
 ### `offer-book.controller.ts` (`/offer-books`)
 
