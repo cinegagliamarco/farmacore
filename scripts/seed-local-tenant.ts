@@ -2,6 +2,7 @@ import 'dotenv/config';
 import * as crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { DataSource } from 'typeorm';
+import { CompetitorOrigin } from '../src/database/enums/competitor-origin.enum';
 
 // Local-dev seed: the first tenant and the ERP integration it points at.
 // Reproducible counterpart to TUTORIAL.md §2 — replaces the manual
@@ -49,7 +50,7 @@ async function main(): Promise<void> {
   });
   await ds.initialize();
   try {
-    const [tenant] = await ds.query(`SELECT id FROM core.tenant WHERE slug = $1`, [SLUG]);
+    const [tenant] = await ds.query(`SELECT id, schema_name FROM core.tenant WHERE slug = $1`, [SLUG]);
     if (!tenant) throw new Error(`tenant ${SLUG} not found after create`);
 
     await ds.query(
@@ -83,6 +84,18 @@ async function main(): Promise<void> {
       ],
     );
     console.log(`Tenant ${SLUG} integration wired → ${INTEGRATION.host}:${INTEGRATION.port}/${INTEGRATION.database}`);
+
+    // Mirror tenant-onboarding.service.ts: seed every origin disabled so the
+    // admin competitor-origins PUT (UPDATE-only) has rows to flip.
+    await ds.query(`SET search_path TO "${tenant.schema_name}", shared_catalog, public`);
+    for (const origin of Object.values(CompetitorOrigin)) {
+      await ds.query(
+        `INSERT INTO tenant_competitor_origin (origin, enabled) VALUES ($1, false)
+         ON CONFLICT (origin) DO NOTHING`,
+        [origin],
+      );
+    }
+    console.log(`Tenant ${SLUG} competitor origins seeded (${Object.values(CompetitorOrigin).length} disabled)`);
   } finally {
     await ds.destroy();
   }
