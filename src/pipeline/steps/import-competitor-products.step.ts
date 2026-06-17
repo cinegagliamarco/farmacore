@@ -5,6 +5,7 @@ import { SharedProductRepository } from '../../database/repositories/shared-cata
 import { DrogalScraper } from '../../scrapers/drogal/drogal.scraper';
 import { DrogasilScraper } from '../../scrapers/drogasil/drogasil.scraper';
 import { MichelassiScraper } from '../../scrapers/michelassi/michelassi.scraper';
+import { PagueMenosScraper } from '../../scrapers/pague-menos/pague-menos.scraper';
 import { ProductScraper, ScrapedProduct } from '../../scrapers/types';
 import { CompetitorImageService } from '../../storage/competitor-image.service';
 
@@ -27,6 +28,7 @@ export class ImportCompetitorProductsStep {
     private readonly drogal: DrogalScraper,
     private readonly drogasil: DrogasilScraper,
     private readonly michelassi: MichelassiScraper,
+    private readonly pagueMenos: PagueMenosScraper,
     private readonly images: CompetitorImageService,
   ) {}
 
@@ -57,6 +59,8 @@ export class ImportCompetitorProductsStep {
         return this.drogasil;
       case CompetitorOrigin.MICHELASSI:
         return this.michelassi;
+      case CompetitorOrigin.PAGUE_MENOS:
+        return this.pagueMenos;
       default:
         throw new Error(`No product scraper registered for origin ${origin}`);
     }

@@ -31,6 +31,10 @@ const QUEUE_MICHELASSI = originStep(
   PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
   CompetitorOrigin.MICHELASSI,
 );
+const QUEUE_PAGUE_MENOS = originStep(
+  PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+  CompetitorOrigin.PAGUE_MENOS,
+);
 
 /**
  * One thin per-origin batch consumer per scrape queue. They all share
@@ -157,6 +161,34 @@ export class ImportCompetitorProductsMichelassiConsumer extends CompetitorProduc
     createQueueIfNotExists: false,
     queue: QUEUE_MICHELASSI,
     queueOptions: { channel: QUEUE_MICHELASSI },
+  })
+  public consume(
+    message: PipelineMessage<ImportCompetitorProductsBatchPayload>,
+  ): Promise<void> {
+    return this.process(message);
+  }
+}
+
+@Injectable()
+export class ImportCompetitorProductsPagueMenosConsumer extends CompetitorProductsBatchBase {
+  constructor(
+    stepImpl: ImportCompetitorProductsStep,
+    runs: PipelineRunService,
+    retry: RetryService,
+    tx: TenantTransactionService,
+    tenants: TenantService,
+    integration: IntegrationDataSourceFactory,
+    publisher: PipelinePublisher,
+  ) {
+    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+  }
+
+  @RabbitSubscribe({
+    exchange: EXCHANGE_NAME,
+    routingKey: `*.${QUEUE_PAGUE_MENOS}`,
+    createQueueIfNotExists: false,
+    queue: QUEUE_PAGUE_MENOS,
+    queueOptions: { channel: QUEUE_PAGUE_MENOS },
   })
   public consume(
     message: PipelineMessage<ImportCompetitorProductsBatchPayload>,
