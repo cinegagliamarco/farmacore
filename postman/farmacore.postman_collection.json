@@ -2,19 +2,44 @@
   "info": {
     "_postman_id": "00000000-0000-4000-8000-000000000001",
     "name": "Farmacore",
-    "description": "HTTP surface for the Farmacore API. Kept in sync with `plans/` — every plan that touches a controller updates this file. Use the `baseUrl` and `tenantSlug` collection variables.",
+    "description": "HTTP surface for the Farmacore API. Kept in sync with `plans/` \u2014 every plan that touches a controller updates this file. Use the `baseUrl` and `tenantSlug` collection variables.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3000" },
-    { "key": "tenantSlug", "value": "macfarma" },
-    { "key": "step", "value": "sync-base-product" },
-    { "key": "accessToken", "value": "" },
-    { "key": "refreshToken", "value": "" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "tenantSlug",
+      "value": "macfarma"
+    },
+    {
+      "key": "step",
+      "value": "sync-base-product"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "ean",
+      "value": "7894916508353"
+    }
   ],
   "auth": {
     "type": "bearer",
-    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
   },
   "item": [
     {
@@ -23,10 +48,20 @@
         {
           "name": "GET /health",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] },
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
             "description": "Public liveness endpoint. Returns `{ \"status\": \"ok\" }`. Defined in `src/health/health.controller.ts` (Plan 00 / 07). Marked @Public() so the global JwtAuthGuard does not block it."
           },
           "response": []
@@ -35,7 +70,7 @@
     },
     {
       "name": "Auth",
-      "description": "Plan 02 — `src/auth/auth.controller.ts`. Login, refresh, logout, and current user.",
+      "description": "Plan 02 \u2014 `src/auth/auth.controller.ts`. Login, refresh, logout, and current user.",
       "item": [
         {
           "name": "POST /auth/login",
@@ -55,14 +90,30 @@
             }
           ],
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"admin@system.local\",\n  \"password\": \"changeme-please-32-chars-or-more\",\n  \"tenantSlug\": \"system\"\n}"
             },
-            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "description": "Returns `{ accessToken, refreshToken, expiresIn }`. The test script stores both tokens as collection variables for subsequent requests."
           },
           "response": []
@@ -85,14 +136,30 @@
             }
           ],
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
             },
-            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
             "description": "Rotates the refresh token; returns new `{ accessToken, refreshToken, expiresIn }`."
           },
           "response": []
@@ -102,7 +169,16 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] },
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
             "description": "Returns the decoded JwtPayload (`sub`, `tenantId`, `role`). Bearer token required."
           },
           "response": []
@@ -112,7 +188,16 @@
           "request": {
             "method": "POST",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] },
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
             "description": "Revokes the current user's outstanding refresh tokens. 204 No Content on success."
           },
           "response": []
@@ -120,19 +205,33 @@
       ]
     },
     {
-      "name": "Admin — Tenants",
-      "description": "Plan 06 — `src/admin/controllers/tenants.controller.ts`. All routes require a token whose tenantId === 'system' and role === 'admin' (SystemAdminGuard).",
+      "name": "Admin \u2014 Tenants",
+      "description": "Plan 06 \u2014 `src/admin/controllers/tenants.controller.ts`. All routes require a token whose tenantId === 'system' and role === 'admin' (SystemAdminGuard).",
       "item": [
         {
           "name": "POST /admin/tenants",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"slug\": \"acme\",\n  \"name\": \"Acme\",\n  \"adminEmail\": \"admin@acme.test\"\n}"
             },
-            "url": { "raw": "{{baseUrl}}/admin/tenants", "host": ["{{baseUrl}}"], "path": ["admin", "tenants"] },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants"
+              ]
+            },
             "description": "Onboards a tenant: writes core.tenant row, creates the schema, runs tenant template migrations, seeds tenant_competitor_origin rows, and creates an initial admin user with a one-time random password. Returns `{ slug, schemaName, initialAdminUser: { email, oneTimePassword } }`."
           },
           "response": []
@@ -142,7 +241,16 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/admin/tenants", "host": ["{{baseUrl}}"], "path": ["admin", "tenants"] },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants"
+              ]
+            },
             "description": "Lists all tenants ordered by slug."
           },
           "response": []
@@ -152,7 +260,17 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}"] },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}"
+              ]
+            },
             "description": "Returns one tenant row by slug. 404 if not found."
           },
           "response": []
@@ -161,12 +279,28 @@
           "name": "PATCH /admin/tenants/:slug/status",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"paused\"\n}"
             },
-            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/status", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "status"] },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "status"
+              ]
+            },
             "description": "Changes status. One of `active | paused | suspended`."
           },
           "response": []
@@ -176,7 +310,17 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}"] },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}"
+              ]
+            },
             "description": "Soft-delete: sets `status=suspended` and stamps `deleted_at`. The 30-day grace + R2 dump + schema drop is a follow-up (see Plan 06 open questions)."
           },
           "response": []
@@ -184,19 +328,35 @@
       ]
     },
     {
-      "name": "Admin — Integration",
-      "description": "Plan 06 — `src/admin/controllers/integration.controller.ts`. Wraps Plan 03's `IntegrationConnectionService`.",
+      "name": "Admin \u2014 Integration",
+      "description": "Plan 06 \u2014 `src/admin/controllers/integration.controller.ts`. Wraps Plan 03's `IntegrationConnectionService`.",
       "item": [
         {
           "name": "PUT /admin/tenants/:slug/integration",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"origin\": \"a7pharma\",\n  \"name\": \"ERP\",\n  \"host\": \"localhost\",\n  \"port\": 5435,\n  \"database\": \"erp\",\n  \"username\": \"erp\",\n  \"password\": \"erp\",\n  \"sslMode\": \"disable\",\n  \"readOnly\": true\n}"
             },
-            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/integration", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "integration"] },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/integration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "integration"
+              ]
+            },
             "description": "Upserts the tenant's ERP connection. `origin` selects the vendor entity set (v1: `a7pharma`). Password is encrypted with AES-256-GCM via CredentialEncryptionService. Invalidates the per-tenant DataSource cache. Returns `{ status }`."
           },
           "response": []
@@ -206,7 +366,19 @@
           "request": {
             "method": "POST",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/integration/test", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "integration", "test"] },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/integration/test",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "integration",
+                "test"
+              ]
+            },
             "description": "Connects to the stored ERP and runs `SELECT 1`. Persists `last_verified_at` on success or `last_error` on failure. Returns `{ ok: true }` or `{ ok: false, error }`."
           },
           "response": []
@@ -216,7 +388,18 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/integration", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "integration"] },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/integration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "integration"
+              ]
+            },
             "description": "Marks the connection `status=disabled` and invalidates the cache."
           },
           "response": []
@@ -224,36 +407,64 @@
       ]
     },
     {
-      "name": "Admin — Competitor origins",
-      "description": "Plan 06 — `src/admin/controllers/competitor-origins.controller.ts`. Bulk update of `tenant_competitor_origin` rows in the tenant's schema.",
+      "name": "Admin \u2014 Competitor origins",
+      "description": "Plan 06 \u2014 `src/admin/controllers/competitor-origins.controller.ts`. Bulk update of `tenant_competitor_origin` rows in the tenant's schema.",
       "item": [
         {
           "name": "PUT /admin/tenants/:slug/competitor-origins",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": true, \"priority\": 100 },\n    { \"origin\": \"DROGASIL\", \"enabled\": true, \"priority\": 50 },\n    { \"origin\": \"MICHELASSI\", \"enabled\": true, \"priority\": 10 }\n  ]\n}"
+              "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": true, \"priority\": 100 },\n    { \"origin\": \"DROGASIL\", \"enabled\": true, \"priority\": 90 },\n    { \"origin\": \"MICHELASSI\", \"enabled\": true, \"priority\": 80 },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": true, \"priority\": 70 },\n    { \"origin\": \"IKESAKI\", \"enabled\": true, \"priority\": 60 }\n  ]\n}"
             },
-            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "competitor-origins"] },
-            "description": "Each entry has `{ origin, enabled, priority?, config? }`. Runs inside the tenant schema's transaction (search_path set)."
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "competitor-origins"
+              ]
+            },
+            "description": "Bulk-set which competitors the tenant scrapes. Each entry `{ origin, enabled, priority?, config? }`. UPDATE-only \u2014 rows are seeded (disabled) on tenant onboarding. Stored in `core.tenant_competitor_origin` keyed by tenant_id."
           },
           "response": []
         }
       ]
     },
     {
-      "name": "Admin — Pipeline",
-      "description": "Plan 06 — `src/admin/controllers/pipeline.controller.ts`. Triggers the full pipeline run or a single routine.",
+      "name": "Admin \u2014 Pipeline",
+      "description": "Plan 06 \u2014 `src/admin/controllers/pipeline.controller.ts`. Triggers the full pipeline run or a single routine.",
       "item": [
         {
           "name": "POST /admin/tenants/:slug/pipeline/start",
           "request": {
             "method": "POST",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/pipeline/start", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "pipeline", "start"] },
-            "description": "Publishes a `pipeline.start` AMQP message for the tenant — runs the WHOLE step graph, chaining successors. Returns `{ pipelineRunId }`. Track progress in `core.pipeline_run`."
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/pipeline/start",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "pipeline",
+                "start"
+              ]
+            },
+            "description": "Publishes a `pipeline.start` AMQP message for the tenant \u2014 runs the WHOLE step graph, chaining successors. Returns `{ pipelineRunId }`. Track progress in `core.pipeline_run`."
           },
           "response": []
         },
@@ -262,7 +473,19 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/pipeline/steps", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "pipeline", "steps"] },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/pipeline/steps",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "pipeline",
+                "steps"
+              ]
+            },
             "description": "Lists the routines an admin can trigger individually. Returns `{ steps: [...] }` (the PipelineStep enum values)."
           },
           "response": []
@@ -272,16 +495,29 @@
           "request": {
             "method": "POST",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/pipeline/steps/{{step}}", "host": ["{{baseUrl}}"], "path": ["admin", "tenants", "{{tenantSlug}}", "pipeline", "steps", "{{step}}"] },
-            "description": "Runs a single routine IN ISOLATION (the `standalone` flag suppresses its successors, so nothing downstream cascades). New run id per call. `:step` must be one of the values from GET …/pipeline/steps (e.g. `sync-base-product`, `import-competitor-products`); 400 otherwise. Returns `{ pipelineRunId, step }`."
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/pipeline/steps/{{step}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "pipeline",
+                "steps",
+                "{{step}}"
+              ]
+            },
+            "description": "Runs a single routine IN ISOLATION (the `standalone` flag suppresses its successors, so nothing downstream cascades). New run id per call. `:step` must be one of the values from GET \u2026/pipeline/steps (e.g. `sync-base-product`, `import-competitor-products`); 400 otherwise. Returns `{ pipelineRunId, step }`."
           },
           "response": []
         }
       ]
     },
     {
-      "name": "Admin — DLQ",
-      "description": "Plan 06 — `src/admin/controllers/dlq.controller.ts`. Inspect and replay messages in `<step>.dlq`.",
+      "name": "Admin \u2014 DLQ",
+      "description": "Plan 06 \u2014 `src/admin/controllers/dlq.controller.ts`. Inspect and replay messages in `<step>.dlq`.",
       "item": [
         {
           "name": "GET /admin/dlq/:step",
@@ -290,9 +526,20 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/admin/dlq/{{step}}?limit=50",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "dlq", "{{step}}"],
-              "query": [{ "key": "limit", "value": "50" }]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dlq",
+                "{{step}}"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
             },
             "description": "Peek without consuming: basicGet + nack(requeue=true). Returns up to `limit` messages with `{ routingKey, body, redelivered, headers }`. `step` must match `PipelineStep`."
           },
@@ -305,15 +552,265 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/admin/dlq/{{step}}/replay?max=100",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "dlq", "{{step}}", "replay"],
-              "query": [{ "key": "max", "value": "100" }]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dlq",
+                "{{step}}",
+                "replay"
+              ],
+              "query": [
+                {
+                  "key": "max",
+                  "value": "100"
+                }
+              ]
             },
             "description": "Pops up to `max` messages from `<step>.dlq` and re-publishes them to the main exchange with `attempt=1`. Returns `{ replayed }`."
           },
           "response": []
         }
       ]
+    },
+    {
+      "name": "Admin \u2014 Trigger competitors (each)",
+      "item": [
+        {
+          "name": "1. Enable only DROGAL",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": true, \"priority\": 100 },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": false }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "competitor-origins"
+              ]
+            },
+            "description": "Step 1 \u2014 enable just DROGAL (disable the rest), so the next import-competitor-products run scrapes only DROGAL."
+          },
+          "response": []
+        },
+        {
+          "name": "1. Enable only DROGASIL",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": true, \"priority\": 90 },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": false }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "competitor-origins"
+              ]
+            },
+            "description": "Step 1 \u2014 enable just DROGASIL (disable the rest), so the next import-competitor-products run scrapes only DROGASIL."
+          },
+          "response": []
+        },
+        {
+          "name": "1. Enable only MICHELASSI",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": true, \"priority\": 80 },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": false }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "competitor-origins"
+              ]
+            },
+            "description": "Step 1 \u2014 enable just MICHELASSI (disable the rest), so the next import-competitor-products run scrapes only MICHELASSI."
+          },
+          "response": []
+        },
+        {
+          "name": "1. Enable only PAGUE_MENOS",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": true, \"priority\": 70 },\n    { \"origin\": \"IKESAKI\", \"enabled\": false }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "competitor-origins"
+              ]
+            },
+            "description": "Step 1 \u2014 enable just PAGUE_MENOS (disable the rest), so the next import-competitor-products run scrapes only PAGUE_MENOS."
+          },
+          "response": []
+        },
+        {
+          "name": "1. Enable only IKESAKI",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": true, \"priority\": 60 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "competitor-origins"
+              ]
+            },
+            "description": "Step 1 \u2014 enable just IKESAKI (disable the rest), so the next import-competitor-products run scrapes only IKESAKI."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Run import-competitor-products (enabled origins)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/pipeline/steps/import-competitor-products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tenants",
+                "{{tenantSlug}}",
+                "pipeline",
+                "steps",
+                "import-competitor-products"
+              ]
+            },
+            "description": "Step 2 \u2014 run the competitor-products step IN ISOLATION (standalone: no downstream cascade) for whatever origins are currently enabled. Per-product it scrapes product \u2192 stock (Drogal/Drogasil) \u2192 image. Returns `{ pipelineRunId, step }`. There is no per-origin route \u2014 granularity comes from toggling origins in step 1."
+          },
+          "response": []
+        }
+      ],
+      "description": "Trigger one competitor at a time: run **1. Enable only <ORIGIN>** then **2. Run import-competitor-products**. To run all enabled at once use `Admin \u2014 Pipeline \u2192 pipeline/start` (full run) or this step trigger with all origins enabled."
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "POST /products/:ean/import",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{ean}}/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{ean}}",
+                "import"
+              ]
+            },
+            "description": "Live-scrape EVERY implemented competitor for one EAN, persist into shared_catalog (product, product_image\u2192R2, product_stock, base_product), and return the merged cross-origin view. JWT-guarded, not tenant-scoped (the catalog is global). `:ean` must be numeric."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/export?origin=DROGAL&limit=100&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "origin",
+                  "value": "DROGAL"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Paginated bulk export of shared_catalog competitor data: each product with its primary image + latest stock. `origin` optional (one of DROGAL/DROGASIL/MICHELASSI/PAGUE_MENOS/IKESAKI); `limit` \u2264 1000. JWT-guarded."
+          },
+          "response": []
+        }
+      ],
+      "description": "Shared-catalog product endpoints (global, not tenant-scoped)."
     }
   ]
 }
