@@ -38,6 +38,7 @@ export class AppConfigService {
     secretAccessKey: string;
     bucket: string;
     keyPrefix: string;
+    publicDomain: string;
   } {
     return {
       endpoint: this.config.getOrThrow('R2_ENDPOINT'),
@@ -45,6 +46,7 @@ export class AppConfigService {
       secretAccessKey: this.config.getOrThrow('R2_SECRET_ACCESS_KEY'),
       bucket: this.config.getOrThrow('R2_BUCKET'),
       keyPrefix: this.config.get('R2_KEY_PREFIX') ?? '',
+      publicDomain: this.config.get('R2_PUBLIC_DOMAIN') ?? '',
     };
   }
 

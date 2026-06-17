@@ -6,6 +6,7 @@ import { DrogalScraper } from '../../scrapers/drogal/drogal.scraper';
 import { DrogasilScraper } from '../../scrapers/drogasil/drogasil.scraper';
 import { MichelassiScraper } from '../../scrapers/michelassi/michelassi.scraper';
 import { ProductScraper, ScrapedProduct } from '../../scrapers/types';
+import { CompetitorImageService } from '../../storage/competitor-image.service';
 
 /**
  * Per-batch scrape for ONE origin's slice of EANs. The batch consumer
@@ -26,6 +27,7 @@ export class ImportCompetitorProductsStep {
     private readonly drogal: DrogalScraper,
     private readonly drogasil: DrogasilScraper,
     private readonly michelassi: MichelassiScraper,
+    private readonly images: CompetitorImageService,
   ) {}
 
   public async run(
@@ -40,6 +42,7 @@ export class ImportCompetitorProductsStep {
       scrapes.push(await scraper.scrapeProduct(ean));
     }
     await new SharedProductRepository(em).upsertScrapes(scrapes);
+    await this.images.project(em, scrapes);
     const found = scrapes.filter((s) => s.found).length;
     this.logger.debug(
       `import-competitor-products[${origin}]: ${eans.length} scraped, ${found} found`,

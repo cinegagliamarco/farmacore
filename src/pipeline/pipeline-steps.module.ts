@@ -3,6 +3,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PipelineRunEntity } from '../database/entities/core/pipeline-run.entity';
 import { ScrapersModule } from '../scrapers/scrapers.module';
+import { StorageModule } from '../storage/storage.module';
 
 import { PipelineJoinService } from './pipeline-join.service';
 import { AdminPipelineService } from './admin-pipeline.service';
@@ -81,6 +82,7 @@ export class PipelineStepsModule {
         ScheduleModule.forRoot(),
         TypeOrmModule.forFeature([PipelineRunEntity]),
         ScrapersModule,
+        StorageModule,
       ],
       providers: [
         PipelineJoinService,
