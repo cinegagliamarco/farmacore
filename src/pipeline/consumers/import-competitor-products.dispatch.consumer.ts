@@ -11,7 +11,7 @@ import type { PipelineMessage } from '../../queue/types';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import { ProductRepository } from '../../database/repositories/tenant/product.repository';
-import { TenantCompetitorOriginEntity } from '../../database/entities/tenant/tenant-competitor-origin.entity';
+import { TenantCompetitorOriginEntity } from '../../database/entities/core/tenant-competitor-origin.entity';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
 import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
@@ -119,7 +119,7 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
   ): Promise<CompetitorOrigin[]> {
     const rows = await ctx.em
       .getRepository(TenantCompetitorOriginEntity)
-      .find({ where: { enabled: true } });
+      .find({ where: { tenantId: ctx.tenant.id, enabled: true } });
     return rows.map((r) => r.origin);
   }
 }

@@ -98,18 +98,14 @@ export class TenantOnboardingService {
       throw err;
     }
 
-    await this.dataSource.transaction(async (em) => {
-      await em.query(
-        `SET LOCAL search_path TO "${schemaName}", shared_catalog, public`,
+    for (const origin of Object.values(CompetitorOrigin)) {
+      await this.dataSource.query(
+        `INSERT INTO core.tenant_competitor_origin (tenant_id, origin, enabled)
+         VALUES ($1, $2, false)
+         ON CONFLICT (tenant_id, origin) DO NOTHING`,
+        [tenant.id, origin],
       );
-      for (const origin of Object.values(CompetitorOrigin)) {
-        await em.query(
-          `INSERT INTO tenant_competitor_origin (origin, enabled) VALUES ($1, false)
-           ON CONFLICT (origin) DO NOTHING`,
-          [origin],
-        );
-      }
-    });
+    }
 
     const oneTimePassword = crypto.randomBytes(18).toString('base64url');
     const hash = await this.passwords.hash(oneTimePassword);

@@ -61,7 +61,11 @@ describe('Admin tenant onboarding (e2e)', () => {
     );
 
     const rows: Array<{ count: string }> = await ds.query(
-      `SELECT count(*)::text AS count FROM ${res.body.schemaName}.tenant_competitor_origin`,
+      `SELECT count(*)::text AS count
+         FROM core.tenant_competitor_origin tco
+         JOIN core.tenant t ON t.id = tco.tenant_id
+        WHERE t.slug = $1`,
+      [slug],
     );
     expect(Number(rows[0].count)).toBeGreaterThanOrEqual(5);
   });
