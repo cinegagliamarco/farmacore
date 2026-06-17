@@ -66,7 +66,9 @@ export class ImportCompetitorProductsStep {
       case CompetitorOrigin.IKESAKI:
         return this.ikesaki;
       default:
-        throw new Error(`No product scraper registered for origin ${origin}`);
+        throw new Error(
+          `No product scraper registered for origin ${String(origin)}`,
+        );
     }
   }
 }

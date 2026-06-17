@@ -127,7 +127,13 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
           const inc = await this.tx.runWithTenant(
             tenant.schemaName,
             async (em) => {
-              await this.handle({ message, em, integrationDs, batchSeq, tenant });
+              await this.handle({
+                message,
+                em,
+                integrationDs,
+                batchSeq,
+                tenant,
+              });
               const incResult = await this.runs.completeBatchAndIncrement(
                 em,
                 message.pipelineRunId,
