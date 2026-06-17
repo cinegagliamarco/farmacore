@@ -52,12 +52,10 @@ export class PagueMenosScraper implements ProductScraper {
   }
 }
 
-export function mapProduct(
-  ean: string,
-  p: PagueMenosProduct,
-): ScrapedProduct {
+export function mapProduct(ean: string, p: PagueMenosProduct): ScrapedProduct {
   const offer = p.items?.[0]?.sellers?.[0]?.commertialOffer;
-  if (!offer) return { ean, origin: CompetitorOrigin.PAGUE_MENOS, found: false };
+  if (!offer)
+    return { ean, origin: CompetitorOrigin.PAGUE_MENOS, found: false };
   return {
     ean,
     origin: CompetitorOrigin.PAGUE_MENOS,

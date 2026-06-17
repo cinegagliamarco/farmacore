@@ -109,7 +109,12 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
           const result = await this.tx.runWithTenant(
             tenant.schemaName,
             async (em) => {
-              const r = await this.handle({ message, em, integrationDs, tenant });
+              const r = await this.handle({
+                message,
+                em,
+                integrationDs,
+                tenant,
+              });
               if (r.batches.length === 0) {
                 await this.runs.recordDispatch(
                   message.pipelineRunId,

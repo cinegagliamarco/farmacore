@@ -56,7 +56,11 @@ export class CompetitorImageService {
     const imageRepo = em.getRepository(ProductImageEntity);
     await imageRepo.delete({ productId: In(rows.map((r) => r.productId)) });
     await imageRepo.insert(
-      rows.map((r) => ({ productId: r.productId, url: r.url, isPrimary: true })),
+      rows.map((r) => ({
+        productId: r.productId,
+        url: r.url,
+        isPrimary: true,
+      })),
     );
   }
 
