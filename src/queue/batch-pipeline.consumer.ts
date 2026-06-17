@@ -11,12 +11,14 @@ import { IntegrationDataSourceFactory } from '../integration/integration-data-so
 import { withPipelineSpan } from '../observability/pipeline-span.helper';
 import { PipelineMessage } from './types';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
+import { TenantEntity } from '../database/entities/core/tenant.entity';
 
 export interface BatchHandleContext<TPayload = unknown> {
   message: PipelineMessage<TPayload>;
   em: EntityManager;
   integrationDs: DataSource | null;
   batchSeq: number;
+  tenant: TenantEntity;
 }
 
 export interface LastBatchContext<TPayload = unknown> {
@@ -125,7 +127,7 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
           const inc = await this.tx.runWithTenant(
             tenant.schemaName,
             async (em) => {
-              await this.handle({ message, em, integrationDs, batchSeq });
+              await this.handle({ message, em, integrationDs, batchSeq, tenant });
               const incResult = await this.runs.completeBatchAndIncrement(
                 em,
                 message.pipelineRunId,
