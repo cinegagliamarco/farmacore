@@ -87,12 +87,12 @@ async function main(): Promise<void> {
 
     // Mirror tenant-onboarding.service.ts: seed every origin disabled so the
     // admin competitor-origins PUT (UPDATE-only) has rows to flip.
-    await ds.query(`SET search_path TO "${tenant.schema_name}", shared_catalog, public`);
     for (const origin of Object.values(CompetitorOrigin)) {
       await ds.query(
-        `INSERT INTO tenant_competitor_origin (origin, enabled) VALUES ($1, false)
-         ON CONFLICT (origin) DO NOTHING`,
-        [origin],
+        `INSERT INTO core.tenant_competitor_origin (tenant_id, origin, enabled)
+         VALUES ($1, $2, false)
+         ON CONFLICT (tenant_id, origin) DO NOTHING`,
+        [tenant.id, origin],
       );
     }
     console.log(`Tenant ${SLUG} competitor origins seeded (${Object.values(CompetitorOrigin).length} disabled)`);

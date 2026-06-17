@@ -16,21 +16,19 @@ export class CompetitorOriginAdminService {
   ): Promise<void> {
     const tenant = await this.tenants.findActive(slug);
     await this.dataSource.transaction(async (em) => {
-      await em.query(
-        `SET LOCAL search_path TO "${tenant.schemaName}", shared_catalog, public`,
-      );
       for (const u of updates) {
         await em.query(
-          `UPDATE tenant_competitor_origin
+          `UPDATE core.tenant_competitor_origin
              SET enabled = $1,
                  priority = COALESCE($2, priority),
                  config = COALESCE($3, config),
                  updated_at = now()
-           WHERE origin = $4`,
+           WHERE tenant_id = $4 AND origin = $5`,
           [
             u.enabled,
             u.priority ?? null,
             u.config ? JSON.stringify(u.config) : null,
+            tenant.id,
             u.origin,
           ],
         );

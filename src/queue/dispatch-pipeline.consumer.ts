@@ -11,6 +11,7 @@ import { IntegrationDataSourceFactory } from '../integration/integration-data-so
 import { withPipelineSpan } from '../observability/pipeline-span.helper';
 import { PipelineMessage } from './types';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
+import { TenantEntity } from '../database/entities/core/tenant.entity';
 
 export interface DispatchHandleResult {
   /**
@@ -33,6 +34,7 @@ export interface DispatchHandleContext<TPayload = unknown> {
   message: PipelineMessage<TPayload>;
   em: EntityManager;
   integrationDs: DataSource | null;
+  tenant: TenantEntity;
 }
 
 /**
@@ -107,7 +109,7 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
           const result = await this.tx.runWithTenant(
             tenant.schemaName,
             async (em) => {
-              const r = await this.handle({ message, em, integrationDs });
+              const r = await this.handle({ message, em, integrationDs, tenant });
               if (r.batches.length === 0) {
                 await this.runs.recordDispatch(
                   message.pipelineRunId,
