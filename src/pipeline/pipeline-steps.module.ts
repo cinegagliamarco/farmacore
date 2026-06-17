@@ -28,6 +28,8 @@ import {
   ImportCompetitorProductsDrogalConsumer,
   ImportCompetitorProductsDrogasilConsumer,
   ImportCompetitorProductsMichelassiConsumer,
+  ImportCompetitorProductsPagueMenosConsumer,
+  ImportCompetitorProductsIkesakiConsumer,
 } from './consumers/import-competitor-products.batch.consumers';
 import { ImportCompetitorStockDispatchConsumer } from './consumers/import-competitor-stock.dispatch.consumer';
 import {
@@ -63,6 +65,8 @@ const CONSUMERS = [
   ImportCompetitorProductsDrogalConsumer,
   ImportCompetitorProductsDrogasilConsumer,
   ImportCompetitorProductsMichelassiConsumer,
+  ImportCompetitorProductsPagueMenosConsumer,
+  ImportCompetitorProductsIkesakiConsumer,
   ImportCompetitorStockDispatchConsumer,
   ImportCompetitorStockDrogalConsumer,
   ImportCompetitorStockDrogasilConsumer,
