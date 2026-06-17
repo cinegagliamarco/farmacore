@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, EntityManager, In } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { CompetitorOrigin } from '../database/enums/competitor-origin.enum';
 import { BaseProductEntity } from '../database/entities/shared-catalog/base-product.entity';
-import { ProductEntity } from '../database/entities/shared-catalog/product.entity';
-import { ProductImageEntity } from '../database/entities/shared-catalog/product-image.entity';
 import { BaseProductRepository } from '../database/repositories/shared-catalog/base-product.repository';
 import { ProductStockRepository } from '../database/repositories/shared-catalog/product-stock.repository';
 import { SharedProductRepository } from '../database/repositories/shared-catalog/product.repository';
@@ -16,6 +14,7 @@ import type {
   ScrapedStock,
   StockScraper,
 } from '../scrapers/types';
+import { CompetitorImageService } from '../storage/competitor-image.service';
 
 export interface ProductOriginView {
   origin: CompetitorOrigin;
@@ -72,6 +71,7 @@ export class ProductsService {
     private readonly drogal: DrogalScraper,
     private readonly drogasil: DrogasilScraper,
     private readonly michelassi: MichelassiScraper,
+    private readonly images: CompetitorImageService,
     private readonly dataSource: DataSource,
   ) {
     this.productScrapers = [drogal, drogasil, michelassi];
@@ -87,7 +87,7 @@ export class ProductsService {
       await new SharedProductRepository(em).upsertScrapes(scrapes);
       await new BaseProductRepository(em).insertNewByEan([{ ean }]);
       await new ProductStockRepository(em).insertSnapshots(stocks);
-      await this.persistImages(em, ean, scrapes);
+      await this.images.project(em, scrapes);
 
       const baseProduct = await em
         .getRepository(BaseProductEntity)
@@ -130,40 +130,6 @@ export class ProductsService {
     if (origin === CompetitorOrigin.DROGAL) return this.drogal;
     if (origin === CompetitorOrigin.DROGASIL) return this.drogasil;
     return null;
-  }
-
-  /** Refresh product_image for the scraped origins: each scraper yields a
-   *  single primary image in metadata.image. Delete-then-insert keeps the
-   *  table in sync with the latest scrape rather than piling duplicates. */
-  private async persistImages(
-    em: EntityManager,
-    ean: string,
-    scrapes: ScrapedProduct[],
-  ): Promise<void> {
-    const withImage = scrapes.filter((s) => s.found && s.metadata?.image);
-    if (withImage.length === 0) return;
-
-    const rows: Array<{ id: string; origin: string }> = await em
-      .getRepository(ProductEntity)
-      .createQueryBuilder('p')
-      .select(['p.id AS id', 'p.origin AS origin'])
-      .where('p.ean = :ean', { ean })
-      .andWhere('p.origin IN (:...origins)', {
-        origins: withImage.map((s) => s.origin),
-      })
-      .getRawMany();
-    const idByOrigin = new Map(rows.map((r) => [r.origin, r.id]));
-
-    const imageRepo = em.getRepository(ProductImageEntity);
-    await imageRepo.delete({ productId: In([...idByOrigin.values()]) });
-    const images = withImage
-      .filter((s) => idByOrigin.has(s.origin))
-      .map((s) => ({
-        productId: idByOrigin.get(s.origin) as string,
-        url: String(s.metadata?.image),
-        isPrimary: true,
-      }));
-    if (images.length > 0) await imageRepo.insert(images);
   }
 
   private merge(

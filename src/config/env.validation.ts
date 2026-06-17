@@ -61,6 +61,10 @@ class EnvVars {
 
   @IsOptional()
   @IsString()
+  R2_PUBLIC_DOMAIN?: string;
+
+  @IsOptional()
+  @IsString()
   OTEL_SERVICE_NAME?: string;
 
   @IsOptional()
