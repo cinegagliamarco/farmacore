@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import {
   DispatchHandleContext,
@@ -18,6 +18,7 @@ import { TenantTransactionService } from '../../tenant/tenant-transaction.servic
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
+import { PipelineJoinService } from '../pipeline-join.service';
 
 const DISPATCH_QUEUE = dispatchStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS);
 
@@ -34,16 +35,17 @@ export interface ImportCompetitorProductsBatchPayload {
  * publishes one batch message to that origin's queue.
  *
  * All per-origin batches share ONE dispatch row's fan-in counter.
- * The last batch from any origin to land closes the counter and
- * publishes the IMPORT_COMPETITOR_STOCK successor (still v1 today;
- * routes through the legacy step queue).
- *
- * emptySuccessors falls through to IMPORT_COMPETITOR_STOCK when the
- * tenant has no enabled origins or no EANs — chain advances either way.
+ * Stock + image are scraped inline per product (see the step), so this
+ * step owns the competitor-stock join branch: when the fan-in closes —
+ * or here, when there's no work — it marks 'stock-b' and lets CALC fire
+ * once 'stock-a' (ERP stock) is also done.
  */
 @Injectable()
 export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineConsumer {
   protected readonly logicalStep = PipelineStep.IMPORT_COMPETITOR_PRODUCTS;
+
+  @Inject(PipelineJoinService)
+  private readonly join!: PipelineJoinService;
 
   constructor(
     runs: PipelineRunService,
@@ -70,21 +72,13 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
   protected async handle(
     ctx: DispatchHandleContext,
   ): Promise<DispatchHandleResult> {
-    const successor = newPipelineMessage({
-      pipelineRunId: ctx.message.pipelineRunId,
-      tenantId: ctx.message.tenantId,
-      step: PipelineStep.IMPORT_COMPETITOR_STOCK,
-      queue: dispatchStep(PipelineStep.IMPORT_COMPETITOR_STOCK),
-      payload: {},
-    });
-
     const enabledOrigins = await this.findEnabledOrigins(ctx);
     if (enabledOrigins.length === 0) {
-      return { batches: [], emptySuccessors: [successor] };
+      return { batches: [], emptySuccessors: await this.markStockB(ctx) };
     }
     const eans = await new ProductRepository(ctx.em).findAllEans();
     if (eans.length === 0) {
-      return { batches: [], emptySuccessors: [successor] };
+      return { batches: [], emptySuccessors: await this.markStockB(ctx) };
     }
 
     // One message per EAN per origin — prefetch on each per-origin queue
@@ -111,7 +105,29 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
     this.logger.log(
       `import-competitor-products dispatch: ${batches.length} message(s) (1/EAN) across ${enabledOrigins.length} origins`,
     );
-    return { batches, emptySuccessors: [successor] };
+    return { batches };
+  }
+
+  /** No work to do → close the competitor-stock branch directly so CALC
+   *  can fire once the ERP-stock branch (stock-a) is also complete. */
+  private async markStockB(
+    ctx: DispatchHandleContext,
+  ): Promise<PipelineMessage<unknown>[]> {
+    const outcome = await this.join.markBranchComplete(
+      ctx.message.pipelineRunId,
+      ctx.message.tenantId,
+      'stock-b',
+    );
+    if (outcome === 'wait') return [];
+    return [
+      newPipelineMessage({
+        pipelineRunId: ctx.message.pipelineRunId,
+        tenantId: ctx.message.tenantId,
+        step: PipelineStep.CALC_BASE_PRODUCT_METRICS,
+        queue: dispatchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS),
+        payload: {},
+      }),
+    ];
   }
 
   private async findEnabledOrigins(

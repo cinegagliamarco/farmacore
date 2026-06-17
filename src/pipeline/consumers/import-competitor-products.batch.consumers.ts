@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import {
   BatchHandleContext,
@@ -17,6 +17,7 @@ import { TenantTransactionService } from '../../tenant/tenant-transaction.servic
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
+import { PipelineJoinService } from '../pipeline-join.service';
 import type { ImportCompetitorProductsBatchPayload } from './import-competitor-products.dispatch.consumer';
 
 const QUEUE_DROGAL = originStep(
@@ -52,6 +53,11 @@ const QUEUE_IKESAKI = originStep(
 abstract class CompetitorProductsBatchBase extends BatchPipelineConsumer<ImportCompetitorProductsBatchPayload> {
   protected readonly logicalStep = PipelineStep.IMPORT_COMPETITOR_PRODUCTS;
 
+  // Property injection (like the base's OutboxRepository) so the 5
+  // per-origin subclasses don't thread it through their super() calls.
+  @Inject(PipelineJoinService)
+  protected readonly join!: PipelineJoinService;
+
   protected constructor(
     private readonly stepImpl: ImportCompetitorProductsStep,
     runs: PipelineRunService,
@@ -74,18 +80,28 @@ abstract class CompetitorProductsBatchBase extends BatchPipelineConsumer<ImportC
     );
   }
 
-  protected successors(
+  /** Stock + image are scraped inline per product (see the step), so
+   *  when the products fan-in closes this branch IS the competitor-stock
+   *  branch: mark stock-b and fire CALC once stock-a (ERP stock) is also
+   *  done. */
+  protected async successors(
     ctx: LastBatchContext<ImportCompetitorProductsBatchPayload>,
   ): Promise<PipelineMessage<unknown>[]> {
-    return Promise.resolve([
+    const outcome = await this.join.markBranchComplete(
+      ctx.message.pipelineRunId,
+      ctx.message.tenantId,
+      'stock-b',
+    );
+    if (outcome === 'wait') return [];
+    return [
       newPipelineMessage({
         pipelineRunId: ctx.message.pipelineRunId,
         tenantId: ctx.message.tenantId,
-        step: PipelineStep.IMPORT_COMPETITOR_STOCK,
-        queue: dispatchStep(PipelineStep.IMPORT_COMPETITOR_STOCK),
+        step: PipelineStep.CALC_BASE_PRODUCT_METRICS,
+        queue: dispatchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS),
         payload: {},
       }),
-    ]);
+    ];
   }
 }
 

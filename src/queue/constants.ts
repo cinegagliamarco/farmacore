@@ -43,10 +43,6 @@ export const PER_ORIGIN_STEPS: Readonly<
     CompetitorOrigin.PAGUE_MENOS,
     CompetitorOrigin.IKESAKI,
   ],
-  [PipelineStep.IMPORT_COMPETITOR_STOCK]: [
-    CompetitorOrigin.DROGAL,
-    CompetitorOrigin.DROGASIL,
-  ],
 };
 
 export const dispatchStep = (step: PipelineStep): string => `${step}.dispatch`;
@@ -93,7 +89,6 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [dispatchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 1,
   [dispatchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 1,
   [dispatchStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS)]: 1,
-  [dispatchStep(PipelineStep.IMPORT_COMPETITOR_STOCK)]: 1,
   [batchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 1,
   [batchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 1,
   [batchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 1,
@@ -121,21 +116,4 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.IKESAKI,
   )]: 8,
-  // stock: sequential batched calls per origin (50/30 SKUs each).
-  [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGAL)]:
-    1,
-  [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGASIL)]:
-    1,
-};
-
-/**
- * Per-origin batch size for stock fetches. Legacy ran 50 SKUs per call
- * on Drogal (one drogalCheckout POST with all SKUs) and 30 on Drogasil
- * (one GraphQL call). Michelassi is not in stock — products-only.
- */
-export const PER_ORIGIN_STOCK_BATCH_SIZE: Readonly<
-  Partial<Record<CompetitorOrigin, number>>
-> = {
-  [CompetitorOrigin.DROGAL]: 50,
-  [CompetitorOrigin.DROGASIL]: 30,
 };

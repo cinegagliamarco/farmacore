@@ -13,7 +13,6 @@ import { SyncBaseProductStep } from './steps/sync-base-product.step';
 import { SyncBaseProductStockStep } from './steps/sync-base-product-stock.step';
 import { SyncOfferBooksInfoStep } from './steps/sync-offer-books-info.step';
 import { ImportCompetitorProductsStep } from './steps/import-competitor-products.step';
-import { ImportCompetitorStockStep } from './steps/import-competitor-stock.step';
 import { CalcBaseProductMetricsStep } from './steps/calc-base-product-metrics.step';
 import { UpdateBaseProductPropertiesStep } from './steps/update-base-product-properties.step';
 
@@ -31,11 +30,6 @@ import {
   ImportCompetitorProductsPagueMenosConsumer,
   ImportCompetitorProductsIkesakiConsumer,
 } from './consumers/import-competitor-products.batch.consumers';
-import { ImportCompetitorStockDispatchConsumer } from './consumers/import-competitor-stock.dispatch.consumer';
-import {
-  ImportCompetitorStockDrogalConsumer,
-  ImportCompetitorStockDrogasilConsumer,
-} from './consumers/import-competitor-stock.batch.consumers';
 import { CalcBaseProductMetricsDispatchConsumer } from './consumers/calc-base-product-metrics.dispatch.consumer';
 import { CalcBaseProductMetricsBatchConsumer } from './consumers/calc-base-product-metrics.batch.consumer';
 import { UpdateBaseProductPropertiesDispatchConsumer } from './consumers/update-base-product-properties.dispatch.consumer';
@@ -48,7 +42,6 @@ const STEPS = [
   SyncBaseProductStockStep,
   SyncOfferBooksInfoStep,
   ImportCompetitorProductsStep,
-  ImportCompetitorStockStep,
   CalcBaseProductMetricsStep,
   UpdateBaseProductPropertiesStep,
   BaseProductProjector,
@@ -67,9 +60,6 @@ const CONSUMERS = [
   ImportCompetitorProductsMichelassiConsumer,
   ImportCompetitorProductsPagueMenosConsumer,
   ImportCompetitorProductsIkesakiConsumer,
-  ImportCompetitorStockDispatchConsumer,
-  ImportCompetitorStockDrogalConsumer,
-  ImportCompetitorStockDrogasilConsumer,
   CalcBaseProductMetricsDispatchConsumer,
   CalcBaseProductMetricsBatchConsumer,
   UpdateBaseProductPropertiesDispatchConsumer,
