@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { ProductRepository } from '../../database/repositories/tenant/product.repository';
-import { StatusSettingsEntity } from '../../database/entities/tenant/status-settings.entity';
+import { StatusSettingsEntity } from '../../database/entities/core/status-settings.entity';
 
 interface StatusThresholds {
   suspectBelow: number;
@@ -44,10 +44,14 @@ interface MetricRow {
 export class CalcBaseProductMetricsStep {
   private readonly logger = new Logger(CalcBaseProductMetricsStep.name);
 
-  public async run(em: EntityManager, eans: string[]): Promise<void> {
+  public async run(
+    em: EntityManager,
+    tenantId: string,
+    eans: string[],
+  ): Promise<void> {
     if (eans.length === 0) return;
 
-    const thresholds = await this.loadThresholds(em);
+    const thresholds = await this.loadThresholds(em, tenantId);
 
     const rows: MetricRow[] = await em.query(
       `SELECT
@@ -75,9 +79,12 @@ export class CalcBaseProductMetricsStep {
     );
   }
 
-  private async loadThresholds(em: EntityManager): Promise<StatusThresholds> {
+  private async loadThresholds(
+    em: EntityManager,
+    tenantId: string,
+  ): Promise<StatusThresholds> {
     const row = await em.getRepository(StatusSettingsEntity).findOne({
-      where: {},
+      where: { tenantId },
       order: { createdAt: 'ASC' },
     });
     const s = (row?.settings ?? {}) as Partial<StatusThresholds>;

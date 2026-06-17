@@ -52,7 +52,7 @@ export class CalcBaseProductMetricsBatchConsumer extends BatchPipelineConsumer<C
   protected handle(
     ctx: BatchHandleContext<CalcBaseProductMetricsBatchPayload>,
   ): Promise<void> {
-    return this.stepImpl.run(ctx.em, ctx.message.payload.eans);
+    return this.stepImpl.run(ctx.em, ctx.tenant.id, ctx.message.payload.eans);
   }
 
   protected successors(

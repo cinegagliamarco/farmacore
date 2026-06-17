@@ -1,5 +1,11 @@
 name: PR Preview
 
+# Spins up a throwaway Neon branch per PR and runs the app migrations
+# against it, so migration changes are validated on an isolated copy of
+# the prod schema before merge. Requires the NEON_API_KEY + NEON_PROJECT_ID
+# secrets; when they're not set the Neon steps are skipped so the workflow
+# passes instead of failing on interactive-auth.
+
 on:
   pull_request:
     types: [opened, synchronize, closed]
@@ -9,19 +15,34 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.action != 'closed'
     steps:
+      - id: guard
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          if [ -n "$NEON_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "NEON_API_KEY not set — skipping Neon preview branch."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.guard.outputs.enabled == 'true'
       - uses: actions/setup-node@v4
+        if: steps.guard.outputs.enabled == 'true'
         with:
           node-version: 20
           cache: npm
       - run: npm ci
+        if: steps.guard.outputs.enabled == 'true'
       - uses: neondatabase/create-branch-action@v5
+        if: steps.guard.outputs.enabled == 'true'
         id: branch
         with:
           project_id: ${{ secrets.NEON_PROJECT_ID }}
           branch_name: pr-${{ github.event.number }}
           api_key: ${{ secrets.NEON_API_KEY }}
       - name: Run migrations against PR branch
+        if: steps.guard.outputs.enabled == 'true'
         env:
           DATABASE_URL: ${{ steps.branch.outputs.db_url_pooled }}
           DATABASE_DIRECT_URL: ${{ steps.branch.outputs.db_url }}
@@ -31,7 +52,18 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.action == 'closed'
     steps:
+      - id: guard
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          if [ -n "$NEON_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "NEON_API_KEY not set — nothing to clean up."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: neondatabase/delete-branch-action@v3
+        if: steps.guard.outputs.enabled == 'true'
         with:
           project_id: ${{ secrets.NEON_PROJECT_ID }}
           branch_name: pr-${{ github.event.number }}

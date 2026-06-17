@@ -1,8 +1,15 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from '../base.entity';
 
-@Entity({ name: 'scheduling' })
+/**
+ * Per-tenant scheduled-job definition (cron + payload). Control-plane
+ * config, so it lives in core keyed by tenant_id.
+ */
+@Entity({ schema: 'core', name: 'scheduling' })
 export class SchedulingEntity extends BaseEntity {
+  @Column({ name: 'tenant_id', type: 'uuid' })
+  public tenantId!: string;
+
   @Column({ type: 'text' })
   public name!: string;
 
