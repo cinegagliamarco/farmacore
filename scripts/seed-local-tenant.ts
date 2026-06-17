@@ -30,16 +30,32 @@ function encrypt(plain: string, key: Buffer): Buffer {
   return Buffer.concat([nonce, cipher.getAuthTag(), ct]);
 }
 
+function assertLocalDatabase(url: string): void {
+  // This seed creates a tenant + wires a dev ERP — local-dev only. Guard
+  // against accidentally pointing it at prod (that's how stray test
+  // tenants got into prod). Override with ALLOW_NONLOCAL_SEED=1 if ever
+  // truly needed.
+  if (process.env.ALLOW_NONLOCAL_SEED === '1') return;
+  const host = new URL(url).hostname;
+  if (host !== 'localhost' && host !== '127.0.0.1' && host !== '::1') {
+    throw new Error(
+      `seed:local-tenant refuses to run against non-local host "${host}". ` +
+        `Set ALLOW_NONLOCAL_SEED=1 to override.`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const key = Buffer.from(process.env.INTEGRATION_DB_KEY ?? '', 'base64');
   if (key.length !== 32)
     throw new Error('INTEGRATION_DB_KEY must decode to 32 bytes');
 
-  // Schema + tenant row + tenant migrations.
-  execSync(`npm run tenant:create ${SLUG}`, { stdio: 'inherit' });
-
   const directUrl = process.env.DATABASE_DIRECT_URL ?? process.env.DATABASE_URL;
   if (!directUrl) throw new Error('DATABASE_DIRECT_URL or DATABASE_URL must be set');
+  assertLocalDatabase(directUrl);
+
+  // Schema + tenant row + tenant migrations.
+  execSync(`npm run tenant:create ${SLUG}`, { stdio: 'inherit' });
 
   const ds = new DataSource({
     type: 'postgres',
