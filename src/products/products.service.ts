@@ -54,6 +54,34 @@ export interface ProductDetailsView {
   origins: ProductOriginView[];
 }
 
+export interface ProductExportQuery {
+  origin?: CompetitorOrigin;
+  limit: number;
+  offset: number;
+}
+
+export interface ProductExportRow {
+  ean: string;
+  origin: CompetitorOrigin;
+  name: string | null;
+  price: string | null;
+  unitSalePrice: string | null;
+  supplier: string | null;
+  brand: string | null;
+  sku: string | null;
+  url: string | null;
+  image: string | null;
+  stock: number | null;
+  stockCapturedAt: string | null;
+}
+
+export interface ProductExportResult {
+  total: number;
+  limit: number;
+  offset: number;
+  items: ProductExportRow[];
+}
+
 /**
  * Single-product live import: scrapes every competitor origin for one
  * EAN, persists the results into shared_catalog (product, product_image,
@@ -75,6 +103,73 @@ export class ProductsService {
     private readonly dataSource: DataSource,
   ) {
     this.productScrapers = [drogal, drogasil, michelassi];
+  }
+
+  /** Bulk export of the shared competitor catalog: each product row with
+   *  its primary image and latest stock snapshot, optionally filtered by
+   *  origin, paginated. Shared-catalog only — no tenant data. */
+  public async export(q: ProductExportQuery): Promise<ProductExportResult> {
+    const origin = q.origin ?? null;
+    const countRows: Array<{ count: number }> = await this.dataSource.query(
+      `SELECT count(*)::int AS count FROM shared_catalog.product p
+        WHERE ($1::text IS NULL OR p.origin = $1)`,
+      [origin],
+    );
+    const rows: Array<{
+      ean: string;
+      origin: CompetitorOrigin;
+      name: string | null;
+      price: string | null;
+      unitSalePrice: string | null;
+      supplier: string | null;
+      brand: string | null;
+      sku: string | null;
+      url: string | null;
+      image: string | null;
+      stock: number | null;
+      stockCapturedAt: Date | null;
+    }> = await this.dataSource.query(
+      `SELECT p.ean, p.origin, p.name, p.price,
+              p.unit_sale_price AS "unitSalePrice",
+              p.supplier, p.brand, p.sku, p.url,
+              img.url AS image,
+              st.quantity AS stock, st.captured_at AS "stockCapturedAt"
+         FROM shared_catalog.product p
+         LEFT JOIN LATERAL (
+           SELECT url FROM shared_catalog.product_image
+            WHERE product_id = p.id AND is_primary IS TRUE
+            ORDER BY created_at DESC LIMIT 1
+         ) img ON true
+         LEFT JOIN LATERAL (
+           SELECT quantity, captured_at FROM shared_catalog.product_stock
+            WHERE product_id = p.id ORDER BY captured_at DESC LIMIT 1
+         ) st ON true
+        WHERE ($1::text IS NULL OR p.origin = $1)
+        ORDER BY p.ean, p.origin
+        LIMIT $2 OFFSET $3`,
+      [origin, q.limit, q.offset],
+    );
+    return {
+      total: countRows[0]?.count ?? 0,
+      limit: q.limit,
+      offset: q.offset,
+      items: rows.map((r) => ({
+        ean: String(r.ean),
+        origin: r.origin,
+        name: r.name ?? null,
+        price: r.price ?? null,
+        unitSalePrice: r.unitSalePrice ?? null,
+        supplier: r.supplier ?? null,
+        brand: r.brand ?? null,
+        sku: r.sku ?? null,
+        url: r.url ?? null,
+        image: r.image ?? null,
+        stock: r.stock ?? null,
+        stockCapturedAt: r.stockCapturedAt
+          ? new Date(r.stockCapturedAt).toISOString()
+          : null,
+      })),
+    };
   }
 
   public async importProduct(ean: string): Promise<ProductDetailsView> {
