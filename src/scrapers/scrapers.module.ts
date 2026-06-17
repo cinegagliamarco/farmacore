@@ -4,6 +4,7 @@ import { DrogalScraper } from './drogal/drogal.scraper';
 import { DrogasilScraper } from './drogasil/drogasil.scraper';
 import { MichelassiScraper } from './michelassi/michelassi.scraper';
 import { PagueMenosScraper } from './pague-menos/pague-menos.scraper';
+import { IkesakiScraper } from './ikesaki/ikesaki.scraper';
 
 /**
  * Per-origin scrapers (Phase C). Each scraper implements
@@ -18,12 +19,14 @@ import { PagueMenosScraper } from './pague-menos/pague-menos.scraper';
     DrogasilScraper,
     MichelassiScraper,
     PagueMenosScraper,
+    IkesakiScraper,
   ],
   exports: [
     DrogalScraper,
     DrogasilScraper,
     MichelassiScraper,
     PagueMenosScraper,
+    IkesakiScraper,
   ],
 })
 export class ScrapersModule {}

@@ -41,6 +41,7 @@ export const PER_ORIGIN_STEPS: Readonly<
     CompetitorOrigin.DROGASIL,
     CompetitorOrigin.MICHELASSI,
     CompetitorOrigin.PAGUE_MENOS,
+    CompetitorOrigin.IKESAKI,
   ],
   [PipelineStep.IMPORT_COMPETITOR_STOCK]: [
     CompetitorOrigin.DROGAL,
@@ -115,6 +116,10 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.PAGUE_MENOS,
+  )]: 8,
+  [originStep(
+    PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+    CompetitorOrigin.IKESAKI,
   )]: 8,
   // stock: sequential batched calls per origin (50/30 SKUs each).
   [originStep(PipelineStep.IMPORT_COMPETITOR_STOCK, CompetitorOrigin.DROGAL)]:
