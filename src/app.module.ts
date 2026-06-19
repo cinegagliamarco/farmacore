@@ -11,6 +11,7 @@ import { QueueModule } from './queue/queue.module';
 import { PipelineStepsModule } from './pipeline/pipeline-steps.module';
 import { AdminModule } from './admin/admin.module';
 import { ProductsModule } from './products/products.module';
+import { TenantApiModule } from './tenant-api/tenant-api.module';
 import { ObservabilityModule } from './observability/observability.module';
 
 @Module({
@@ -26,6 +27,7 @@ import { ObservabilityModule } from './observability/observability.module';
     PipelineStepsModule.forRoot({ withConsumers: false }),
     AdminModule,
     ProductsModule,
+    TenantApiModule,
     ObservabilityModule,
   ],
   providers: [

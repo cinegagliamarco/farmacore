@@ -819,19 +819,21 @@
       "description": "Trigger one competitor at a time: run **1. Enable only <ORIGIN>** then **2. Run import-competitor-products**. To run all enabled at once use `Admin \u2014 Pipeline \u2192 pipeline/start` (full run) or this step trigger with all origins enabled."
     },
     {
-      "name": "Products",
+      "name": "Admin \u2014 Catalog (shared catalog ops)",
       "item": [
         {
-          "name": "POST /products/:ean/import",
+          "name": "POST /admin/catalog/products/:ean/import",
           "request": {
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/products/{{ean}}/import",
+              "raw": "{{baseUrl}}/admin/catalog/products/{{ean}}/import",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
+                "admin",
+                "catalog",
                 "products",
                 "{{ean}}",
                 "import"
@@ -842,16 +844,18 @@
           "response": []
         },
         {
-          "name": "GET /products/export",
+          "name": "GET /admin/catalog/products/export",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/products/export?origin=DROGAL&limit=100&offset=0",
+              "raw": "{{baseUrl}}/admin/catalog/products/export?origin=DROGAL&limit=100&offset=0",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
+                "admin",
+                "catalog",
                 "products",
                 "export"
               ],
@@ -875,7 +879,109 @@
           "response": []
         }
       ],
-      "description": "Shared-catalog product endpoints (global, not tenant-scoped)."
+      "description": "System-admin ops on the GLOBAL shared catalog. Not tenant data."
+    },
+    {
+      "name": "Tenant \u2014 Catalog",
+      "description": "The authenticated tenant's OWN products (scoped by JWT). Any tenant user (viewer/operator/admin). Log in via Auth \u2192 POST /auth/login (tenant admin) with your tenantSlug first.",
+      "item": [
+        {
+          "name": "GET /products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?page=1&perPage=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "50"
+                },
+                {
+                  "key": "name",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "classification",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "eans",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Tenant catalog list (no competitor cross). Filters: name, supplier, classification, eans (csv), status (csv), monitored. Returns { rows, count, page, perPage }."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/crossed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/crossed?page=1&perPage=50&sortBy=ean",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "crossed"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "50"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "ean"
+                },
+                {
+                  "key": "sortDirection",
+                  "value": "ASC",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "ATEN\u00c7\u00c3O,SUSPEITA",
+                  "disabled": true
+                },
+                {
+                  "key": "eans",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "name",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Tenant products CROSSED with competitors: per row cost/price/margin/status + targetPrice + drogal/drogasil/michelassi prices & observations. Same filters as /products plus sortBy (ean,name,supplier,classification,cost,price,margin,averageVariation,status,targetPrice,receiptDate)."
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }

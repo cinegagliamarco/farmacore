@@ -44,7 +44,10 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | POST | `/admin/tenants/:slug/pipeline/steps/:step` | `src/admin/controllers/pipeline.controller.ts` |
 | GET | `/admin/dlq/:step` | `src/admin/controllers/dlq.controller.ts` |
 | POST | `/admin/dlq/:step/replay` | `src/admin/controllers/dlq.controller.ts` |
-| POST | `/products/:ean/import` | `src/products/products.controller.ts` |
+| GET | `/products` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
+| GET | `/products/crossed` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
+| POST | `/admin/catalog/products/:ean/import` | `src/products/products.controller.ts` (system admin) |
+| GET | `/admin/catalog/products/export` | `src/products/products.controller.ts` (system admin) |
 
 ## Pipeline steps (worker)
 
@@ -83,11 +86,11 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `POST /products/base/synchronize-metrics` | `…/pipeline/steps/calc-base-product-metrics` | ▶️ |
 | `POST /products/base/synchronize-active-ingredients` | folded into `sync-base-product` step | ▶️ |
 | `POST /products/base/generate-properties` | `…/pipeline/steps/update-base-product-properties` | ▶️ |
-| `GET /products/base` | — | ❌ |
+| `GET /products/base` | `GET /products` (tenant) | ✅ ³ |
 | `GET /products/base/:id` | — | ❌ |
-| `PATCH /products/base/:id` | — | ❌ |
-| `DELETE /products/base/:id` | — | ❌ |
-| `GET /products/base/crossed` | — | ❌ |
+| `PATCH /products/base/:id` | `PATCH /products/:ean` (tenant, plan 10 ph4) | ❌ |
+| `DELETE /products/base/:id` | `DELETE /products/:ean` (tenant, plan 10 ph4) | ❌ |
+| `GET /products/base/crossed` | `GET /products/crossed` (tenant) | ✅ ³ |
 | `GET /products/base/strategic-price` | — | ❌ |
 | `GET /products/base/stock` | — | ❌ |
 | `GET /products/base/stock-metrics` | — | ❌ |
@@ -113,12 +116,16 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `POST /products/import/drogasil` | `…/pipeline/steps/import-competitor-products` ¹ | ▶️ |
 | `POST /products/import/drogal/stock` | `…/pipeline/steps/import-competitor-stock` ¹ | ▶️ |
 | `POST /products/import/drogasil/stock` | `…/pipeline/steps/import-competitor-stock` ¹ | ▶️ |
-| `GET /products/details/:ean` | `POST /products/:ean/import` | ✅ ² |
-| `GET /products/export` | — | ❌ |
+| `GET /products/details/:ean` | `POST /admin/catalog/products/:ean/import` | ✅ ² |
+| `GET /products/export` | `GET /admin/catalog/products/export` (shared) ⁴ | ✅ |
 
 > ¹ The routine trigger is per-**step**, not per-origin: it fans out to all origins enabled for the tenant (`tenant_competitor_origin`). Legacy's per-vendor `/import/drogal` vs `/import/drogasil` granularity isn't reproduced — toggle origins via `PUT /admin/tenants/:slug/competitor-origins` instead.
 >
-> ² Synchronous single-EAN port of legacy `GetSingleProductUseCase`: live-scrapes every implemented origin (Drogal, Drogasil, Michelassi — Pague Menos/Ikesaki aren't ported), persists into `shared_catalog` (`product`, `product_image`, `product_stock`, `base_product`), and returns the merged cross-origin view. Touches the shared catalog only — no tenant data — so it's JWT-guarded but not tenant-scoped.
+> ² Synchronous single-EAN port of legacy `GetSingleProductUseCase`: live-scrapes every implemented origin, persists into `shared_catalog`, returns the merged view. Shared-catalog op → moved under `/admin/catalog` (system admin).
+>
+> ³ **Plan 10**: tenant-scoped reads — the authenticated tenant's own `tenant.product` crossed with `shared_catalog.product` (+ `offer_book`). Any tenant user; no "base" in the path. `GET /products/base/strategic-price`, `/stock`, `/stock-metrics`, `/active-ingredients*` and the Phase-4 mutations follow per plan 10. `curve`/`book`/`mat` filters deferred (see `TODO.md`).
+>
+> ⁴ Legacy `/products/export` (customer catalog CSV) vs the new shared-catalog export differ; the **shared** export now lives at `/admin/catalog/products/export`. A tenant CSV export (`/products/export`, tenant-scoped) is plan 10 phase 1.
 
 ### `offer-book.controller.ts` (`/offer-books`)
 
