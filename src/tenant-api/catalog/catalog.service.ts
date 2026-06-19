@@ -100,6 +100,193 @@ export class CatalogService {
     return { rows: rows.map((r) => this.normalize(r)), count, page, perPage };
   }
 
+  /** Crossed products that are "strategic" — have a competitor deal
+   *  (metadata.observation on DROGAL/DROGASIL) OR a tenant deal
+   *  (product.deals). Surfaces the deals + the competitor deal text. */
+  public async strategicPrice(
+    em: EntityManager,
+    q: ListProductsQueryDto,
+  ): Promise<Paginated<Record<string, unknown>>> {
+    const { page, perPage, offset } = this.paginate(q);
+    const f = this.buildFilters(q);
+    const order = this.orderBy(q);
+    const cond =
+      `(dg.metadata->>'observation' IS NOT NULL` +
+      ` OR ds.metadata->>'observation' IS NOT NULL` +
+      ` OR (p.deals IS NOT NULL AND p.deals <> '{}'::jsonb))`;
+    const where = f.where ? `${f.where} AND ${cond}` : `WHERE ${cond}`;
+    const fromJoins = `FROM product p
+         LEFT JOIN classification c ON c.id = p.classification_id
+         LEFT JOIN offer_book ob ON ob.ean = p.ean
+         LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
+         LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'`;
+    const countRows: Array<{ count: string }> = await em.query(
+      `SELECT count(*)::int AS count ${fromJoins} ${where}`,
+      f.params,
+    );
+    const rows: Array<Record<string, unknown>> = await em.query(
+      `SELECT p.ean, p.name, p.supplier, c.name AS classification,
+              p.cost, p.price, ob.target_price AS "targetPrice", p.deals,
+              p.margin, p.average_variation AS "averageVariation", p.status,
+              dg.price AS "drogalPrice", dg.metadata->>'observation' AS "drogalDeal",
+              ds.price AS "drogasilPrice", ds.metadata->>'observation' AS "drogasilDeal"
+         ${fromJoins} ${where}
+        ORDER BY ${order}
+        LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
+      [...f.params, perPage, offset],
+    );
+    return {
+      rows: rows.map((r) => this.normalize(r)),
+      count: Number(countRows[0]?.count ?? 0),
+      page,
+      perPage,
+    };
+  }
+
+  /** Distinct active ingredients present in the tenant catalog. */
+  public async activeIngredients(em: EntityManager): Promise<string[]> {
+    const rows: Array<{ active_ingredient: string }> = await em.query(
+      `SELECT DISTINCT active_ingredient FROM product
+        WHERE active_ingredient IS NOT NULL
+        ORDER BY active_ingredient`,
+    );
+    return rows.map((r) => r.active_ingredient);
+  }
+
+  /** Products grouped by active ingredient (paginated by ingredient), each
+   *  with its variants' competitor prices and a target = min variant price. */
+  public async activeIngredientsCrossed(
+    em: EntityManager,
+    q: ListProductsQueryDto,
+  ): Promise<Paginated<Record<string, unknown>>> {
+    const { page, perPage, offset } = this.paginate(q);
+    const ai = q.activeIngredient;
+    const aiFilter = ai ? `AND active_ingredient ILIKE $1` : '';
+    const aiParams = ai ? [`%${ai}%`] : [];
+    const totalRows: Array<{ count: string }> = await em.query(
+      `SELECT count(*)::int AS count FROM (
+         SELECT DISTINCT active_ingredient FROM product
+          WHERE active_ingredient IS NOT NULL ${aiFilter}
+       ) t`,
+      aiParams,
+    );
+    const ingRows: Array<{ active_ingredient: string }> = await em.query(
+      `SELECT active_ingredient FROM product
+        WHERE active_ingredient IS NOT NULL ${aiFilter}
+        GROUP BY active_ingredient ORDER BY active_ingredient
+        LIMIT $${aiParams.length + 1} OFFSET $${aiParams.length + 2}`,
+      [...aiParams, perPage, offset],
+    );
+    const ingredients = ingRows.map((r) => r.active_ingredient);
+    const variants: Array<Record<string, unknown>> = ingredients.length
+      ? await em.query(
+          `SELECT p.active_ingredient AS ai, p.ean, p.name, p.price, p.cost, p.margin,
+                  dg.price AS "drogalPrice", ds.price AS "drogasilPrice"
+             FROM product p
+             LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
+             LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
+            WHERE p.active_ingredient = ANY($1)
+            ORDER BY p.active_ingredient, p.ean`,
+          [ingredients],
+        )
+      : [];
+    const byIng = new Map<string, Record<string, unknown>[]>();
+    for (const v of variants) {
+      const key = String(v.ai);
+      const list = byIng.get(key) ?? [];
+      list.push(this.normalize(v));
+      byIng.set(key, list);
+    }
+    const rows = ingredients.map((ingredient) => {
+      const vs = byIng.get(ingredient) ?? [];
+      const prices = vs
+        .map((v) => Number(v.price))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      return {
+        activeIngredient: ingredient,
+        targetPrice: prices.length ? Math.min(...prices) : null,
+        variants: vs,
+      };
+    });
+    return { rows, count: Number(totalRows[0]?.count ?? 0), page, perPage };
+  }
+
+  /** Generic products still missing an active ingredient (need manual fill). */
+  public async genericMissing(
+    em: EntityManager,
+    q: ListProductsQueryDto,
+  ): Promise<Paginated<Record<string, unknown>>> {
+    const { page, perPage, offset } = this.paginate(q);
+    const f = this.buildFilters(q);
+    const base = f.where
+      ? `${f.where} AND p.generic IS TRUE AND p.active_ingredient IS NULL`
+      : `WHERE p.generic IS TRUE AND p.active_ingredient IS NULL`;
+    const countRows: Array<{ count: string }> = await em.query(
+      `SELECT count(*)::int AS count FROM product p ${base}`,
+      f.params,
+    );
+    const rows: Array<Record<string, unknown>> = await em.query(
+      `SELECT p.ean, p.name, p.supplier
+         FROM product p ${base}
+        ORDER BY p.ean
+        LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
+      [...f.params, perPage, offset],
+    );
+    return {
+      rows: rows.map((r) => this.normalize(r)),
+      count: Number(countRows[0]?.count ?? 0),
+      page,
+      perPage,
+    };
+  }
+
+  /** Crossed catalog as CSV (capped). */
+  public async exportCsv(
+    em: EntityManager,
+    q: ListProductsQueryDto,
+  ): Promise<string> {
+    const f = this.buildFilters(q);
+    const rows: Array<Record<string, unknown>> = await em.query(
+      `SELECT p.ean, p.name, p.supplier, c.name AS classification,
+              p.cost, p.price, p.margin, p.status,
+              dg.price AS drogal, ds.price AS drogasil, mi.price AS michelassi
+         FROM product p
+         LEFT JOIN classification c ON c.id = p.classification_id
+         LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
+         LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
+         LEFT JOIN shared_catalog.product mi ON mi.ean = p.ean AND mi.origin = 'MICHELASSI'
+        ${f.where}
+        ORDER BY p.ean LIMIT 50000`,
+      f.params,
+    );
+    const cols = [
+      'ean',
+      'name',
+      'supplier',
+      'classification',
+      'cost',
+      'price',
+      'margin',
+      'status',
+      'drogal',
+      'drogasil',
+      'michelassi',
+    ];
+    const esc = (v: unknown): string => {
+      if (v == null) return '';
+      const s =
+        typeof v === 'string'
+          ? v
+          : typeof v === 'number' || typeof v === 'boolean'
+            ? String(v)
+            : JSON.stringify(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [cols.join(',')];
+    for (const r of rows) lines.push(cols.map((k) => esc(r[k])).join(','));
+    return lines.join('\n');
+  }
+
   /** Per-product stock: the tenant's own stock (by subsidiary) vs each
    *  competitor's latest stock snapshot, with a derived stock status. */
   public async stock(

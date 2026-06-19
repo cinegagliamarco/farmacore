@@ -1121,6 +1121,150 @@
             "description": "Soft-delete (active=false). Admin only."
           },
           "response": []
+        },
+        {
+          "name": "GET /products/strategic-price",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/strategic-price?page=1&perPage=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "strategic-price"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Crossed products with a deal \u2014 competitor observation (DROGAL/DROGASIL) OR tenant deals. Includes deals + drogalDeal/drogasilDeal text."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/active-ingredients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/active-ingredients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "active-ingredients"
+              ],
+              "query": []
+            },
+            "description": "Distinct active ingredients in the tenant catalog: { activeIngredients: [...] }."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/active-ingredients/crossed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/active-ingredients/crossed?page=1&perPage=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "active-ingredients",
+                "crossed"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "50"
+                },
+                {
+                  "key": "activeIngredient",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Products grouped by active ingredient (paginated by ingredient): each group has variants (with drogal/drogasil prices) + targetPrice (min variant price)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/generic-missing-active-ingredients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/generic-missing-active-ingredients?page=1&perPage=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "generic-missing-active-ingredients"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Generic products still missing an active ingredient (need manual fill)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/export?eans=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "eans",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "classification",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Tenant catalog crossed with competitors as CSV (text/csv, capped 50k). Filters same as /products."
+          },
+          "response": []
         }
       ]
     }

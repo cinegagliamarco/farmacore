@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -46,6 +47,48 @@ export class CatalogController {
     @Query() query: ListProductsQueryDto,
   ): Promise<Paginated<Record<string, unknown>>> {
     return this.catalog.crossed(em, query);
+  }
+
+  @Get('strategic-price')
+  public strategicPrice(
+    @TenantEm() em: EntityManager,
+    @Query() query: ListProductsQueryDto,
+  ): Promise<Paginated<Record<string, unknown>>> {
+    return this.catalog.strategicPrice(em, query);
+  }
+
+  @Get('active-ingredients')
+  public activeIngredients(
+    @TenantEm() em: EntityManager,
+  ): Promise<{ activeIngredients: string[] }> {
+    return this.catalog
+      .activeIngredients(em)
+      .then((activeIngredients) => ({ activeIngredients }));
+  }
+
+  @Get('active-ingredients/crossed')
+  public activeIngredientsCrossed(
+    @TenantEm() em: EntityManager,
+    @Query() query: ListProductsQueryDto,
+  ): Promise<Paginated<Record<string, unknown>>> {
+    return this.catalog.activeIngredientsCrossed(em, query);
+  }
+
+  @Get('generic-missing-active-ingredients')
+  public genericMissing(
+    @TenantEm() em: EntityManager,
+    @Query() query: ListProductsQueryDto,
+  ): Promise<Paginated<Record<string, unknown>>> {
+    return this.catalog.genericMissing(em, query);
+  }
+
+  @Get('export')
+  @Header('Content-Type', 'text/csv')
+  public export(
+    @TenantEm() em: EntityManager,
+    @Query() query: ListProductsQueryDto,
+  ): Promise<string> {
+    return this.catalog.exportCsv(em, query);
   }
 
   @Get('stock')
