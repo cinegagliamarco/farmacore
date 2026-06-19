@@ -5,7 +5,11 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../database/enums/user-role.enum';
+import { SystemAdminGuard } from '../admin/guards/system-admin.guard';
 import { CompetitorOrigin } from '../database/enums/competitor-origin.enum';
 import {
   ProductDetailsView,
@@ -16,7 +20,14 @@ import {
 const MAX_EXPORT_LIMIT = 1000;
 const DEFAULT_EXPORT_LIMIT = 100;
 
-@Controller('products')
+/**
+ * System-admin operations on the GLOBAL shared catalog (live single-EAN
+ * import, bulk export). Not tenant data — kept under /admin so the tenant
+ * surface (/products/*) is purely a tenant's own catalog.
+ */
+@Controller('admin/catalog/products')
+@UseGuards(SystemAdminGuard)
+@Roles(UserRole.ADMIN)
 export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 
