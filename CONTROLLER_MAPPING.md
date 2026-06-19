@@ -96,12 +96,12 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `PATCH /products/base/:id` | `PATCH /products/:ean` (tenant) | ✅ ³ |
 | `DELETE /products/base/:id` | `DELETE /products/:ean` (tenant, soft) | ✅ ³ |
 | `GET /products/base/crossed` | `GET /products/crossed` (tenant) | ✅ ³ |
-| `GET /products/base/strategic-price` | — | ❌ |
+| `GET /products/base/strategic-price` | `GET /products/strategic-price` (tenant) | ✅ ³ |
 | `GET /products/base/stock` | `GET /products/stock` (tenant) | ✅ ³ |
 | `GET /products/base/stock-metrics` | `GET /products/stock-metrics` (tenant) | ✅ ³ |
-| `GET /products/base/active-ingredients` | — | ❌ |
-| `GET /products/base/active-ingredients/crossed` | — | ❌ |
-| `GET /products/base/generic-missing-active-ingredients` | — | ❌ |
+| `GET /products/base/active-ingredients` | `GET /products/active-ingredients` (tenant) | ✅ ³ |
+| `GET /products/base/active-ingredients/crossed` | `GET /products/active-ingredients/crossed` (tenant) | ✅ ³ |
+| `GET /products/base/generic-missing-active-ingredients` | `GET /products/generic-missing-active-ingredients` (tenant) | ✅ ³ |
 | `PATCH /products/base/generic-missing-active-ingredients/:id` | — | ❌ |
 | `POST /products/base/import/csv` | — | ❌ |
 | `DELETE /products/base/reset` | — | ❌ |

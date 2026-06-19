@@ -46,6 +46,10 @@ export class ListProductsQueryDto {
 
   @IsOptional()
   @IsString()
+  public activeIngredient?: string;
+
+  @IsOptional()
+  @IsString()
   public sortBy?: string;
 
   @IsOptional()
