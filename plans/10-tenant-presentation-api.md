@@ -93,8 +93,10 @@ Prereq: **per-tenant A7Pharma API creds**. Add `api_base_url` + `api_key_encrypt
 | `DELETE /products/:ean/offer` | OPERATOR+ | clear offer; **DELETE A7Pharma oferta**. |
 | `DELETE /products/:ean` | ADMIN | soft delete (`active=false`). |
 
-### Phase 5 — Tenant config
-`GET/PATCH /settings/variation-status` (read any / write ADMIN; `core.status_settings`); `GET /classifications(/grouped)` (any; `tenant.classification` tree); `/configurations/price-rounding` CRUD (ADMIN; `core.price_rounding_rule`).
+### Phase 5 — Tenant config ✅
+`GET/PATCH /settings/variation-status` (read any / write ADMIN; `core.status_settings`); `GET /classifications(/grouped)` (any; `tenant.classification` tree); `/configurations/price-rounding` CRUD (ADMIN; `core.price_rounding_rule` + decimal ranges). Status-settings/price-rounding live in `core` keyed by tenant uuid — resolved from the JWT slug via `src/tenant/tenant-lookup.ts`.
+
+> **Phase-4 tail, not built:** `POST`/`DELETE /products/:ean/offer` write-back is blocked on a design decision — A7Pharma's `/webapi/api/oferta/` needs `idCadernoOferta`, which the new model stores nowhere (`tenant.offer_book` is ean/description/target_price only). Needs either a per-tenant caderno id in config or an `external_id` on `offer_book`. `GET /offer-books/info` also pending (response shape undefined).
 
 ### Phase 6 — Offer-book rule engine → **Plan 11** (deferred).
 ### Phase 7 — Scheduling → deferred (needs executor).

@@ -162,20 +162,20 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 
 | Legacy | New | Status |
 |---|---|---|
-| `GET /classifications` | — | ❌ |
-| `GET /classifications/grouped` | — | ❌ |
+| `GET /classifications` | `GET /classifications` | ✅ |
+| `GET /classifications/grouped` | `GET /classifications/grouped` | ✅ |
 
-> Classifications are written by the `sync-base-product` step (tenant `classification` tree), but there's no read API yet.
+> Classifications are written by the `sync-base-product` step (tenant `classification` tree); reads are tenant-scoped (any user).
 
 ### `configurations.controller.ts` (`/configurations`)
 
 | Legacy | New | Status |
 |---|---|---|
-| `GET /configurations/price-rounding` | — | ❌ |
-| `POST /configurations/price-rounding` | — | ❌ |
-| `GET /configurations/price-rounding/:id` | — | ❌ |
-| `PATCH /configurations/price-rounding/:id` | — | ❌ |
-| `DELETE /configurations/price-rounding/:id` | — | ❌ |
+| `GET /configurations/price-rounding` | `GET /configurations/price-rounding` | ✅ |
+| `POST /configurations/price-rounding` | `POST /configurations/price-rounding` | ✅ |
+| `GET /configurations/price-rounding/:id` | `GET /configurations/price-rounding/:id` | ✅ |
+| `PATCH /configurations/price-rounding/:id` | `PATCH /configurations/price-rounding/:id` | ✅ |
+| `DELETE /configurations/price-rounding/:id` | `DELETE /configurations/price-rounding/:id` | ✅ |
 
 ### `scheduling.controller.ts` (`/scheduling`)
 
@@ -192,8 +192,8 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 
 | Legacy | New | Status |
 |---|---|---|
-| `GET /settings/variation-status` | — | ❌ |
-| `PATCH /settings/variation-status` | — | ❌ |
+| `GET /settings/variation-status` | `GET /settings/variation-status` | ✅ |
+| `PATCH /settings/variation-status` | `PATCH /settings/variation-status` (ADMIN) | ✅ |
 
 ### `import-process.controller.ts` (`/import-process`)
 
