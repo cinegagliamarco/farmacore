@@ -109,8 +109,8 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `POST /products/base/generate-description` | — | ❌ |
 | `POST /products/base/generate-description/by-ids` | — | ❌ |
 | `POST /products/base/generate-images` | — | ❌ |
-| `POST /products/base/offers/:id` | — | ❌ |
-| `DELETE /products/base/offers/:id` | — | ❌ |
+| `POST /products/base/offers/:id` | `POST /products/:ean/offer` | ✅ |
+| `DELETE /products/base/offers/:id` | `DELETE /products/:ean/offer` | ✅ |
 | `POST /products/base/price/:id` | `POST /products/:ean/price` (tenant → A7Pharma) | ✅ ³ |
 
 ### `product.controller.ts` (`/products`)

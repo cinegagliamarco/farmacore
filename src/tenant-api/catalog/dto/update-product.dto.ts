@@ -30,3 +30,13 @@ export class UpdatePriceDto {
   @Min(0)
   public newPrice!: number;
 }
+
+export class UpsertOfferDto {
+  /** Offer price pushed to the caderno (precoOferta). */
+  @IsNumber() @Min(0) public targetPrice!: number;
+
+  /** A7Pharma caderno de ofertas id (idCadernoOferta). */
+  @IsNumber() public cadernoId!: number;
+
+  @IsOptional() @IsString() @Length(1, 500) public description?: string;
+}
