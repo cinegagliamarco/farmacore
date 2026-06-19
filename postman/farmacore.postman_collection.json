@@ -389,7 +389,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"origin\": \"a7pharma\",\n  \"name\": \"ERP\",\n  \"host\": \"localhost\",\n  \"port\": 5435,\n  \"database\": \"erp\",\n  \"username\": \"erp\",\n  \"password\": \"erp\",\n  \"sslMode\": \"disable\",\n  \"readOnly\": true\n}"
+              "raw": "{\n  \"origin\": \"a7pharma\",\n  \"name\": \"ERP\",\n  \"host\": \"localhost\",\n  \"port\": 5435,\n  \"database\": \"erp\",\n  \"username\": \"erp\",\n  \"password\": \"erp\",\n  \"sslMode\": \"disable\",\n  \"readOnly\": true,\n  \"apiBaseUrl\": \"https://erp.example:8443\",\n  \"apiKey\": \"<a7pharma-api-key>\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/integration",
@@ -403,7 +403,7 @@
                 "integration"
               ]
             },
-            "description": "Upserts the tenant's ERP connection. `origin` selects the vendor entity set (v1: `a7pharma`). Password is encrypted with AES-256-GCM via CredentialEncryptionService. Invalidates the per-tenant DataSource cache. Returns `{ status }`."
+            "description": "Upserts the tenant's ERP connection. `origin` selects the vendor entity set (v1: `a7pharma`). Password is encrypted with AES-256-GCM via CredentialEncryptionService. Invalidates the per-tenant DataSource cache. Returns `{ status }`. Optional apiBaseUrl + apiKey enable A7Pharma REST write-back (price/offer); apiKey is encrypted at rest."
           },
           "response": []
         },
@@ -1043,6 +1043,82 @@
               ]
             },
             "description": "Aggregate stock coverage over the filtered set: total, ownWithStock, {drogal,drogasil,michelassi}WithStock."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /products/:ean",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New name\",\n  \"supplier\": \"New supplier\",\n  \"monitored\": false,\n  \"active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products/{{ean}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{ean}}"
+              ]
+            },
+            "description": "Edit a tenant product's fields (operator/admin). NOT price \u2014 use /price. curve/book/mat deferred."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /products/:ean/price",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPrice\": 29.9\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products/{{ean}}/price",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{ean}}",
+                "price"
+              ]
+            },
+            "description": "Set sell price (operator/admin): pushes to A7Pharma (POST /webapi/api/preco/) then mirrors locally. 409 if monitored, no ERP external_id, or no A7Pharma API configured for the tenant."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /products/:ean",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{ean}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{ean}}"
+              ]
+            },
+            "description": "Soft-delete (active=false). Admin only."
           },
           "response": []
         }

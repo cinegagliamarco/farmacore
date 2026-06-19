@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CatalogController } from './catalog/catalog.controller';
 import { CatalogService } from './catalog/catalog.service';
+import { CatalogMutationService } from './catalog/catalog-mutation.service';
 
 /**
  * Tenant-user-facing API (the FE's surface). Every route is tenant-scoped
@@ -9,6 +10,6 @@ import { CatalogService } from './catalog/catalog.service';
  */
 @Module({
   controllers: [CatalogController],
-  providers: [CatalogService],
+  providers: [CatalogService, CatalogMutationService],
 })
 export class TenantApiModule {}

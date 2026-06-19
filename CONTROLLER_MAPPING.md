@@ -48,6 +48,9 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | GET | `/products/crossed` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
 | GET | `/products/stock` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
 | GET | `/products/stock-metrics` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
+| PATCH | `/products/:ean` | `src/tenant-api/catalog/catalog.controller.ts` (tenant; operator/admin) |
+| POST | `/products/:ean/price` | `src/tenant-api/catalog/catalog.controller.ts` (tenant; operator/admin; → A7Pharma) |
+| DELETE | `/products/:ean` | `src/tenant-api/catalog/catalog.controller.ts` (tenant; admin; soft) |
 | POST | `/admin/catalog/products/:ean/import` | `src/products/products.controller.ts` (system admin) |
 | GET | `/admin/catalog/products/export` | `src/products/products.controller.ts` (system admin) |
 
@@ -90,8 +93,8 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `POST /products/base/generate-properties` | `…/pipeline/steps/update-base-product-properties` | ▶️ |
 | `GET /products/base` | `GET /products` (tenant) | ✅ ³ |
 | `GET /products/base/:id` | — | ❌ |
-| `PATCH /products/base/:id` | `PATCH /products/:ean` (tenant, plan 10 ph4) | ❌ |
-| `DELETE /products/base/:id` | `DELETE /products/:ean` (tenant, plan 10 ph4) | ❌ |
+| `PATCH /products/base/:id` | `PATCH /products/:ean` (tenant) | ✅ ³ |
+| `DELETE /products/base/:id` | `DELETE /products/:ean` (tenant, soft) | ✅ ³ |
 | `GET /products/base/crossed` | `GET /products/crossed` (tenant) | ✅ ³ |
 | `GET /products/base/strategic-price` | — | ❌ |
 | `GET /products/base/stock` | `GET /products/stock` (tenant) | ✅ ³ |
@@ -108,7 +111,7 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `POST /products/base/generate-images` | — | ❌ |
 | `POST /products/base/offers/:id` | — | ❌ |
 | `DELETE /products/base/offers/:id` | — | ❌ |
-| `POST /products/base/price/:id` | — | ❌ |
+| `POST /products/base/price/:id` | `POST /products/:ean/price` (tenant → A7Pharma) | ✅ ³ |
 
 ### `product.controller.ts` (`/products`)
 
