@@ -37,6 +37,7 @@ Notable subtrees under `legacy-app/src/`:
 | 07 | [07-observability.md](./07-observability.md) | ✅ executed (T5 wraps v2 base consumers in addition to v1; T6 poller works against local rabbitmq:management with same env vars; T11 ships as docs/observability/local-smoke.md instead of a CI spec) | `02-queue-and-routines.md` (§9) | 05, 09 |
 | 08 | [08-provisioning.md](./08-provisioning.md) | ✅ executed. farmacore-api + farmacore-worker running on Fly.io (`gru`), Neon (`sa-east-1`), CloudAMQP LavinMQ (lemming), R2. CI green via GitHub Actions on push to main. 7 bugs fixed during deploy (all "works on ts-node, breaks in compiled prod" class). | `00-architecture.md`, `05-provisioning-tutorial.md` | **last** (after 07) |
 | 09 | [09-presentation-layer.md](./09-presentation-layer.md) | ✅ executed (`AmqpInterceptor` later guarded for `@golevelup`) | (cross-cutting: interceptors, internal logger, signal listener, layering) | 00 |
+| 10 | [10-tenant-presentation-api.md](./10-tenant-presentation-api.md) | 📝 proposed | (new — tenant-user-facing read/management API; ports legacy `base-product`/`offer-book`/`classification`/`configurations`/`status-settings` controllers, crossing `tenant.product` with `shared_catalog.product`) | 01, 02, 05, 09 |
 
 ## Dependency Graph
 
