@@ -226,6 +226,52 @@ curl -sS -X POST "http://localhost:3000/admin/dlq/sync-base-product/replay?max=1
 # → { "replayed": N }
 ```
 
+### 5.8 Tenant-facing API (the FE's surface)
+
+Everything above is **system admin** (`/admin/*`, behind `SystemAdminGuard`). The tenant API is what the frontend calls — scoped to the caller's own tenant. Auth and DB scoping come entirely from the **signed JWT claim** (`tenantId`), never a URL slug: tenant routes carry no `:slug` param, and `SearchPathInterceptor` sets the Postgres `search_path` from the token. A tenant-A user cannot read tenant-B data.
+
+Log in as the tenant admin created in §5.3 (use its one-time password). Keep it in a separate var so you don't clobber the system-admin `$TOKEN`:
+
+```bash
+TT=$(curl -sS -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{ "email": "admin@acme.test", "password": "<oneTimePassword>", "tenantSlug": "acme" }' \
+  | jq -r .accessToken)
+```
+
+**Catalog reads** (any role). `crossed` is the headline — each tenant product crossed with `shared_catalog` competitor prices plus the stored margin/variation/status:
+
+```bash
+curl -sS "http://localhost:3000/products?page=1&perPage=50"   -H "Authorization: Bearer $TT" | jq
+curl -sS "http://localhost:3000/products/crossed?perPage=50"  -H "Authorization: Bearer $TT" | jq
+curl -sS "http://localhost:3000/products/strategic-price"     -H "Authorization: Bearer $TT" | jq
+curl -sS "http://localhost:3000/products/stock-metrics"       -H "Authorization: Bearer $TT" | jq
+curl -sS "http://localhost:3000/products/active-ingredients"  -H "Authorization: Bearer $TT" | jq
+curl -sS "http://localhost:3000/products/export"              -H "Authorization: Bearer $TT" -o catalog.csv
+```
+
+**Mutations** (operator/admin). Price and offer write-back hit the tenant's A7Pharma REST API *first*, then mirror locally — so they return `409` unless the tenant has API creds configured (set them via `PUT /admin/tenants/:slug/integration` with `apiBaseUrl` + `apiKey`):
+
+```bash
+curl -sS -X PATCH "http://localhost:3000/products/<ean>"       -H "Authorization: Bearer $TT" -H 'Content-Type: application/json' -d '{"supplier":"New supplier","monitored":false}'
+curl -sS -X POST  "http://localhost:3000/products/<ean>/price" -H "Authorization: Bearer $TT" -H 'Content-Type: application/json' -d '{"newPrice":19.90}'
+curl -sS -X POST  "http://localhost:3000/products/<ean>/offer" -H "Authorization: Bearer $TT" -H 'Content-Type: application/json' -d '{"targetPrice":9.90,"cadernoId":123}'
+curl -sS -X DELETE "http://localhost:3000/products/<ean>/offer" -H "Authorization: Bearer $TT"
+```
+
+> `cadernoId` is the A7Pharma *caderno de ofertas* id; it's stored on the offer (`tenant.offer_book.external_id`) so DELETE can clear the same caderno.
+
+**Tenant config**. Variation-status thresholds drive the OK/ATENÇÃO/SUSPEITA classification; price-rounding rules + classifications round out the FE settings surface (writes are ADMIN):
+
+```bash
+curl -sS "http://localhost:3000/settings/variation-status"            -H "Authorization: Bearer $TT" | jq
+curl -sS -X PATCH "http://localhost:3000/settings/variation-status"   -H "Authorization: Bearer $TT" -H 'Content-Type: application/json' -d '{"suspectAbove":60}'
+curl -sS "http://localhost:3000/classifications/grouped"              -H "Authorization: Bearer $TT" | jq
+curl -sS "http://localhost:3000/configurations/price-rounding"        -H "Authorization: Bearer $TT" | jq
+```
+
+The full request set with bodies and examples lives in the Postman collection (**Tenant — Catalog** + **Tenant — Config** folders).
+
 ---
 
 ## 6. Postman collection
@@ -402,7 +448,8 @@ src/
 ├─ pipeline/                    # 8 step consumers + cron + admin trigger (plan 05)
 ├─ presentation/                # interceptors + InternalLogger (plan 09)
 ├─ queue/                       # RMQ topology + publisher + retry (plan 04)
-└─ tenant/                      # TenantContext + runWithTenant + SearchPathInterceptor
+├─ tenant/                      # TenantContext + runWithTenant + SearchPathInterceptor
+└─ tenant-api/                  # tenant-user-facing API: catalog + config (plan 10)
 
 migrations/                     # SQL migrations: core/, shared_catalog/, tenant/
 scripts/                        # ops scripts (migrate-app, tenant:create, seed, …)
