@@ -28,4 +28,20 @@ export class CatalogController {
   ): Promise<Paginated<Record<string, unknown>>> {
     return this.catalog.crossed(em, query);
   }
+
+  @Get('stock')
+  public stock(
+    @TenantEm() em: EntityManager,
+    @Query() query: ListProductsQueryDto,
+  ): Promise<Paginated<Record<string, unknown>>> {
+    return this.catalog.stock(em, query);
+  }
+
+  @Get('stock-metrics')
+  public stockMetrics(
+    @TenantEm() em: EntityManager,
+    @Query() query: ListProductsQueryDto,
+  ): Promise<Record<string, number>> {
+    return this.catalog.stockMetrics(em, query);
+  }
 }

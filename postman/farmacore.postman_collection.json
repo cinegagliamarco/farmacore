@@ -980,6 +980,71 @@
             "description": "Tenant products CROSSED with competitors: per row cost/price/margin/status + targetPrice + drogal/drogasil/michelassi prices & observations. Same filters as /products plus sortBy (ean,name,supplier,classification,cost,price,margin,averageVariation,status,targetPrice,receiptDate)."
           },
           "response": []
+        },
+        {
+          "name": "GET /products/stock",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/stock?page=1&perPage=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "stock"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "perPage",
+                  "value": "50"
+                },
+                {
+                  "key": "name",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "eans",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Per-product stock: own stock total + by-subsidiary vs each competitor's latest stock, plus derived stockStatus (OK / POTENTIAL / ANALYZE_INCLUSION). perPage <= 200."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/stock-metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/stock-metrics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "stock-metrics"
+              ],
+              "query": [
+                {
+                  "key": "classification",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Aggregate stock coverage over the filtered set: total, ownWithStock, {drogal,drogasil,michelassi}WithStock."
+          },
+          "response": []
         }
       ]
     }

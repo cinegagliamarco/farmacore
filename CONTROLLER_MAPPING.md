@@ -46,6 +46,8 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | POST | `/admin/dlq/:step/replay` | `src/admin/controllers/dlq.controller.ts` |
 | GET | `/products` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
 | GET | `/products/crossed` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
+| GET | `/products/stock` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
+| GET | `/products/stock-metrics` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
 | POST | `/admin/catalog/products/:ean/import` | `src/products/products.controller.ts` (system admin) |
 | GET | `/admin/catalog/products/export` | `src/products/products.controller.ts` (system admin) |
 
@@ -92,8 +94,8 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `DELETE /products/base/:id` | `DELETE /products/:ean` (tenant, plan 10 ph4) | ❌ |
 | `GET /products/base/crossed` | `GET /products/crossed` (tenant) | ✅ ³ |
 | `GET /products/base/strategic-price` | — | ❌ |
-| `GET /products/base/stock` | — | ❌ |
-| `GET /products/base/stock-metrics` | — | ❌ |
+| `GET /products/base/stock` | `GET /products/stock` (tenant) | ✅ ³ |
+| `GET /products/base/stock-metrics` | `GET /products/stock-metrics` (tenant) | ✅ ³ |
 | `GET /products/base/active-ingredients` | — | ❌ |
 | `GET /products/base/active-ingredients/crossed` | — | ❌ |
 | `GET /products/base/generic-missing-active-ingredients` | — | ❌ |
