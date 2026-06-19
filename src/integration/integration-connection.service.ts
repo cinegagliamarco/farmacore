@@ -46,6 +46,10 @@ export class IntegrationConnectionService {
       readOnly: dto.readOnly ?? true,
       connectionOptions: dto.connectionOptions ?? {},
       status: 'active',
+      apiBaseUrl: dto.apiBaseUrl ?? existing?.apiBaseUrl ?? null,
+      apiKeyEncrypted: dto.apiKey
+        ? this.crypto.encrypt(dto.apiKey)
+        : (existing?.apiKeyEncrypted ?? null),
     };
 
     const saved = existing
@@ -55,6 +59,19 @@ export class IntegrationConnectionService {
     await this.factory.invalidate(tenant.id);
     this.logger.log(`Upserted integration connection for tenant ${tenantSlug}`);
     return saved;
+  }
+
+  /** Per-tenant A7Pharma REST API credentials for write-back, or null if
+   *  not configured (reads still work via the DB connection). */
+  public async getApiCredentials(
+    tenantSlug: string,
+  ): Promise<{ baseUrl: string; apiKey: string } | null> {
+    const tenant = await this.tenants.findOne({ where: { slug: tenantSlug } });
+    if (!tenant) return null;
+    const row = await this.repo.findOne({ where: { tenantId: tenant.id } });
+    if (!row || !row.apiBaseUrl || !row.apiKeyEncrypted) return null;
+    const apiKey = await this.crypto.decrypt(row.apiKeyEncrypted);
+    return { baseUrl: row.apiBaseUrl, apiKey };
   }
 
   public async disable(tenantSlug: string): Promise<void> {

@@ -61,4 +61,11 @@ export class IntegrationDatabaseConnectionEntity extends BaseEntity {
 
   @Column({ name: 'last_error', type: 'text', nullable: true })
   public lastError?: string | null;
+
+  // A7Pharma REST API write-back credentials (separate from the read DB).
+  @Column({ name: 'api_base_url', type: 'text', nullable: true })
+  public apiBaseUrl?: string | null;
+
+  @Column({ name: 'api_key_encrypted', type: 'bytea', nullable: true })
+  public apiKeyEncrypted?: Buffer | null;
 }

@@ -57,4 +57,16 @@ export class UpsertIntegrationDto {
   @IsOptional()
   @IsObject()
   connectionOptions?: Record<string, unknown>;
+
+  // A7Pharma REST API write-back (price/offer edits). Optional; reads use
+  // the DB connection above. apiKey is encrypted at rest.
+  @IsOptional()
+  @IsString()
+  @Length(1, 1024)
+  apiBaseUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 1024)
+  apiKey?: string;
 }
