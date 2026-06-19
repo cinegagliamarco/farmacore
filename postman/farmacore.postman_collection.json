@@ -119,6 +119,52 @@
           "response": []
         },
         {
+          "name": "POST /auth/login (tenant admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', body.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@{{tenantSlug}}.test\",\n  \"password\": \"<tenant-admin-one-time-password>\",\n  \"tenantSlug\": \"{{tenantSlug}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Log in as a TENANT admin (non-system). Use the tenant's slug + the oneTimePassword returned by POST /admin/tenants. The resulting token works on /auth/* and /products/* but NOT on /admin/* (those require a system-admin token). Stores accessToken/refreshToken like the system login."
+          },
+          "response": []
+        },
+        {
           "name": "POST /auth/refresh",
           "event": [
             {
@@ -519,6 +565,25 @@
       "name": "Admin \u2014 DLQ",
       "description": "Plan 06 \u2014 `src/admin/controllers/dlq.controller.ts`. Inspect and replay messages in `<step>.dlq`.",
       "item": [
+        {
+          "name": "GET /admin/dlq",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dlq",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "dlq"
+              ]
+            },
+            "description": "Lists every queue whose DLQ can be peeked/replayed \u2014 returns `{ queues: [...] }`. Use one of these names as `:queue` (e.g. `import-competitor-products.DROGAL`, `sync-base-product.batch`) in the requests below."
+          },
+          "response": []
+        },
         {
           "name": "GET /admin/dlq/:step",
           "request": {
