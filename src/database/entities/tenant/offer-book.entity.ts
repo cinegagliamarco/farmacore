@@ -18,4 +18,8 @@ export class OfferBookEntity extends BaseEntity {
     nullable: true,
   })
   public targetPrice?: string | null;
+
+  /** A7Pharma caderno de ofertas id (idCadernoOferta) for write-back. */
+  @Column({ name: 'external_id', type: 'bigint', nullable: true })
+  public externalId?: string | null;
 }

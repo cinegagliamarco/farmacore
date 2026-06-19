@@ -5,10 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
+import { OfferBookEntity } from '../../database/entities/tenant/offer-book.entity';
 import { ProductEntity as TenantProductEntity } from '../../database/entities/tenant/product.entity';
 import { A7PharmaApiClient } from '../../integration/a7-pharma-api.client';
 import { IntegrationConnectionService } from '../../integration/integration-connection.service';
-import { UpdateProductDto } from './dto/update-product.dto';
+import { UpdateProductDto, UpsertOfferDto } from './dto/update-product.dto';
 
 const EDITABLE: ReadonlyArray<keyof UpdateProductDto> = [
   'name',
@@ -84,6 +85,79 @@ export class CatalogMutationService {
     ]);
     await repo.update({ ean }, { price: String(newPrice) });
     return { ean, price: newPrice };
+  }
+
+  /** Upsert an offer (precoOferta) into the product's caderno on the ERP,
+   *  then mirror it in tenant.offer_book. 409 if the product lacks an ERP id
+   *  or the tenant has no A7Pharma API configured. */
+  public async upsertOffer(
+    em: EntityManager,
+    tenantSlug: string,
+    ean: string,
+    dto: UpsertOfferDto,
+  ): Promise<{ ean: string; targetPrice: number; cadernoId: number }> {
+    const product = await em
+      .getRepository(TenantProductEntity)
+      .findOne({ where: { ean } });
+    if (!product) throw new NotFoundException(`product ${ean} not found`);
+    if (!product.externalId) {
+      throw new ConflictException('product has no ERP external_id');
+    }
+    const creds = await this.integration.getApiCredentials(tenantSlug);
+    if (!creds) {
+      throw new ConflictException(
+        'A7Pharma API not configured for this tenant',
+      );
+    }
+    await this.a7.upsertOffer(creds, dto.cadernoId, [
+      {
+        idEmbalagem: Number(product.externalId),
+        precoOferta: dto.targetPrice,
+      },
+    ]);
+    await em.getRepository(OfferBookEntity).upsert(
+      {
+        ean,
+        targetPrice: String(dto.targetPrice),
+        externalId: String(dto.cadernoId),
+        description: dto.description ?? null,
+      },
+      ['ean'],
+    );
+    return { ean, targetPrice: dto.targetPrice, cadernoId: dto.cadernoId };
+  }
+
+  /** Remove the product's offer from its caderno on the ERP (precoOferta=null),
+   *  then drop the local offer_book row. */
+  public async removeOffer(
+    em: EntityManager,
+    tenantSlug: string,
+    ean: string,
+  ): Promise<{ ean: string; deleted: boolean }> {
+    const offer = await em
+      .getRepository(OfferBookEntity)
+      .findOne({ where: { ean } });
+    if (!offer) throw new NotFoundException(`offer for ${ean} not found`);
+    const product = await em
+      .getRepository(TenantProductEntity)
+      .findOne({ where: { ean } });
+    if (!product?.externalId) {
+      throw new ConflictException('product has no ERP external_id');
+    }
+    if (!offer.externalId) {
+      throw new ConflictException('offer has no caderno id');
+    }
+    const creds = await this.integration.getApiCredentials(tenantSlug);
+    if (!creds) {
+      throw new ConflictException(
+        'A7Pharma API not configured for this tenant',
+      );
+    }
+    await this.a7.upsertOffer(creds, Number(offer.externalId), [
+      { idEmbalagem: Number(product.externalId), precoOferta: null },
+    ]);
+    await em.getRepository(OfferBookEntity).delete({ ean });
+    return { ean, deleted: true };
   }
 
   public async softDelete(

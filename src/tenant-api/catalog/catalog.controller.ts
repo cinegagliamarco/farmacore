@@ -19,7 +19,11 @@ import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import { CatalogService, Paginated } from './catalog.service';
 import { CatalogMutationService } from './catalog-mutation.service';
 import { ListProductsQueryDto } from './dto/list-products.query';
-import { UpdatePriceDto, UpdateProductDto } from './dto/update-product.dto';
+import {
+  UpdatePriceDto,
+  UpdateProductDto,
+  UpsertOfferDto,
+} from './dto/update-product.dto';
 
 /**
  * Tenant catalog — the authenticated tenant's own products. Scoped to the
@@ -128,6 +132,29 @@ export class CatalogController {
   ): Promise<{ ean: string; price: number }> {
     this.assertEan(ean);
     return this.mutations.updatePrice(em, user.tenantId, ean, dto.newPrice);
+  }
+
+  @Post(':ean/offer')
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  public upsertOffer(
+    @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
+    @Param('ean') ean: string,
+    @Body() dto: UpsertOfferDto,
+  ): Promise<{ ean: string; targetPrice: number; cadernoId: number }> {
+    this.assertEan(ean);
+    return this.mutations.upsertOffer(em, user.tenantId, ean, dto);
+  }
+
+  @Delete(':ean/offer')
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  public removeOffer(
+    @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
+    @Param('ean') ean: string,
+  ): Promise<{ ean: string; deleted: boolean }> {
+    this.assertEan(ean);
+    return this.mutations.removeOffer(em, user.tenantId, ean);
   }
 
   @Delete(':ean')
