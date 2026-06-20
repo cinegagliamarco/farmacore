@@ -42,6 +42,10 @@ export const PER_ORIGIN_STEPS: Readonly<
     CompetitorOrigin.MICHELASSI,
     CompetitorOrigin.PAGUE_MENOS,
     CompetitorOrigin.IKESAKI,
+    CompetitorOrigin.PACHECO,
+    CompetitorOrigin.SAO_PAULO,
+    CompetitorOrigin.VENANCIO,
+    CompetitorOrigin.INDIANA,
   ],
 };
 
@@ -115,5 +119,21 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.IKESAKI,
+  )]: 8,
+  [originStep(
+    PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+    CompetitorOrigin.PACHECO,
+  )]: 8,
+  [originStep(
+    PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+    CompetitorOrigin.SAO_PAULO,
+  )]: 8,
+  [originStep(
+    PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+    CompetitorOrigin.VENANCIO,
+  )]: 8,
+  [originStep(
+    PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+    CompetitorOrigin.INDIANA,
   )]: 8,
 };
