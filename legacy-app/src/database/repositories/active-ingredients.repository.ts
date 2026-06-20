@@ -19,18 +19,23 @@ export class ActiveIngredientsRepository {
     pageSize: number,
     filters?: ProductsByActiveIngredientFilters
   ): Promise<[ActiveIngredientTypeormEntity[], number]> {
-    const sortBy = filters?.sortBy ?? 'activeIngredient';
-    const sortDirection = filters?.sortDirection ?? 'ASC';
-
-    const orderMap: Record<SortableColumn, FindOptionsOrder<ActiveIngredientTypeormEntity>> = {
-      activeIngredient: { name: sortDirection },
-      matActiveIngredient: { mat: sortDirection }
+    const fieldMap: Record<SortableColumn, keyof ActiveIngredientTypeormEntity> = {
+      activeIngredient: 'name',
+      matActiveIngredient: 'mat'
     };
+
+    const order: FindOptionsOrder<ActiveIngredientTypeormEntity> = {};
+    filters?.sortBy?.forEach((key, i) => {
+      const field = fieldMap[key];
+      if (!field) return;
+      order[field] = filters?.sortDirection?.[i] === 'DESC' ? 'DESC' : 'ASC';
+    });
+    if (Object.keys(order).length === 0) order.name = 'ASC';
 
     return this.repository.findAndCount({
       where: filters?.activeIngredient ? { name: ILike(`%${filters.activeIngredient}%`) } : undefined,
       relations: ['baseProducts', 'baseProducts.stocks', 'baseProducts.offerBooks'],
-      order: orderMap[sortBy],
+      order,
       skip: ((page <= 0 ? 1 : page) - 1) * pageSize,
       take: pageSize
     });

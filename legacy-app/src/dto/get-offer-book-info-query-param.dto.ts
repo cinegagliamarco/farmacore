@@ -1,13 +1,12 @@
-import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsArray, IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
 import { IsBooleanString } from '../controllers/validators/is-boolean-string.validator';
+import { parseSortDirectionList, parseSortList, SORT_DIRECTIONS, SortDirection } from './multi-sort';
 import { PaginationQueryParamDto } from './pagination-query-param.dto';
 
 export const SORTABLE_COLUMNS = ['id', 'name', 'active', 'startDate', 'expirationDate'];
 
 export type SortableColumn = (typeof SORTABLE_COLUMNS)[number];
-
-export const SORT_DIRECTIONS = ['ASC', 'DESC'] as const;
-export type SortDirection = (typeof SORT_DIRECTIONS)[number];
 
 export interface OfferBookInfoFilters {
   active?: boolean;
@@ -18,12 +17,16 @@ export interface OfferBookInfoFilters {
 
 export class GetOfferBookInfoQueryParamDto extends PaginationQueryParamDto {
   @IsOptional()
-  @IsEnum(SORTABLE_COLUMNS, { message: `sortBy must be one of: ${SORTABLE_COLUMNS.join(', ')}` })
-  public sortBy?: SortableColumn;
+  @IsArray()
+  @IsEnum(SORTABLE_COLUMNS, { each: true, message: `each sortBy value must be one of: ${SORTABLE_COLUMNS.join(', ')}` })
+  @Transform(({ value }) => parseSortList(value))
+  public sortBy?: SortableColumn[];
 
   @IsOptional()
-  @IsEnum(SORT_DIRECTIONS, { message: `sortDirection must be one of: ${SORT_DIRECTIONS.join(', ')}` })
-  public sortDirection?: SortDirection;
+  @IsArray()
+  @IsEnum(SORT_DIRECTIONS, { each: true, message: `each sortDirection value must be one of: ${SORT_DIRECTIONS.join(', ')}` })
+  @Transform(({ value }) => parseSortDirectionList(value))
+  public sortDirection?: SortDirection[];
 
   @IsOptional()
   @IsBooleanString()

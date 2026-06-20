@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Repository } from 'typeorm';
+import { applyMultiSort, SortDirection } from '../../dto/multi-sort';
 import { OfferBookInfoTypeormEntity } from '../entities/offer-book-info.entity';
 import { OfferBookInfoFilters } from '../../dto/get-offer-book-info-query-param.dto';
 
@@ -19,9 +20,17 @@ export class OfferBookInfoRepository {
     page: number,
     pageSize: number,
     filters: OfferBookInfoFilters,
-    sortBy?: string,
-    sortDirection?: 'ASC' | 'DESC'
+    sortBy?: string[],
+    sortDirection?: SortDirection[]
   ): Promise<[OfferBookInfoTypeormEntity[], number]> {
+    const columnMap: Record<string, string> = {
+      id: 'offer_book_info.id',
+      name: 'offer_book_info.name',
+      active: 'offer_book_info.active',
+      startDate: 'offer_book_info.startDate',
+      expirationDate: 'offer_book_info.expirationDate'
+    };
+
     const queryBuilder = this.repository.createQueryBuilder('offer_book_info');
 
     if (filters.active !== undefined) {
@@ -44,9 +53,7 @@ export class OfferBookInfoRepository {
       });
     }
 
-    if (sortBy) {
-      queryBuilder.orderBy(`offer_book_info.${sortBy}`, sortDirection || 'ASC');
-    }
+    applyMultiSort(queryBuilder, sortBy, sortDirection, columnMap);
 
     queryBuilder.skip(((page <= 0 ? 1 : page) - 1) * pageSize).take(pageSize);
 
