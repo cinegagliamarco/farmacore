@@ -92,4 +92,15 @@ describe('deriveDecision', () => {
       }),
     ).toBe('ok');
   });
+
+  it('null combate cost never forces mix (unknown cost is not "higher")', () => {
+    expect(
+      deriveDecision({
+        combate: { price: 8, cost: null },
+        lowestCost: 5,
+        competitorPrice: 10,
+        tolerance: 0,
+      }),
+    ).toBe('subir'); // falls through mix → competitor compare
+  });
 });

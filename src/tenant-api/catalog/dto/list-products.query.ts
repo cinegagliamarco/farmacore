@@ -73,6 +73,7 @@ export class ListProductsQueryDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(100)
   public tolerance?: number; // % vs competitor treated as "ok"; default 0
 
   @IsOptional()

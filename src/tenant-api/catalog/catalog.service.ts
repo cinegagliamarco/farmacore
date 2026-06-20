@@ -18,8 +18,9 @@ export type Decision = 'subir' | 'abaixar' | 'ok' | 'mix' | 'sem-estoque';
 const DECISIONS: Decision[] = ['subir', 'abaixar', 'ok', 'mix', 'sem-estoque'];
 
 export interface DecisionInput {
-  /** Cheapest in-stock variant in the store, or null when none has stock. */
-  combate: { price: number; cost: number } | null;
+  /** Cheapest in-stock variant in the store, or null when none has stock.
+   *  cost can be null when the ERP hasn't loaded it yet. */
+  combate: { price: number; cost: number | null } | null;
   /** Lowest cost in the whole group, regardless of price/stock. */
   lowestCost: number | null;
   /** Cheapest stocked competitor across the group, or null. */
@@ -41,7 +42,8 @@ export function deriveDecision({
   tolerance,
 }: DecisionInput): Decision {
   if (!combate) return 'sem-estoque';
-  if (lowestCost !== null && combate.cost > lowestCost) return 'mix';
+  if (lowestCost !== null && combate.cost !== null && combate.cost > lowestCost)
+    return 'mix';
   if (competitorPrice === null) return 'ok';
   const tol = tolerance / 100;
   if (combate.price < competitorPrice * (1 - tol)) return 'subir';
@@ -74,7 +76,12 @@ export interface IngredientGroup {
   activeIngredient: string;
   decision: Decision;
   targetPrice: number | null;
-  combate: { ean: string; name: string; price: number; cost: number } | null;
+  combate: {
+    ean: string;
+    name: string;
+    price: number;
+    cost: number | null;
+  } | null;
   lowestCost: { ean: string; cost: number } | null;
   competitorCombate: { origin: string; price: number } | null;
   variants: Record<string, unknown>[];
@@ -332,22 +339,24 @@ export class CatalogService {
     let lowestCost: VariantRow | null = null;
     let competitor: { origin: string; price: number } | null = null;
     for (const v of vs) {
+      // price 0 means "not loaded" here, same as targetPrice's `> 0` filter —
+      // a zero-price variant must not become the combate or a competitor.
       const price = num(v.price);
       const cost = num(v.cost);
-      if (price !== null && Number(v.stockInSubsidiary) > 0)
+      if (price !== null && price > 0 && Number(v.stockInSubsidiary) > 0)
         if (!combate || price < (num(combate.price) ?? Infinity)) combate = v;
       if (cost !== null)
         if (!lowestCost || cost < (num(lowestCost.cost) ?? Infinity))
           lowestCost = v;
       const compPrice = num(v.competitorPrice);
-      if (compPrice !== null && v.competitorOrigin)
+      if (compPrice !== null && compPrice > 0 && v.competitorOrigin)
         if (!competitor || compPrice < competitor.price)
           competitor = { origin: v.competitorOrigin, price: compPrice };
     }
     const lowestCostValue = lowestCost ? num(lowestCost.cost) : null;
     const decision = deriveDecision({
       combate: combate
-        ? { price: num(combate.price)!, cost: num(combate.cost)! }
+        ? { price: num(combate.price)!, cost: num(combate.cost) }
         : null,
       lowestCost: lowestCostValue,
       competitorPrice: competitor?.price ?? null,
@@ -365,7 +374,7 @@ export class CatalogService {
             ean: String(combate.ean),
             name: combate.name,
             price: num(combate.price)!,
-            cost: num(combate.cost)!,
+            cost: num(combate.cost),
           }
         : null,
       lowestCost: lowestCost
@@ -387,7 +396,9 @@ export class CatalogService {
   }
 
   private requireSubsidiary(q: ListProductsQueryDto): string {
-    if (!q.subsidiary || !/^\d+$/.test(q.subsidiary))
+    // up to 18 digits stays within Postgres bigint, so the `::bigint` cast
+    // can't overflow into a 500.
+    if (!q.subsidiary || !/^\d{1,18}$/.test(q.subsidiary))
       throw new BadRequestException(
         'subsidiary is required (numeric store id)',
       );
