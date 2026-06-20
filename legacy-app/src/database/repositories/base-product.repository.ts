@@ -7,6 +7,7 @@ import { ProductStockFilters } from '../../dto/get-base-product-stock-query-para
 import { BaseProductFilters } from '../../dto/get-base-products-query-param.dto';
 import { ProductFilters } from '../../dto/get-crossed-products-query-param.dto';
 import { GenericMissingActiveIngredientsFilters } from '../../dto/get-generic-missing-active-ingredients-query-param.dto';
+import { applyMultiSort, SortDirection } from '../../dto/multi-sort';
 import { BaseProductStockMetrics } from '../../use-cases/get-base-product-stock-metrics.use-case';
 import { BaseProductTypeormEntity } from '../entities/base-product.entity';
 import { ClassificationTypeormEntity } from '../entities/classification.entity';
@@ -130,8 +131,8 @@ export class BaseProductRepository {
   public async getProductsCrossedPaginatedWithSort(
     page: number,
     pageSize: number,
-    sortBy?: string,
-    sortDirection?: 'ASC' | 'DESC',
+    sortBy?: string[],
+    sortDirection?: SortDirection[],
     filters?: ProductFilters
   ): Promise<[BaseProductWithCompetitorPrices[], number]> {
     const columnMap: Record<string, string> = {
@@ -208,9 +209,7 @@ export class BaseProductRepository {
       queryBuilder.andWhere('base_product.receiptDate <= :endReceiptDate', { endReceiptDate: filters.endReceiptDate });
     }
 
-    if (sortBy && columnMap[sortBy]) {
-      queryBuilder.orderBy(columnMap[sortBy], sortDirection || 'ASC');
-    }
+    applyMultiSort(queryBuilder, sortBy, sortDirection, columnMap);
 
     queryBuilder
       .andWhere('base_product.active = :active', { active: true })
@@ -441,8 +440,8 @@ export class BaseProductRepository {
   public async getProductsWithObservationsPaginated(
     page: number,
     pageSize: number,
-    sortBy?: string,
-    sortDirection?: 'ASC' | 'DESC',
+    sortBy?: string[],
+    sortDirection?: SortDirection[],
     filters?: ProductFilters
   ): Promise<[BaseProductWithCompetitorPrices[], number]> {
     const columnMap: Record<string, string> = {
@@ -511,9 +510,7 @@ export class BaseProductRepository {
       queryBuilder.andWhere('base_product.supplier ILIKE :supplier', { supplier: `%${filters.supplier}%` });
     }
 
-    if (sortBy && columnMap[sortBy]) {
-      queryBuilder.orderBy(columnMap[sortBy], sortDirection || 'ASC');
-    }
+    applyMultiSort(queryBuilder, sortBy, sortDirection, columnMap);
 
     queryBuilder
       .andWhere('(offerBooks.expirationDate IS NULL OR offerBooks.expirationDate >= NOW())')
@@ -594,8 +591,8 @@ export class BaseProductRepository {
   public async findAllWithStockPaginated(
     page: number,
     pageSize: number,
-    sortBy?: string,
-    sortDirection?: 'ASC' | 'DESC',
+    sortBy?: string[],
+    sortDirection?: SortDirection[],
     filters?: ProductStockFilters
   ): Promise<[BaseProductWithFullStock[], number]> {
     const columnMap: Record<string, string> = {
@@ -671,9 +668,7 @@ export class BaseProductRepository {
 
     applyCommonFilters(dataQueryBuilder);
 
-    if (sortBy && columnMap[sortBy]) {
-      dataQueryBuilder.orderBy(columnMap[sortBy], sortDirection || 'ASC');
-    }
+    applyMultiSort(dataQueryBuilder, sortBy, sortDirection, columnMap);
 
     dataQueryBuilder.skip(((page <= 0 ? 1 : page) - 1) * pageSize).take(pageSize);
 
@@ -875,8 +870,8 @@ export class BaseProductRepository {
   public async getBaseProductsPaginated(
     page: number,
     pageSize: number,
-    sortBy?: string,
-    sortDirection?: 'ASC' | 'DESC',
+    sortBy?: string[],
+    sortDirection?: SortDirection[],
     filters?: BaseProductFilters
   ): Promise<[BaseProductTypeormEntity[], number]> {
     const columnMap: Record<string, string> = {
@@ -907,9 +902,7 @@ export class BaseProductRepository {
       if (active) queryBuilder.andWhere('base_product.active = :active', { active });
     }
 
-    if (sortBy && columnMap[sortBy]) {
-      queryBuilder.orderBy(columnMap[sortBy], sortDirection || 'ASC');
-    }
+    applyMultiSort(queryBuilder, sortBy, sortDirection, columnMap);
 
     queryBuilder.skip(((page <= 0 ? 1 : page) - 1) * pageSize).take(pageSize);
 
@@ -919,8 +912,8 @@ export class BaseProductRepository {
   public async getGenericMissingActiveIngredientsPaginated(
     page: number,
     pageSize: number,
-    sortBy?: string,
-    sortDirection?: 'ASC' | 'DESC',
+    sortBy?: string[],
+    sortDirection?: SortDirection[],
     filters?: GenericMissingActiveIngredientsFilters
   ): Promise<[BaseProductTypeormEntity[], number]> {
     const columnMap: Record<string, string> = {
@@ -947,9 +940,7 @@ export class BaseProductRepository {
       queryBuilder.andWhere('base_product.supplier = :supplier', { supplier: filters.supplier });
     }
 
-    if (sortBy && columnMap[sortBy]) {
-      queryBuilder.orderBy(columnMap[sortBy], sortDirection || 'ASC');
-    }
+    applyMultiSort(queryBuilder, sortBy, sortDirection, columnMap);
 
     queryBuilder.skip(((page <= 0 ? 1 : page) - 1) * pageSize).take(pageSize);
 

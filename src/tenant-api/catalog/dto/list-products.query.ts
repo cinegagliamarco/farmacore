@@ -1,5 +1,7 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
+  IsEnum,
   IsIn,
   IsInt,
   IsNumber,
@@ -8,6 +10,27 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import {
+  parseSortDirectionList,
+  parseSortList,
+  SORT_DIRECTIONS,
+  SortDirection,
+} from '../../../common/multi-sort';
+
+export const SORTABLE_COLUMNS = [
+  'ean',
+  'name',
+  'supplier',
+  'classification',
+  'cost',
+  'price',
+  'margin',
+  'averageVariation',
+  'status',
+  'targetPrice',
+  'receiptDate',
+] as const;
+export type SortableColumn = (typeof SORTABLE_COLUMNS)[number];
 
 /**
  * Query for the tenant catalog reads (`/products` and `/products/crossed`).
@@ -57,12 +80,22 @@ export class ListProductsQueryDto {
   public activeIngredient?: string;
 
   @IsOptional()
-  @IsString()
-  public sortBy?: string;
+  @IsArray()
+  @IsEnum(SORTABLE_COLUMNS, {
+    each: true,
+    message: `each sortBy value must be one of: ${SORTABLE_COLUMNS.join(', ')}`,
+  })
+  @Transform(({ value }) => parseSortList(value))
+  public sortBy?: SortableColumn[];
 
   @IsOptional()
-  @IsString()
-  public sortDirection?: string; // ASC | DESC
+  @IsArray()
+  @IsEnum(SORT_DIRECTIONS, {
+    each: true,
+    message: `each sortDirection value must be one of: ${SORT_DIRECTIONS.join(', ')}`,
+  })
+  @Transform(({ value }) => parseSortDirectionList(value))
+  public sortDirection?: SortDirection[];
 
   // Active-ingredient decision-by-store feature (see active-ingredients/crossed).
   @IsOptional()

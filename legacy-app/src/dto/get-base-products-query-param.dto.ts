@@ -2,14 +2,12 @@ import { Transform } from 'class-transformer';
 import { IsArray, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { BaseProductOrigin } from '../common/base-product-origin.enum';
 import { IsBooleanString } from '../controllers/validators/is-boolean-string.validator';
+import { parseSortDirectionList, parseSortList, SORT_DIRECTIONS, SortDirection } from './multi-sort';
 import { PaginationQueryParamDto } from './pagination-query-param.dto';
 
 export const BASE_PRODUCT_SORTABLE_COLUMNS = ['ean', 'name', 'supplier', 'mat', 'curve', 'updatedDate'] as const;
 
 export type BaseProductSortableColumn = (typeof BASE_PRODUCT_SORTABLE_COLUMNS)[number];
-
-export const SORT_DIRECTIONS = ['ASC', 'DESC'] as const;
-export type SortDirection = (typeof SORT_DIRECTIONS)[number];
 
 export const CURVE_VALUES = ['A', 'B', 'C', 'D'] as const;
 export type CurveValue = (typeof CURVE_VALUES)[number];
@@ -26,12 +24,16 @@ export interface BaseProductFilters {
 
 export class GetBaseProductsQueryParamDto extends PaginationQueryParamDto {
   @IsOptional()
-  @IsEnum(BASE_PRODUCT_SORTABLE_COLUMNS, { message: `sortBy must be one of: ${BASE_PRODUCT_SORTABLE_COLUMNS.join(', ')}` })
-  public sortBy?: BaseProductSortableColumn;
+  @IsArray()
+  @IsEnum(BASE_PRODUCT_SORTABLE_COLUMNS, { each: true, message: `each sortBy value must be one of: ${BASE_PRODUCT_SORTABLE_COLUMNS.join(', ')}` })
+  @Transform(({ value }) => parseSortList(value))
+  public sortBy?: BaseProductSortableColumn[];
 
   @IsOptional()
-  @IsEnum(SORT_DIRECTIONS, { message: `sortDirection must be one of: ${SORT_DIRECTIONS.join(', ')}` })
-  public sortDirection?: SortDirection;
+  @IsArray()
+  @IsEnum(SORT_DIRECTIONS, { each: true, message: `each sortDirection value must be one of: ${SORT_DIRECTIONS.join(', ')}` })
+  @Transform(({ value }) => parseSortDirectionList(value))
+  public sortDirection?: SortDirection[];
 
   @IsOptional()
   @IsArray()
