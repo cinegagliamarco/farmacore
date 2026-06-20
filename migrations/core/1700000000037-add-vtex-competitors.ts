@@ -13,6 +13,13 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * the admin bulk-update can enable them (it only UPDATEs existing rows).
  * New tenants get these automatically via the onboarding seed loop, which
  * iterates Object.values(CompetitorOrigin).
+ *
+ * shared_catalog.product is the hot, continuously-written table, so its
+ * CHECK is re-added `NOT VALID`: widening can never fail on existing rows,
+ * and NOT VALID skips the full-table scan that a validating ADD would run
+ * under ACCESS EXCLUSIVE (which would stall the scrape pipeline on deploy).
+ * The constraint is still enforced for every new write. The small
+ * core.tenant_competitor_origin table is validated normally.
  */
 const ALL_ORIGINS =
   "'DROGAL','DROGASIL','PAGUE_MENOS','IKESAKI','MICHELASSI','PACHECO','SAO_PAULO','VENANCIO','INDIANA'";
@@ -23,10 +30,10 @@ const NEW_ORIGINS = ['PACHECO', 'SAO_PAULO', 'VENANCIO', 'INDIANA'];
 export class AddVtexCompetitors1700000000037 implements MigrationInterface {
   public async up(q: QueryRunner): Promise<void> {
     await q.query(`
-      ALTER TABLE shared_catalog.product DROP CONSTRAINT chk_product_origin;
+      ALTER TABLE shared_catalog.product DROP CONSTRAINT IF EXISTS chk_product_origin;
       ALTER TABLE shared_catalog.product
-        ADD CONSTRAINT chk_product_origin CHECK (origin IN (${ALL_ORIGINS}));
-      ALTER TABLE core.tenant_competitor_origin DROP CONSTRAINT chk_core_tco_origin;
+        ADD CONSTRAINT chk_product_origin CHECK (origin IN (${ALL_ORIGINS})) NOT VALID;
+      ALTER TABLE core.tenant_competitor_origin DROP CONSTRAINT IF EXISTS chk_core_tco_origin;
       ALTER TABLE core.tenant_competitor_origin
         ADD CONSTRAINT chk_core_tco_origin CHECK (origin IN (${ALL_ORIGINS}));
     `);
@@ -52,10 +59,10 @@ export class AddVtexCompetitors1700000000037 implements MigrationInterface {
       NEW_ORIGINS,
     ]);
     await q.query(`
-      ALTER TABLE shared_catalog.product DROP CONSTRAINT chk_product_origin;
+      ALTER TABLE shared_catalog.product DROP CONSTRAINT IF EXISTS chk_product_origin;
       ALTER TABLE shared_catalog.product
         ADD CONSTRAINT chk_product_origin CHECK (origin IN (${ORIGINAL_ORIGINS}));
-      ALTER TABLE core.tenant_competitor_origin DROP CONSTRAINT chk_core_tco_origin;
+      ALTER TABLE core.tenant_competitor_origin DROP CONSTRAINT IF EXISTS chk_core_tco_origin;
       ALTER TABLE core.tenant_competitor_origin
         ADD CONSTRAINT chk_core_tco_origin CHECK (origin IN (${ORIGINAL_ORIGINS}));
     `);

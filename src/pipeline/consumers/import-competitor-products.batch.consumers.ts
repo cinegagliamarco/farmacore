@@ -60,10 +60,10 @@ const QUEUE_INDIANA = originStep(
 /**
  * One thin per-origin batch consumer per scrape queue. They all share
  * the same logicalStep (IMPORT_COMPETITOR_PRODUCTS) so the fan-in
- * counter on the dispatch row spans all three origins — the last
- * batch from ANY origin closes the run.
+ * counter on the dispatch row spans every origin — the last batch from
+ * ANY origin closes the run.
  *
- * Three separate classes (instead of one with three decorators)
+ * One separate class per origin (instead of one with many decorators)
  * because @RabbitSubscribe binds to a single queue per method.
  */
 abstract class CompetitorProductsBatchBase extends BatchPipelineConsumer<ImportCompetitorProductsBatchPayload> {

@@ -50,19 +50,22 @@ export class SharedProductRepository {
   }
 
   /**
-   * Bulk upsert scraped competitor products by (ean, origin). Pass
-   * `found: false` records too — they get persisted with most columns
-   * null and metadata.error set, so the next run can see "we tried,
-   * not on this origin's catalog" and skip / retry per policy.
+   * Bulk upsert scraped competitor products by (ean, origin). Genuine
+   * `found: false` records (the EAN isn't on this origin's catalog) are
+   * persisted with most columns null, so the row reflects "not sold here".
+   *
+   * Scrapes with `error` set are transport failures (HTTP 403/timeout in
+   * the scraper's catch) — we don't know the current state, so we SKIP
+   * them rather than overwrite the last good price with null. A blocked or
+   * flaky sweep therefore preserves the previous snapshot instead of
+   * corrupting it.
    */
   public async upsertScrapes(scrapes: ScrapedProduct[]): Promise<void> {
-    if (scrapes.length === 0) return;
+    const persistable = scrapes.filter((s) => !s.error);
+    if (persistable.length === 0) return;
     const repo = this.em.getRepository(ProductEntity);
-    const rows = scrapes.map((s) => {
-      const baseMetadata = s.metadata ?? {};
-      const metadata = s.error
-        ? { ...baseMetadata, error: s.error, found: s.found }
-        : { ...baseMetadata, found: s.found };
+    const rows = persistable.map((s) => {
+      const metadata = { ...(s.metadata ?? {}), found: s.found };
       return {
         ean: s.ean,
         origin: s.origin,
