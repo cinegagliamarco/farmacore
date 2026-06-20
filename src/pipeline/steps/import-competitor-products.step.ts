@@ -8,6 +8,10 @@ import { DrogasilScraper } from '../../scrapers/drogasil/drogasil.scraper';
 import { MichelassiScraper } from '../../scrapers/michelassi/michelassi.scraper';
 import { PagueMenosScraper } from '../../scrapers/pague-menos/pague-menos.scraper';
 import { IkesakiScraper } from '../../scrapers/ikesaki/ikesaki.scraper';
+import { PachecoScraper } from '../../scrapers/pacheco/pacheco.scraper';
+import { SaoPauloScraper } from '../../scrapers/sao-paulo/sao-paulo.scraper';
+import { VenancioScraper } from '../../scrapers/venancio/venancio.scraper';
+import { IndianaScraper } from '../../scrapers/indiana/indiana.scraper';
 import {
   ProductScraper,
   ScrapedProduct,
@@ -37,6 +41,10 @@ export class ImportCompetitorProductsStep {
     private readonly michelassi: MichelassiScraper,
     private readonly pagueMenos: PagueMenosScraper,
     private readonly ikesaki: IkesakiScraper,
+    private readonly pacheco: PachecoScraper,
+    private readonly saoPaulo: SaoPauloScraper,
+    private readonly venancio: VenancioScraper,
+    private readonly indiana: IndianaScraper,
     private readonly images: CompetitorImageService,
   ) {}
 
@@ -91,6 +99,14 @@ export class ImportCompetitorProductsStep {
         return this.pagueMenos;
       case CompetitorOrigin.IKESAKI:
         return this.ikesaki;
+      case CompetitorOrigin.PACHECO:
+        return this.pacheco;
+      case CompetitorOrigin.SAO_PAULO:
+        return this.saoPaulo;
+      case CompetitorOrigin.VENANCIO:
+        return this.venancio;
+      case CompetitorOrigin.INDIANA:
+        return this.indiana;
       default:
         throw new Error(
           `No product scraper registered for origin ${String(origin)}`,

@@ -40,6 +40,22 @@ const QUEUE_IKESAKI = originStep(
   PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
   CompetitorOrigin.IKESAKI,
 );
+const QUEUE_PACHECO = originStep(
+  PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+  CompetitorOrigin.PACHECO,
+);
+const QUEUE_SAO_PAULO = originStep(
+  PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+  CompetitorOrigin.SAO_PAULO,
+);
+const QUEUE_VENANCIO = originStep(
+  PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+  CompetitorOrigin.VENANCIO,
+);
+const QUEUE_INDIANA = originStep(
+  PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
+  CompetitorOrigin.INDIANA,
+);
 
 /**
  * One thin per-origin batch consumer per scrape queue. They all share
@@ -237,6 +253,118 @@ export class ImportCompetitorProductsIkesakiConsumer extends CompetitorProductsB
     createQueueIfNotExists: false,
     queue: QUEUE_IKESAKI,
     queueOptions: { channel: QUEUE_IKESAKI },
+  })
+  public consume(
+    message: PipelineMessage<ImportCompetitorProductsBatchPayload>,
+  ): Promise<void> {
+    return this.process(message);
+  }
+}
+
+@Injectable()
+export class ImportCompetitorProductsPachecoConsumer extends CompetitorProductsBatchBase {
+  constructor(
+    stepImpl: ImportCompetitorProductsStep,
+    runs: PipelineRunService,
+    retry: RetryService,
+    tx: TenantTransactionService,
+    tenants: TenantService,
+    integration: IntegrationDataSourceFactory,
+    publisher: PipelinePublisher,
+  ) {
+    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+  }
+
+  @RabbitSubscribe({
+    exchange: EXCHANGE_NAME,
+    routingKey: `*.${QUEUE_PACHECO}`,
+    createQueueIfNotExists: false,
+    queue: QUEUE_PACHECO,
+    queueOptions: { channel: QUEUE_PACHECO },
+  })
+  public consume(
+    message: PipelineMessage<ImportCompetitorProductsBatchPayload>,
+  ): Promise<void> {
+    return this.process(message);
+  }
+}
+
+@Injectable()
+export class ImportCompetitorProductsSaoPauloConsumer extends CompetitorProductsBatchBase {
+  constructor(
+    stepImpl: ImportCompetitorProductsStep,
+    runs: PipelineRunService,
+    retry: RetryService,
+    tx: TenantTransactionService,
+    tenants: TenantService,
+    integration: IntegrationDataSourceFactory,
+    publisher: PipelinePublisher,
+  ) {
+    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+  }
+
+  @RabbitSubscribe({
+    exchange: EXCHANGE_NAME,
+    routingKey: `*.${QUEUE_SAO_PAULO}`,
+    createQueueIfNotExists: false,
+    queue: QUEUE_SAO_PAULO,
+    queueOptions: { channel: QUEUE_SAO_PAULO },
+  })
+  public consume(
+    message: PipelineMessage<ImportCompetitorProductsBatchPayload>,
+  ): Promise<void> {
+    return this.process(message);
+  }
+}
+
+@Injectable()
+export class ImportCompetitorProductsVenancioConsumer extends CompetitorProductsBatchBase {
+  constructor(
+    stepImpl: ImportCompetitorProductsStep,
+    runs: PipelineRunService,
+    retry: RetryService,
+    tx: TenantTransactionService,
+    tenants: TenantService,
+    integration: IntegrationDataSourceFactory,
+    publisher: PipelinePublisher,
+  ) {
+    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+  }
+
+  @RabbitSubscribe({
+    exchange: EXCHANGE_NAME,
+    routingKey: `*.${QUEUE_VENANCIO}`,
+    createQueueIfNotExists: false,
+    queue: QUEUE_VENANCIO,
+    queueOptions: { channel: QUEUE_VENANCIO },
+  })
+  public consume(
+    message: PipelineMessage<ImportCompetitorProductsBatchPayload>,
+  ): Promise<void> {
+    return this.process(message);
+  }
+}
+
+@Injectable()
+export class ImportCompetitorProductsIndianaConsumer extends CompetitorProductsBatchBase {
+  constructor(
+    stepImpl: ImportCompetitorProductsStep,
+    runs: PipelineRunService,
+    retry: RetryService,
+    tx: TenantTransactionService,
+    tenants: TenantService,
+    integration: IntegrationDataSourceFactory,
+    publisher: PipelinePublisher,
+  ) {
+    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+  }
+
+  @RabbitSubscribe({
+    exchange: EXCHANGE_NAME,
+    routingKey: `*.${QUEUE_INDIANA}`,
+    createQueueIfNotExists: false,
+    queue: QUEUE_INDIANA,
+    queueOptions: { channel: QUEUE_INDIANA },
   })
   public consume(
     message: PipelineMessage<ImportCompetitorProductsBatchPayload>,

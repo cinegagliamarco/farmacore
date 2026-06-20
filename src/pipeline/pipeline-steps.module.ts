@@ -29,6 +29,10 @@ import {
   ImportCompetitorProductsMichelassiConsumer,
   ImportCompetitorProductsPagueMenosConsumer,
   ImportCompetitorProductsIkesakiConsumer,
+  ImportCompetitorProductsPachecoConsumer,
+  ImportCompetitorProductsSaoPauloConsumer,
+  ImportCompetitorProductsVenancioConsumer,
+  ImportCompetitorProductsIndianaConsumer,
 } from './consumers/import-competitor-products.batch.consumers';
 import { CalcBaseProductMetricsDispatchConsumer } from './consumers/calc-base-product-metrics.dispatch.consumer';
 import { CalcBaseProductMetricsBatchConsumer } from './consumers/calc-base-product-metrics.batch.consumer';
@@ -60,6 +64,10 @@ const CONSUMERS = [
   ImportCompetitorProductsMichelassiConsumer,
   ImportCompetitorProductsPagueMenosConsumer,
   ImportCompetitorProductsIkesakiConsumer,
+  ImportCompetitorProductsPachecoConsumer,
+  ImportCompetitorProductsSaoPauloConsumer,
+  ImportCompetitorProductsVenancioConsumer,
+  ImportCompetitorProductsIndianaConsumer,
   CalcBaseProductMetricsDispatchConsumer,
   CalcBaseProductMetricsBatchConsumer,
   UpdateBaseProductPropertiesDispatchConsumer,
