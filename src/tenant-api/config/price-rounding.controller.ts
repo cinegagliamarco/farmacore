@@ -14,8 +14,8 @@ import type { JwtPayload } from '../../auth/jwt-payload.type';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import {
-  CreatePriceRoundingRuleDto,
-  UpdatePriceRoundingRuleDto,
+  CreatePriceRoundingRangeDto,
+  UpdatePriceRoundingRangeDto,
 } from './dto/config.dto';
 import { PriceRoundingService } from './price-rounding.service';
 
@@ -45,7 +45,7 @@ export class PriceRoundingController {
   public create(
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
-    @Body() dto: CreatePriceRoundingRuleDto,
+    @Body() dto: CreatePriceRoundingRangeDto,
   ): Promise<unknown> {
     return this.rules.create(em, user.tenantId, dto);
   }
@@ -56,7 +56,7 @@ export class PriceRoundingController {
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() dto: UpdatePriceRoundingRuleDto,
+    @Body() dto: UpdatePriceRoundingRangeDto,
   ): Promise<unknown> {
     return this.rules.update(em, user.tenantId, id, dto);
   }

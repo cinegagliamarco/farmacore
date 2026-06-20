@@ -1,12 +1,9 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsBoolean,
-  IsInt,
   IsNumber,
   IsOptional,
-  IsString,
-  Length,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -18,30 +15,31 @@ export class VariationStatusDto {
   @IsOptional() @IsNumber() suspectAbove?: number;
 }
 
-export class DecimalRangeDto {
-  @IsNumber() minDecimal!: number;
-  @IsNumber() maxDecimal!: number;
-  @IsNumber() targetDecimal!: number;
+// Bounds mirror the DB column limits: price band numeric(10,2),
+// decimal buckets numeric(4,2). Keeps an out-of-range value a 400, not a
+// Postgres overflow 500. Cross-field ordering is checked in the service.
+export class PriceRoundingRuleDto {
+  @IsNumber() @Min(0) @Max(99.99) decimalMin!: number;
+  @IsNumber() @Min(0) @Max(99.99) decimalMax!: number;
+  @IsNumber() @Min(0) @Max(99.99) roundTo!: number;
 }
 
-export class CreatePriceRoundingRuleDto {
-  @IsString() @Length(1, 200) name!: string;
-  @IsOptional() @IsBoolean() enabled?: boolean;
-  @IsOptional() @IsInt() @Min(0) priority?: number;
+export class CreatePriceRoundingRangeDto {
+  @IsNumber() @Min(0) @Max(99999999.99) priceMin!: number;
+  @IsNumber() @Min(0) @Max(99999999.99) priceMax!: number;
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => DecimalRangeDto)
-  ranges?: DecimalRangeDto[];
+  @Type(() => PriceRoundingRuleDto)
+  rules?: PriceRoundingRuleDto[];
 }
 
-export class UpdatePriceRoundingRuleDto {
-  @IsOptional() @IsString() @Length(1, 200) name?: string;
-  @IsOptional() @IsBoolean() enabled?: boolean;
-  @IsOptional() @IsInt() @Min(0) priority?: number;
+export class UpdatePriceRoundingRangeDto {
+  @IsOptional() @IsNumber() @Min(0) @Max(99999999.99) priceMin?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(99999999.99) priceMax?: number;
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => DecimalRangeDto)
-  ranges?: DecimalRangeDto[];
+  @Type(() => PriceRoundingRuleDto)
+  rules?: PriceRoundingRuleDto[];
 }

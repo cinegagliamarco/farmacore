@@ -2,21 +2,26 @@ import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '../base.entity';
 
 /**
- * Per-tenant price-rounding rule. Control-plane config, so it lives in
- * core keyed by tenant_id. Owns price_rounding_decimal_range rows.
+ * Decimal bucket within a price band. When a price falls in the parent
+ * range's [price_min, price_max] and its decimal part is in
+ * [decimal_min, decimal_max], the price snaps to round_to. Mirrors
+ * pricy-shelf's price_rounding_rules.
  */
 @Entity({ schema: 'core', name: 'price_rounding_rule' })
-@Index('IX_PRICE_ROUNDING_RULE_TENANT', ['tenantId'])
+@Index('IX_PRICE_ROUNDING_RULE_RANGE', ['rangeId'])
 export class PriceRoundingRuleEntity extends BaseEntity {
   @Column({ name: 'tenant_id', type: 'uuid' })
   public tenantId!: string;
 
-  @Column({ type: 'text' })
-  public name!: string;
+  @Column({ name: 'range_id', type: 'uuid' })
+  public rangeId!: string;
 
-  @Column({ type: 'boolean', default: true })
-  public enabled!: boolean;
+  @Column({ name: 'decimal_min', type: 'numeric', precision: 4, scale: 2 })
+  public decimalMin!: string;
 
-  @Column({ type: 'int', default: 100 })
-  public priority!: number;
+  @Column({ name: 'decimal_max', type: 'numeric', precision: 4, scale: 2 })
+  public decimalMax!: string;
+
+  @Column({ name: 'round_to', type: 'numeric', precision: 4, scale: 2 })
+  public roundTo!: string;
 }

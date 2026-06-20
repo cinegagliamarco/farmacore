@@ -1,73 +1,90 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { resolveTenantId } from '../../tenant/tenant-lookup';
 import {
-  CreatePriceRoundingRuleDto,
-  DecimalRangeDto,
-  UpdatePriceRoundingRuleDto,
+  CreatePriceRoundingRangeDto,
+  PriceRoundingRuleDto,
+  UpdatePriceRoundingRangeDto,
 } from './dto/config.dto';
 
-interface RuleRow {
+interface RangeRow {
   id: string;
-  name: string;
-  enabled: boolean;
-  priority: number;
-  ranges: DecimalRangeDto[];
+  priceMin: number;
+  priceMax: number;
+  rules: PriceRoundingRuleDto[];
 }
 
 /**
- * Price-rounding rules — per-tenant control-plane config in core. Each rule
- * owns a set of decimal-range buckets; writes replace the buckets wholesale.
+ * Price-rounding config — per-tenant control-plane in core. A price band
+ * [priceMin, priceMax] owns decimal-bucket rules; writes replace the
+ * buckets wholesale. Mirrors pricy-shelf's price_rounding_range/_rule.
  */
 @Injectable()
 export class PriceRoundingService {
-  public async list(em: EntityManager, slug: string): Promise<RuleRow[]> {
+  public async list(em: EntityManager, slug: string): Promise<RangeRow[]> {
     const tenantId = await resolveTenantId(em, slug);
-    const rules: Array<Omit<RuleRow, 'ranges'>> = await em.query(
-      `SELECT id, name, enabled, priority
-         FROM core.price_rounding_rule
-        WHERE tenant_id = $1
-        ORDER BY priority ASC, name ASC`,
-      [tenantId],
-    );
-    if (!rules.length) return [];
-    const ranges = await this.rangesFor(
+    const ranges: Array<{ id: string; priceMin: string; priceMax: string }> =
+      await em.query(
+        `SELECT id, price_min AS "priceMin", price_max AS "priceMax"
+           FROM core.price_rounding_range
+          WHERE tenant_id = $1
+          ORDER BY price_min ASC`,
+        [tenantId],
+      );
+    if (!ranges.length) return [];
+    const rules = await this.rulesFor(
       em,
-      rules.map((r) => r.id),
+      ranges.map((r) => r.id),
     );
-    return rules.map((r) => ({ ...r, ranges: ranges.get(r.id) ?? [] }));
+    return ranges.map((r) => ({
+      id: r.id,
+      priceMin: Number(r.priceMin),
+      priceMax: Number(r.priceMax),
+      rules: rules.get(r.id) ?? [],
+    }));
   }
 
   public async get(
     em: EntityManager,
     slug: string,
     id: string,
-  ): Promise<RuleRow> {
+  ): Promise<RangeRow> {
     const tenantId = await resolveTenantId(em, slug);
-    const rows: Array<Omit<RuleRow, 'ranges'>> = await em.query(
-      `SELECT id, name, enabled, priority
-         FROM core.price_rounding_rule
-        WHERE tenant_id = $1 AND id = $2
-        LIMIT 1`,
-      [tenantId, id],
-    );
-    if (!rows.length) throw new NotFoundException(`rule ${id} not found`);
-    const ranges = await this.rangesFor(em, [id]);
-    return { ...rows[0], ranges: ranges.get(id) ?? [] };
+    const rows: Array<{ id: string; priceMin: string; priceMax: string }> =
+      await em.query(
+        `SELECT id, price_min AS "priceMin", price_max AS "priceMax"
+           FROM core.price_rounding_range
+          WHERE tenant_id = $1 AND id = $2
+          LIMIT 1`,
+        [tenantId, id],
+      );
+    if (!rows.length) throw new NotFoundException(`range ${id} not found`);
+    const rules = await this.rulesFor(em, [id]);
+    return {
+      id: rows[0].id,
+      priceMin: Number(rows[0].priceMin),
+      priceMax: Number(rows[0].priceMax),
+      rules: rules.get(id) ?? [],
+    };
   }
 
   public async create(
     em: EntityManager,
     slug: string,
-    dto: CreatePriceRoundingRuleDto,
-  ): Promise<RuleRow> {
+    dto: CreatePriceRoundingRangeDto,
+  ): Promise<RangeRow> {
     const tenantId = await resolveTenantId(em, slug);
+    this.assertBand(dto.priceMin, dto.priceMax);
     const [{ id }]: Array<{ id: string }> = await em.query(
-      `INSERT INTO core.price_rounding_rule (tenant_id, name, enabled, priority)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [tenantId, dto.name, dto.enabled ?? true, dto.priority ?? 100],
+      `INSERT INTO core.price_rounding_range (tenant_id, price_min, price_max)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [tenantId, dto.priceMin, dto.priceMax],
     );
-    await this.insertRanges(em, tenantId, id, dto.ranges ?? []);
+    await this.insertRules(em, tenantId, id, dto.rules ?? []);
     return this.get(em, slug, id);
   }
 
@@ -75,25 +92,28 @@ export class PriceRoundingService {
     em: EntityManager,
     slug: string,
     id: string,
-    dto: UpdatePriceRoundingRuleDto,
-  ): Promise<RuleRow> {
+    dto: UpdatePriceRoundingRangeDto,
+  ): Promise<RangeRow> {
     const tenantId = await resolveTenantId(em, slug);
-    await this.get(em, slug, id); // 404 if not this tenant's rule
-    await em.query(
-      `UPDATE core.price_rounding_rule
-          SET name = COALESCE($1, name),
-              enabled = COALESCE($2, enabled),
-              priority = COALESCE($3, priority),
-              updated_at = now()
-        WHERE id = $4`,
-      [dto.name ?? null, dto.enabled ?? null, dto.priority ?? null, id],
+    const current = await this.get(em, slug, id); // 404 if not this tenant's range
+    this.assertBand(
+      dto.priceMin ?? current.priceMin,
+      dto.priceMax ?? current.priceMax,
     );
-    if (dto.ranges !== undefined) {
+    await em.query(
+      `UPDATE core.price_rounding_range
+          SET price_min = COALESCE($1, price_min),
+              price_max = COALESCE($2, price_max),
+              updated_at = now()
+        WHERE id = $3`,
+      [dto.priceMin ?? null, dto.priceMax ?? null, id],
+    );
+    if (dto.rules !== undefined) {
       await em.query(
-        `DELETE FROM core.price_rounding_decimal_range WHERE rule_id = $1`,
+        `DELETE FROM core.price_rounding_rule WHERE range_id = $1`,
         [id],
       );
-      await this.insertRanges(em, tenantId, id, dto.ranges);
+      await this.insertRules(em, tenantId, id, dto.rules);
     }
     return this.get(em, slug, id);
   }
@@ -104,54 +124,66 @@ export class PriceRoundingService {
     id: string,
   ): Promise<{ id: string; deleted: boolean }> {
     await this.get(em, slug, id);
-    await em.query(`DELETE FROM core.price_rounding_rule WHERE id = $1`, [id]);
+    await em.query(`DELETE FROM core.price_rounding_range WHERE id = $1`, [id]);
     return { id, deleted: true };
   }
 
-  private async insertRanges(
+  private async insertRules(
     em: EntityManager,
     tenantId: string,
-    ruleId: string,
-    ranges: DecimalRangeDto[],
+    rangeId: string,
+    rules: PriceRoundingRuleDto[],
   ): Promise<void> {
-    for (const r of ranges)
+    for (const r of rules) {
+      if (r.decimalMin > r.decimalMax)
+        throw new BadRequestException(
+          `decimalMin (${r.decimalMin}) must be <= decimalMax (${r.decimalMax})`,
+        );
       await em.query(
-        `INSERT INTO core.price_rounding_decimal_range
-           (tenant_id, rule_id, min_decimal, max_decimal, target_decimal)
+        `INSERT INTO core.price_rounding_rule
+           (tenant_id, range_id, decimal_min, decimal_max, round_to)
          VALUES ($1, $2, $3, $4, $5)`,
-        [tenantId, ruleId, r.minDecimal, r.maxDecimal, r.targetDecimal],
+        [tenantId, rangeId, r.decimalMin, r.decimalMax, r.roundTo],
+      );
+    }
+  }
+
+  private assertBand(priceMin: number, priceMax: number): void {
+    if (priceMin > priceMax)
+      throw new BadRequestException(
+        `priceMin (${priceMin}) must be <= priceMax (${priceMax})`,
       );
   }
 
-  private async rangesFor(
+  private async rulesFor(
     em: EntityManager,
-    ruleIds: string[],
-  ): Promise<Map<string, DecimalRangeDto[]>> {
+    rangeIds: string[],
+  ): Promise<Map<string, PriceRoundingRuleDto[]>> {
     const rows: Array<{
-      ruleId: string;
-      minDecimal: string;
-      maxDecimal: string;
-      targetDecimal: string;
+      rangeId: string;
+      decimalMin: string;
+      decimalMax: string;
+      roundTo: string;
     }> = await em.query(
-      `SELECT rule_id AS "ruleId",
-              min_decimal AS "minDecimal",
-              max_decimal AS "maxDecimal",
-              target_decimal AS "targetDecimal"
-         FROM core.price_rounding_decimal_range
-        WHERE rule_id = ANY($1)
-        ORDER BY min_decimal ASC`,
-      [ruleIds],
+      `SELECT range_id AS "rangeId",
+              decimal_min AS "decimalMin",
+              decimal_max AS "decimalMax",
+              round_to AS "roundTo"
+         FROM core.price_rounding_rule
+        WHERE range_id = ANY($1)
+        ORDER BY decimal_min ASC`,
+      [rangeIds],
     );
-    const map = new Map<string, DecimalRangeDto[]>();
+    const map = new Map<string, PriceRoundingRuleDto[]>();
     for (const r of rows) {
-      const range: DecimalRangeDto = {
-        minDecimal: Number(r.minDecimal),
-        maxDecimal: Number(r.maxDecimal),
-        targetDecimal: Number(r.targetDecimal),
+      const rule: PriceRoundingRuleDto = {
+        decimalMin: Number(r.decimalMin),
+        decimalMax: Number(r.decimalMax),
+        roundTo: Number(r.roundTo),
       };
-      const list = map.get(r.ruleId);
-      if (list) list.push(range);
-      else map.set(r.ruleId, [range]);
+      const list = map.get(r.rangeId);
+      if (list) list.push(rule);
+      else map.set(r.rangeId, [rule]);
     }
     return map;
   }
