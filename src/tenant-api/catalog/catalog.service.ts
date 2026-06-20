@@ -1,7 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
+import { buildMultiSortClause } from '../../common/multi-sort';
 import { resolveTenantId } from '../../tenant/tenant-lookup';
-import { ListProductsQueryDto } from './dto/list-products.query';
+import {
+  ListProductsQueryDto,
+  SortableColumn,
+} from './dto/list-products.query';
 
 export interface Paginated<T> {
   rows: T[];
@@ -87,8 +91,9 @@ export interface IngredientGroup {
   variants: Record<string, unknown>[];
 }
 
-// sortBy → SQL expression (whitelist; anything else falls back to ean).
-const SORTABLE: Record<string, string> = {
+// sortBy → SQL expression. Keys must match SORTABLE_COLUMNS no DTO
+// (TypeScript garante via Record<SortableColumn, string>).
+const SORTABLE: Record<SortableColumn, string> = {
   ean: 'p.ean',
   name: 'p.name',
   supplier: 'p.supplier',
@@ -614,9 +619,12 @@ export class CatalogService {
   }
 
   private orderBy(q: ListProductsQueryDto): string {
-    const col = (q.sortBy && SORTABLE[q.sortBy]) || 'p.ean';
-    const dir = q.sortDirection?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-    return `${col} ${dir}`;
+    return buildMultiSortClause(
+      q.sortBy,
+      q.sortDirection,
+      SORTABLE,
+      'p.ean ASC',
+    );
   }
 
   private paginate(q: ListProductsQueryDto): {
