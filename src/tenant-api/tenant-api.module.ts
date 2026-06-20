@@ -8,6 +8,8 @@ import { PriceRoundingController } from './config/price-rounding.controller';
 import { PriceRoundingService } from './config/price-rounding.service';
 import { SettingsController } from './config/settings.controller';
 import { SettingsService } from './config/settings.service';
+import { OfferCampaignsController } from './offer-campaigns/offer-campaigns.controller';
+import { OfferCampaignsService } from './offer-campaigns/offer-campaigns.service';
 
 /**
  * Tenant-user-facing API (the FE's surface). Every route is tenant-scoped
@@ -20,6 +22,7 @@ import { SettingsService } from './config/settings.service';
     SettingsController,
     ClassificationsController,
     PriceRoundingController,
+    OfferCampaignsController,
   ],
   providers: [
     CatalogService,
@@ -27,6 +30,7 @@ import { SettingsService } from './config/settings.service';
     SettingsService,
     ClassificationsService,
     PriceRoundingService,
+    OfferCampaignsService,
   ],
 })
 export class TenantApiModule {}
