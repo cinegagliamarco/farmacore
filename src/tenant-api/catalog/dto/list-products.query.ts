@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 /**
  * Query for the tenant catalog reads (`/products` and `/products/crossed`).
@@ -55,4 +63,19 @@ export class ListProductsQueryDto {
   @IsOptional()
   @IsString()
   public sortDirection?: string; // ASC | DESC
+
+  // Active-ingredient decision-by-store feature (see active-ingredients/crossed).
+  @IsOptional()
+  @IsString()
+  public subsidiary?: string; // store external id; required by the decision endpoints
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  public tolerance?: number; // % vs competitor treated as "ok"; default 0
+
+  @IsOptional()
+  @IsIn(['subir', 'abaixar', 'ok', 'mix', 'sem-estoque'])
+  public decision?: string;
 }

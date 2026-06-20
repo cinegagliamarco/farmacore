@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
+import { resolveTenantId } from '../../tenant/tenant-lookup';
 import { ListProductsQueryDto } from './dto/list-products.query';
 
 export interface Paginated<T> {
@@ -11,6 +12,73 @@ export interface Paginated<T> {
 
 const DEFAULT_PER_PAGE = 50;
 const MAX_PER_PAGE = 200;
+
+export type Decision = 'subir' | 'abaixar' | 'ok' | 'mix' | 'sem-estoque';
+
+const DECISIONS: Decision[] = ['subir', 'abaixar', 'ok', 'mix', 'sem-estoque'];
+
+export interface DecisionInput {
+  /** Cheapest in-stock variant in the store, or null when none has stock. */
+  combate: { price: number; cost: number } | null;
+  /** Lowest cost in the whole group, regardless of price/stock. */
+  lowestCost: number | null;
+  /** Cheapest stocked competitor across the group, or null. */
+  competitorPrice: number | null;
+  /** % the user wants to ignore vs the competitor (the "ok" band). */
+  tolerance: number;
+}
+
+/**
+ * Decision for an (active ingredient × store), derived from the data — no
+ * manual field. Precedence: sem-estoque > mix > subir/abaixar/ok. `mix`
+ * (combate isn't the lowest-cost variant) wins over the competitor compare
+ * because fixing the mix changes the combate's price first.
+ */
+export function deriveDecision({
+  combate,
+  lowestCost,
+  competitorPrice,
+  tolerance,
+}: DecisionInput): Decision {
+  if (!combate) return 'sem-estoque';
+  if (lowestCost !== null && combate.cost > lowestCost) return 'mix';
+  if (competitorPrice === null) return 'ok';
+  const tol = tolerance / 100;
+  if (combate.price < competitorPrice * (1 - tol)) return 'subir';
+  if (combate.price > competitorPrice * (1 + tol)) return 'abaixar';
+  return 'ok';
+}
+
+/** Parse a pg numeric (string|null) to a finite number, or null. */
+function num(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+interface VariantRow {
+  ai: string;
+  ean: string | number;
+  name: string;
+  price: string | null;
+  cost: string | null;
+  margin: string | null;
+  drogalPrice: string | null;
+  drogasilPrice: string | null;
+  stockInSubsidiary: number;
+  competitorOrigin: string | null;
+  competitorPrice: string | null;
+}
+
+export interface IngredientGroup {
+  activeIngredient: string;
+  decision: Decision;
+  targetPrice: number | null;
+  combate: { ean: string; name: string; price: number; cost: number } | null;
+  lowestCost: { ean: string; cost: number } | null;
+  competitorCombate: { origin: string; price: number } | null;
+  variants: Record<string, unknown>[];
+}
 
 // sortBy → SQL expression (whitelist; anything else falls back to ean).
 const SORTABLE: Record<string, string> = {
@@ -153,62 +221,177 @@ export class CatalogService {
     return rows.map((r) => r.active_ingredient);
   }
 
-  /** Products grouped by active ingredient (paginated by ingredient), each
-   *  with its variants' competitor prices and a target = min variant price. */
+  /** Distinct stores that have stock, labelled from core.tenant_subsidiary
+   *  (falling back to the id) — the UI's store selector. */
+  public async subsidiaries(
+    em: EntityManager,
+    slug: string,
+  ): Promise<Array<{ subsidiaryExternalId: string; label: string }>> {
+    const tenantId = await resolveTenantId(em, slug);
+    return em.query(
+      `SELECT DISTINCT ps.subsidiary_external_id::text AS "subsidiaryExternalId",
+              COALESCE(ts.name, ps.subsidiary_external_id::text) AS label
+         FROM product_stock ps
+         LEFT JOIN core.tenant_subsidiary ts
+           ON ts.external_id = ps.subsidiary_external_id AND ts.tenant_id = $1
+        ORDER BY 1`,
+      [tenantId],
+    );
+  }
+
+  /** Products grouped by active ingredient for a store, each with its combate
+   *  (cheapest in-stock variant), lowest-cost variant, cheapest stocked
+   *  competitor, and the derived decision (see deriveDecision). Optional
+   *  `decision` filters the groups server-side; targetPrice/variants kept. */
   public async activeIngredientsCrossed(
     em: EntityManager,
     q: ListProductsQueryDto,
-  ): Promise<Paginated<Record<string, unknown>>> {
+  ): Promise<Paginated<IngredientGroup>> {
     const { page, perPage, offset } = this.paginate(q);
-    const ai = q.activeIngredient;
-    const aiFilter = ai ? `AND active_ingredient ILIKE $1` : '';
-    const aiParams = ai ? [`%${ai}%`] : [];
-    const totalRows: Array<{ count: string }> = await em.query(
-      `SELECT count(*)::int AS count FROM (
-         SELECT DISTINCT active_ingredient FROM product
-          WHERE active_ingredient IS NOT NULL ${aiFilter}
-       ) t`,
-      aiParams,
+    const groups = await this.loadIngredientGroups(em, q);
+    const filtered = q.decision
+      ? groups.filter((g) => g.decision === q.decision)
+      : groups;
+    return {
+      rows: filtered.slice(offset, offset + perPage),
+      count: filtered.length,
+      page,
+      perPage,
+    };
+  }
+
+  /** Decision tally over the (active ingredient × store) groups — the filter
+   *  chips. Honors `activeIngredient` when present. */
+  public async decisionCounts(
+    em: EntityManager,
+    q: ListProductsQueryDto,
+  ): Promise<Record<Decision | 'total', number>> {
+    const groups = await this.loadIngredientGroups(em, q);
+    const counts = Object.fromEntries(DECISIONS.map((d) => [d, 0])) as Record<
+      Decision | 'total',
+      number
+    >;
+    counts.total = groups.length;
+    for (const g of groups) counts[g.decision]++;
+    return counts;
+  }
+
+  /** Loads every active-ingredient group for the store (honoring
+   *  activeIngredient), computing the decision per group. Shared by the
+   *  crossed list (filter + paginate) and the decision counts. */
+  private async loadIngredientGroups(
+    em: EntityManager,
+    q: ListProductsQueryDto,
+  ): Promise<IngredientGroup[]> {
+    const subsidiary = this.requireSubsidiary(q);
+    const tolerance = q.tolerance ?? 0;
+    const params: unknown[] = [subsidiary];
+    const aiFilter = q.activeIngredient
+      ? `AND p.active_ingredient ILIKE $${params.push(`%${q.activeIngredient}%`)}`
+      : '';
+    const rows: VariantRow[] = await em.query(
+      `SELECT p.active_ingredient AS ai, p.ean, p.name, p.price, p.cost, p.margin,
+              dg.price AS "drogalPrice", ds.price AS "drogasilPrice",
+              COALESCE(ps.quantity, 0) AS "stockInSubsidiary",
+              cc.origin AS "competitorOrigin", cc.price AS "competitorPrice"
+         FROM product p
+         LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
+         LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
+         LEFT JOIN product_stock ps
+           ON ps.ean = p.ean AND ps.subsidiary_external_id = $1::bigint
+         LEFT JOIN LATERAL (
+           SELECT sp.origin, sp.price
+             FROM shared_catalog.product sp
+             JOIN LATERAL (
+               SELECT st.quantity FROM shared_catalog.product_stock st
+                WHERE st.product_id = sp.id
+                ORDER BY st.captured_at DESC LIMIT 1
+             ) s ON true
+            WHERE sp.ean = p.ean AND sp.deleted_at IS NULL AND s.quantity > 0
+            ORDER BY sp.price ASC NULLS LAST LIMIT 1
+         ) cc ON true
+        WHERE p.active_ingredient IS NOT NULL ${aiFilter}
+        ORDER BY p.active_ingredient, p.ean`,
+      params,
     );
-    const ingRows: Array<{ active_ingredient: string }> = await em.query(
-      `SELECT active_ingredient FROM product
-        WHERE active_ingredient IS NOT NULL ${aiFilter}
-        GROUP BY active_ingredient ORDER BY active_ingredient
-        LIMIT $${aiParams.length + 1} OFFSET $${aiParams.length + 2}`,
-      [...aiParams, perPage, offset],
-    );
-    const ingredients = ingRows.map((r) => r.active_ingredient);
-    const variants: Array<Record<string, unknown>> = ingredients.length
-      ? await em.query(
-          `SELECT p.active_ingredient AS ai, p.ean, p.name, p.price, p.cost, p.margin,
-                  dg.price AS "drogalPrice", ds.price AS "drogasilPrice"
-             FROM product p
-             LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
-             LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
-            WHERE p.active_ingredient = ANY($1)
-            ORDER BY p.active_ingredient, p.ean`,
-          [ingredients],
-        )
-      : [];
-    const byIng = new Map<string, Record<string, unknown>[]>();
-    for (const v of variants) {
-      const key = String(v.ai);
-      const list = byIng.get(key) ?? [];
-      list.push(this.normalize(v));
-      byIng.set(key, list);
+    const byIng = new Map<string, VariantRow[]>();
+    for (const r of rows) {
+      const list = byIng.get(r.ai) ?? [];
+      list.push(r);
+      byIng.set(r.ai, list);
     }
-    const rows = ingredients.map((ingredient) => {
-      const vs = byIng.get(ingredient) ?? [];
-      const prices = vs
-        .map((v) => Number(v.price))
-        .filter((n) => Number.isFinite(n) && n > 0);
-      return {
-        activeIngredient: ingredient,
-        targetPrice: prices.length ? Math.min(...prices) : null,
-        variants: vs,
-      };
+    return [...byIng].map(([ai, vs]) => this.buildGroup(ai, vs, tolerance));
+  }
+
+  private buildGroup(
+    ai: string,
+    vs: VariantRow[],
+    tolerance: number,
+  ): IngredientGroup {
+    let combate: VariantRow | null = null;
+    let lowestCost: VariantRow | null = null;
+    let competitor: { origin: string; price: number } | null = null;
+    for (const v of vs) {
+      const price = num(v.price);
+      const cost = num(v.cost);
+      if (price !== null && Number(v.stockInSubsidiary) > 0)
+        if (!combate || price < (num(combate.price) ?? Infinity)) combate = v;
+      if (cost !== null)
+        if (!lowestCost || cost < (num(lowestCost.cost) ?? Infinity))
+          lowestCost = v;
+      const compPrice = num(v.competitorPrice);
+      if (compPrice !== null && v.competitorOrigin)
+        if (!competitor || compPrice < competitor.price)
+          competitor = { origin: v.competitorOrigin, price: compPrice };
+    }
+    const lowestCostValue = lowestCost ? num(lowestCost.cost) : null;
+    const decision = deriveDecision({
+      combate: combate
+        ? { price: num(combate.price)!, cost: num(combate.cost)! }
+        : null,
+      lowestCost: lowestCostValue,
+      competitorPrice: competitor?.price ?? null,
+      tolerance,
     });
-    return { rows, count: Number(totalRows[0]?.count ?? 0), page, perPage };
+    const prices = vs
+      .map((v) => num(v.price))
+      .filter((n): n is number => n !== null && n > 0);
+    return {
+      activeIngredient: ai,
+      decision,
+      targetPrice: prices.length ? Math.min(...prices) : null,
+      combate: combate
+        ? {
+            ean: String(combate.ean),
+            name: combate.name,
+            price: num(combate.price)!,
+            cost: num(combate.cost)!,
+          }
+        : null,
+      lowestCost: lowestCost
+        ? { ean: String(lowestCost.ean), cost: lowestCostValue! }
+        : null,
+      competitorCombate: competitor,
+      variants: vs.map((v) => ({
+        ean: String(v.ean),
+        name: v.name,
+        price: num(v.price),
+        cost: num(v.cost),
+        margin: num(v.margin),
+        drogalPrice: num(v.drogalPrice),
+        drogasilPrice: num(v.drogasilPrice),
+        stockInSubsidiary: Number(v.stockInSubsidiary) || 0,
+        isCombate: combate?.ean === v.ean,
+      })),
+    };
+  }
+
+  private requireSubsidiary(q: ListProductsQueryDto): string {
+    if (!q.subsidiary || !/^\d+$/.test(q.subsidiary))
+      throw new BadRequestException(
+        'subsidiary is required (numeric store id)',
+      );
+    return q.subsidiary;
   }
 
   /** Generic products still missing an active ingredient (need manual fill). */

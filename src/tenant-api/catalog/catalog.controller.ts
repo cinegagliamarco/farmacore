@@ -16,7 +16,7 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import type { JwtPayload } from '../../auth/jwt-payload.type';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
-import { CatalogService, Paginated } from './catalog.service';
+import { CatalogService, IngredientGroup, Paginated } from './catalog.service';
 import { CatalogMutationService } from './catalog-mutation.service';
 import { ListProductsQueryDto } from './dto/list-products.query';
 import {
@@ -61,6 +61,14 @@ export class CatalogController {
     return this.catalog.strategicPrice(em, query);
   }
 
+  @Get('subsidiaries')
+  public subsidiaries(
+    @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<Array<{ subsidiaryExternalId: string; label: string }>> {
+    return this.catalog.subsidiaries(em, user.tenantId);
+  }
+
   @Get('active-ingredients')
   public activeIngredients(
     @TenantEm() em: EntityManager,
@@ -74,8 +82,16 @@ export class CatalogController {
   public activeIngredientsCrossed(
     @TenantEm() em: EntityManager,
     @Query() query: ListProductsQueryDto,
-  ): Promise<Paginated<Record<string, unknown>>> {
+  ): Promise<Paginated<IngredientGroup>> {
     return this.catalog.activeIngredientsCrossed(em, query);
+  }
+
+  @Get('active-ingredients/decision-counts')
+  public decisionCounts(
+    @TenantEm() em: EntityManager,
+    @Query() query: ListProductsQueryDto,
+  ): Promise<Record<string, number>> {
+    return this.catalog.decisionCounts(em, query);
   }
 
   @Get('generic-missing-active-ingredients')
