@@ -1,7 +1,4 @@
-import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
-import type { AxiosResponse } from 'axios';
-import type { Readable } from 'node:stream';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import {
   ProductScraper,
@@ -28,6 +25,14 @@ const MAX_CONTENT_BYTES = 5 * 1024 * 1024;
 const BUFFER_TAIL_BYTES = 50 * 1024;
 const DEFAULT_ZIPCODE = '17250075';
 
+// The storefront search page sits behind Akamai bot-manager, which 403s
+// requests by their TLS fingerprint: axios (node:https) is blocked even
+// with a browser User-Agent, while undici (global `fetch`) passes. So every
+// request here goes through `fetch`, not the axios-based HttpService — search
+// would otherwise return no SKU and no price would ever populate.
+const USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36';
+
 const COMMON_HEADERS = {
   accept: '*/*',
   'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -38,6 +43,7 @@ const COMMON_HEADERS = {
   'sec-ch-ua-mobile': '?0',
   'sec-ch-ua-platform': '"macOS"',
   'sec-fetch-dest': 'empty',
+  'user-agent': USER_AGENT,
 } as const;
 
 const STOCK_HEADERS = {
@@ -87,8 +93,6 @@ export class DrogasilScraper implements ProductScraper, StockScraper {
   public readonly origin = CompetitorOrigin.DROGASIL;
   private readonly logger = new Logger(DrogasilScraper.name);
 
-  constructor(private readonly http: HttpService) {}
-
   public async scrapeProduct(ean: string): Promise<ScrapedProduct> {
     try {
       const sku = await this.streamFindSku(ean);
@@ -111,9 +115,10 @@ export class DrogasilScraper implements ProductScraper, StockScraper {
     const capturedAt = new Date();
     const zipcode = options.zipcode ?? DEFAULT_ZIPCODE;
     try {
-      const { data } = await this.http.axiosRef.post<DrogasilStockResponse>(
-        GRAPHQL_STOCK_URL,
-        {
+      const res = await fetch(GRAPHQL_STOCK_URL, {
+        method: 'POST',
+        headers: STOCK_HEADERS,
+        body: JSON.stringify({
           query: STOCK_QUERY,
           variables: {
             zipcode,
@@ -121,9 +126,11 @@ export class DrogasilScraper implements ProductScraper, StockScraper {
             logotype: 'RD',
             maxQuantityBranchSearch: '1',
           },
-        },
-        { headers: STOCK_HEADERS, timeout: TIMEOUT_MS },
-      );
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`stock HTTP ${res.status}`);
+      const data = (await res.json()) as DrogasilStockResponse;
       const bySku = buildStockMap(data);
       return items.map((i) => ({
         ean: i.ean,
@@ -150,74 +157,67 @@ export class DrogasilScraper implements ProductScraper, StockScraper {
    * Stream-parse the search page HTML for the first
    * `<article data-item-id="SKU">` and abort the stream as soon as it
    * hits. Memory-bounded: 5MB content cap + 50KB sliding window over
-   * the buffer. Returns null on timeout / no match / network error.
+   * the buffer. Returns null only when the page genuinely has no match;
+   * throws on transport failure (non-2xx, timeout, network) so the caller
+   * records an `error` and the row is skipped instead of overwriting the
+   * last-good price with null.
    */
   private async streamFindSku(ean: string): Promise<string | null> {
-    try {
-      const response: AxiosResponse = await this.http.axiosRef.get(
-        SEARCH_URL(ean),
-        {
-          responseType: 'stream',
-          timeout: TIMEOUT_MS,
-          maxContentLength: MAX_CONTENT_BYTES,
-        },
-      );
-      return await consumeForPattern(response, SKU_PATTERN, MAX_CONTENT_BYTES);
-    } catch (err) {
-      this.logger.warn(
-        `streamFindSku ean=${ean} failed: ${err instanceof Error ? err.message : err}`,
-      );
-      return null;
-    }
+    const res = await fetch(SEARCH_URL(ean), {
+      headers: { 'user-agent': USER_AGENT },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`search HTTP ${res.status}`);
+    if (!res.body) return null;
+    return consumeForPattern(res.body, SKU_PATTERN, MAX_CONTENT_BYTES);
   }
 
   private async fetchProductBySku(
     sku: string,
   ): Promise<DrogasilProductBySku | null> {
-    const { data } = await this.http.axiosRef.post<DrogasilProductResponse>(
-      GRAPHQL_PRODUCT_URL,
-      { query: PRODUCT_QUERY, variables: { sku } },
-      { headers: COMMON_HEADERS, timeout: TIMEOUT_MS },
-    );
+    const res = await fetch(GRAPHQL_PRODUCT_URL, {
+      method: 'POST',
+      headers: COMMON_HEADERS,
+      body: JSON.stringify({ query: PRODUCT_QUERY, variables: { sku } }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`product HTTP ${res.status}`);
+    const data = (await res.json()) as DrogasilProductResponse;
     if (data?.errors) return null;
     return data?.data?.productBySku ?? null;
   }
 }
 
-function consumeForPattern(
-  response: AxiosResponse,
+/**
+ * Read the search-page body chunk by chunk, stopping at the first
+ * `data-item-id="SKU"` so the 5MB response never fully buffers. Bounded by
+ * a byte cap plus a 50KB sliding window. Cancels the stream on exit.
+ */
+export async function consumeForPattern(
+  body: ReadableStream<Uint8Array>,
   pattern: RegExp,
   maxBytes: number,
 ): Promise<string | null> {
-  // Axios types response.data as `any` for stream responses. We asked
-  // for responseType: 'stream', so it's a node Readable in practice.
-  const stream = response.data as Readable;
-  return new Promise((resolve, reject) => {
-    let buffer = '';
-    let totalBytes = 0;
-    let done = false;
-
-    const finish = (value: string | null) => {
-      if (done) return;
-      done = true;
-      stream.destroy();
-      resolve(value);
-    };
-
-    stream.on('data', (chunk: Buffer) => {
-      if (done) return;
-      totalBytes += chunk.length;
-      if (totalBytes > maxBytes) return finish(null);
-      buffer += chunk.toString();
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let totalBytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return null;
+      totalBytes += value.length;
+      if (totalBytes > maxBytes) return null;
+      buffer += decoder.decode(value, { stream: true });
       const match = buffer.match(pattern);
-      if (match) return finish(match[1] ?? match[0]);
+      if (match) return match[1] ?? match[0];
       if (buffer.length > BUFFER_TAIL_BYTES) {
         buffer = buffer.slice(-BUFFER_TAIL_BYTES);
       }
-    });
-    stream.on('end', () => finish(null));
-    stream.on('error', reject);
-  });
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
 }
 
 export function mapProduct(

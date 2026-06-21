@@ -1,5 +1,24 @@
-import { buildStockMap, detectPbm, mapProduct } from './drogasil.scraper';
+import {
+  buildStockMap,
+  consumeForPattern,
+  detectPbm,
+  DrogasilScraper,
+  mapProduct,
+} from './drogasil.scraper';
 import type { DrogasilStockResponse } from './types';
+
+const SKU_PATTERN = /<article[^>]*data-item-id="([^"]+)"[^>]*>/;
+
+function streamFrom(parts: string[]): ReadableStream<Uint8Array> {
+  const enc = new TextEncoder();
+  let i = 0;
+  return new ReadableStream({
+    pull(c) {
+      if (i < parts.length) c.enqueue(enc.encode(parts[i++]));
+      else c.close();
+    },
+  });
+}
 
 describe('detectPbm', () => {
   it('returns PBM via liveComposition.livePrice.type=PBM', () => {
@@ -58,6 +77,73 @@ describe('buildStockMap', () => {
     expect(out.get('111')).toBe(5);
     expect(out.get('222')).toBe(0);
     expect(out.size).toBe(2);
+  });
+});
+
+describe('consumeForPattern', () => {
+  it('returns the capture group on first match', async () => {
+    const out = await consumeForPattern(
+      streamFrom(['<article data-item-id="SKU123">']),
+      SKU_PATTERN,
+      1 << 20,
+    );
+    expect(out).toBe('SKU123');
+  });
+
+  it('matches a pattern split across chunk boundaries', async () => {
+    const out = await consumeForPattern(
+      streamFrom(['<article data-item-', 'id="SKU9">rest']),
+      SKU_PATTERN,
+      1 << 20,
+    );
+    expect(out).toBe('SKU9');
+  });
+
+  it('returns null when the stream ends with no match', async () => {
+    const out = await consumeForPattern(
+      streamFrom(['<div>nenhum resultado</div>']),
+      SKU_PATTERN,
+      1 << 20,
+    );
+    expect(out).toBeNull();
+  });
+
+  it('returns null once the byte cap is exceeded', async () => {
+    const out = await consumeForPattern(
+      streamFrom(['x'.repeat(100), '<article data-item-id="LATE">']),
+      SKU_PATTERN,
+      50,
+    );
+    expect(out).toBeNull();
+  });
+
+  it('cancels the reader on exit', async () => {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new TextEncoder().encode('<article data-item-id="A">'));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    await consumeForPattern(stream, SKU_PATTERN, 1 << 20);
+    expect(cancelled).toBe(true);
+  });
+});
+
+describe('scrapeStock error handling', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('returns zeroed items with an error on a non-2xx response', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response('', { status: 503 }));
+    const out = await new DrogasilScraper().scrapeStock([
+      { ean: '789', sku: '42' },
+    ]);
+    expect(out[0]).toMatchObject({ ean: '789', quantity: 0 });
+    expect(out[0].error).toContain('503');
   });
 });
 
