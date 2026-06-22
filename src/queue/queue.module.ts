@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
+import type { Options } from 'amqplib';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppConfigService } from '../config/app-config.service';
 import { PipelineOutboxEntity } from '../database/entities/core/pipeline-outbox.entity';
@@ -72,7 +73,23 @@ const perOriginQueueNames = (): string[] => {
       inject: [AppConfigService],
       useFactory: (config: AppConfigService) => ({
         uri: config.amqpUrl,
-        connectionInitOptions: { wait: true, timeout: 10_000 },
+        // wait:false — a broker outage must not crash boot. The HTTP API
+        // stays up and the worker reconnects in the background;
+        // amqp-connection-manager re-declares topology and re-attaches
+        // consumers on reconnect.
+        connectionInitOptions: { wait: false },
+        // Without a timeout, publishes buffer forever while the broker is
+        // down: admin routes that publish directly would hang and the
+        // outbox/retry buffer would grow unbounded. This is a confirm
+        // channel, so the timer also covers live pipeline publishes
+        // awaiting their broker confirm — 30s is high enough that only a
+        // real outage trips it, not normal confirm latency or a brief
+        // reconnect (which would otherwise dead-letter in-flight steps).
+        // golevelup types this as amqplib Options.Publish but honors
+        // `timeout` underneath.
+        defaultPublishOptions: { timeout: 30_000 } as Options.Publish & {
+          timeout: number;
+        },
         channels: {
           ...Object.fromEntries(
             STEP_QUEUES.map((step) => [
