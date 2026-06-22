@@ -15,8 +15,12 @@ import { SyncOfferBooksInfoStep } from './steps/sync-offer-books-info.step';
 import { ImportCompetitorProductsStep } from './steps/import-competitor-products.step';
 import { CalcBaseProductMetricsStep } from './steps/calc-base-product-metrics.step';
 import { UpdateBaseProductPropertiesStep } from './steps/update-base-product-properties.step';
+import { ApplyPriceStep } from './steps/apply-price.step';
+import { CatalogMutationService } from '../tenant-api/catalog/catalog-mutation.service';
 
 import { PipelineStartConsumer } from './consumers/pipeline-start.consumer';
+import { ApplyPriceDispatchConsumer } from './consumers/apply-price.dispatch.consumer';
+import { ApplyPriceBatchConsumer } from './consumers/apply-price.batch.consumer';
 import { SyncBaseProductDispatchConsumer } from './consumers/sync-base-product.dispatch.consumer';
 import { SyncBaseProductBatchConsumer } from './consumers/sync-base-product.batch.consumer';
 import { SyncBaseProductStockDispatchConsumer } from './consumers/sync-base-product-stock.dispatch.consumer';
@@ -49,6 +53,9 @@ const STEPS = [
   CalcBaseProductMetricsStep,
   UpdateBaseProductPropertiesStep,
   BaseProductProjector,
+  // apply em massa reusa o write-back por-EAN do ERP (deps globais).
+  ApplyPriceStep,
+  CatalogMutationService,
 ];
 
 const CONSUMERS = [
@@ -73,6 +80,8 @@ const CONSUMERS = [
   UpdateBaseProductPropertiesDispatchConsumer,
   UpdateBaseProductPropertiesBatchConsumer,
   MigrateTenantConsumer,
+  ApplyPriceDispatchConsumer,
+  ApplyPriceBatchConsumer,
 ];
 
 @Module({})

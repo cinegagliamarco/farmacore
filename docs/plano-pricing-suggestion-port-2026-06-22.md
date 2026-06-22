@@ -295,7 +295,20 @@ Motor puro + spec; orquestração com origens habilitadas, join dinâmico por or
 **Critérios de aceitação técnicos (atendidos):** spec cobre 2 estratégias, 3 modos, 7 motivos, precedência/exclusão de cluster, `noCompetitorMargin`, trava de margem, arredondamento (`npm test`, sem DB). E2e confirma `margem 40% → 6/0.6 = 10` (`basis margem_minima`) e `concorrência lowest → segue DROGAL 12` (`basis concorrencia`), com `competitors[]` por origem.
 **Critério observável pelo usuário (PENDENTE):** "operador cria regra `margem 30%` e vê o produto Y com preço sugerido Z na tela `/precos/sugestoes`" — **não exercitável sem front**.
 
-### Fase 3 — Aplicar em massa + Agendamento · **PLANEJADO**
+### Fase 3 — Aplicar em massa + Agendamento · **BACKEND ENTREGUE (PR #33)**
+
+> **Entregue:** `POST/GET /pricing/apply` (apply em massa `mode=agora`) e
+> `POST/GET/DELETE /pricing/schedules` (agendamento **one-shot, preço congelado**
+> — a variante mais segura da §17.9). Step `APPLY_PRICE` no pipeline (fan-in via
+> `core.pipeline_run`), dispatch+batch consumers, `ApplyPriceStep` →
+> `CatalogMutationService` (write-back A7), bloqueio de campanha re-checado no
+> batch, idempotência (`idempotency_key` / claim por estado), snapshot de preço
+> anterior, e cron de disparo (`FOR UPDATE SKIP LOCKED`). Migrations tenant
+> 011 (apply) + 012 (schedule). Testes: e2e `pricing-apply` (6) e
+> `pricing-schedule` (2). **Diferido:** recorrência/cron-expr e recálculo no
+> agendamento (§17.9); revalidação por banda vs. recálculo do motor (§17.8 — hoje
+> usa piso de margem da regra / custo); auditoria estendida ao CRUD de regra
+> (§17.10). O desenho detalhado abaixo permanece como referência.
 
 No legado a tela tem **dois modos distintos** (`handleConfirmPriceChange` `mode 'now'` vs `'scheduled'`): **aplicar agora** (push imediato ao ERP) e **agendar** (grava `executionDate` no ERP-proxy `/scheduling`; o **ERP** aplica depois). O farmacore **não tem** o `/scheduling` do ERP. A Fase 3 implementa os dois modos sobre o apply A7Pharma por-EAN já existente (`CatalogMutationService.updatePrice` / `upsertOffer`) + pipeline RabbitMQ. **A diferença de confiabilidade vs. legado é material e está registrada em §17.2.**
 
