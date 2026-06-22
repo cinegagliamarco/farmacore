@@ -22,17 +22,39 @@ async function main(): Promise<void> {
     `SELECT slug FROM core.tenant WHERE status = 'active' AND slug <> 'system' ORDER BY slug`,
   );
 
-  for (const t of tenants) {
-    await amqp.publish(
-      EXCHANGE_NAME,
-      `${t.slug}.migrate-tenant`,
-      { tenantSlug: t.slug, publishedAt: new Date().toISOString() },
-      { persistent: true },
+  // wait:false connects in the background, so poll briefly before
+  // publishing. A broker outage must NOT block the deploy: app
+  // migrations already ran above, and tenant enqueues are idempotent and
+  // re-driven by the next deploy — so warn and skip rather than failing
+  // (or hanging on a buffered publish) when RMQ is down.
+  if (await waitForAmqp(amqp, 10_000)) {
+    for (const t of tenants) {
+      await amqp.publish(
+        EXCHANGE_NAME,
+        `${t.slug}.migrate-tenant`,
+        { tenantSlug: t.slug, publishedAt: new Date().toISOString() },
+        { persistent: true },
+      );
+    }
+    console.log(`Enqueued ${tenants.length} tenant migration(s).`);
+  } else {
+    console.warn(
+      `RabbitMQ unreachable — skipped enqueuing ${tenants.length} tenant migration(s); next deploy re-drives them.`,
     );
   }
 
-  console.log(`Enqueued ${tenants.length} tenant migration(s).`);
   await app.close();
+}
+
+async function waitForAmqp(
+  amqp: AmqpConnection,
+  timeoutMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (!amqp.connected && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return amqp.connected;
 }
 
 main().catch((err) => {

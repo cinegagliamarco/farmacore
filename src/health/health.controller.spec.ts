@@ -10,11 +10,20 @@ describe('HealthController', () => {
   let amqp: { connected: boolean };
 
   beforeEach(async () => {
+    // Mirror Terminus: the aggregate is 'error' (HTTP 503) iff some
+    // indicator reports status 'down'. Without this, the mock returns 'ok'
+    // unconditionally and the "stays ok when broker is down" test would
+    // pass even if the controller regressed to gating on rabbitmq.
     healthCheck = jest
       .fn()
       .mockImplementation(async (checks: Array<() => Promise<unknown>>) => {
         const results = await Promise.all(checks.map((c) => c()));
-        return { status: 'ok', info: Object.assign({}, ...results) };
+        const info = Object.assign({}, ...results) as Record<
+          string,
+          { status: string }
+        >;
+        const down = Object.values(info).some((r) => r.status === 'down');
+        return { status: down ? 'error' : 'ok', info };
       });
     pingCheck = jest.fn().mockResolvedValue({ postgres: { status: 'up' } });
     amqp = { connected: true };
@@ -35,11 +44,20 @@ describe('HealthController', () => {
     expect(out.status).toBe('ok');
     expect(out.info?.postgres?.status).toBe('up');
     expect(out.info?.rabbitmq?.status).toBe('up');
+    expect(out.info?.rabbitmq?.connected).toBe(true);
   });
 
-  it('reports rabbitmq down when AmqpConnection.connected is false', async () => {
+  it('stays ok and reports rabbitmq disconnected when the broker is down', async () => {
     amqp.connected = false;
     const out = await controller.check();
-    expect(out.info?.rabbitmq?.status).toBe('down');
+    expect(out.status).toBe('ok');
+    expect(out.info?.rabbitmq?.status).toBe('up');
+    expect(out.info?.rabbitmq?.connected).toBe(false);
+  });
+
+  it('fails the check (503) when Postgres is down', async () => {
+    pingCheck.mockResolvedValueOnce({ postgres: { status: 'down' } });
+    const out = await controller.check();
+    expect(out.status).toBe('error');
   });
 });
