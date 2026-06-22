@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
 } from 'class-validator';
@@ -74,6 +75,19 @@ export class ListProductsQueryDto {
   @IsOptional()
   @IsString()
   public monitored?: string; // 'true' | 'false'
+
+  // Date filters arrive as ISO calendar dates; `@IsString` alone lets junk
+  // (e.g. "abc") pass to Postgres and crash the cast with 500. `@Matches` rejects
+  // anything that isn't strictly `YYYY-MM-DD`.
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'receiptFrom must be YYYY-MM-DD' })
+  public receiptFrom?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'receiptTo must be YYYY-MM-DD' })
+  public receiptTo?: string;
 
   @IsOptional()
   @IsString()
