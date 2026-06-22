@@ -1525,6 +1525,177 @@
      "response": []
     }
    ]
+  },
+  {
+   "name": "Tenant — Offer Book Rules",
+   "description": "Preview de regras de preço (port da rotina offer-book-rules do legado). `POST /offer-book-rules/preview` calcula o preço final por produto a partir de regras + travas de margem (+ arredondamento), SEM persistir. `src/tenant-api/offer-book-rules/`. Rode 'POST /auth/login (tenant admin)' antes para preencher o accessToken.",
+   "item": [
+    {
+     "name": "POST /offer-book-rules/preview — SALE_PRICE (por EANs)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200', () => pm.response.code === 200);",
+         "const b = pm.response.json();",
+         "pm.test('paginated shape', () => Array.isArray(b.rows) && typeof b.total === 'number');",
+         "pm.test('row has finalPrice', () => b.rows.length === 0 || typeof b.rows[0].finalPrice === 'number');"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"calculationBaseType\": \"SALE_PRICE\",\n  \"eans\": [\n    \"{{ean}}\"\n  ],\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 10\n    }\n  ],\n  \"priceLocks\": [],\n  \"page\": 1,\n  \"pageSize\": 50\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/preview",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "preview"
+       ]
+      },
+      "description": "Base = preço de venda. Aplica 10% de desconto sobre os EANs informados. Exclusivo com `classifications`. `@Roles(OPERATOR, ADMIN)`."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /offer-book-rules/preview — OFFER_PRICE (classificação + lock + arredondamento)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200', () => pm.response.code === 200);",
+         "const b = pm.response.json();",
+         "pm.test('paginated shape', () => Array.isArray(b.rows) && typeof b.total === 'number');",
+         "pm.test('row has finalPrice', () => b.rows.length === 0 || typeof b.rows[0].finalPrice === 'number');"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"calculationBaseType\": \"OFFER_PRICE\",\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [\n    {\n      \"classifications\": [\n        \"GENERICO\"\n      ],\n      \"priceRangeMin\": 10,\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 8\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"minMargin\": 25\n    }\n  ],\n  \"applyPriceRounding\": true,\n  \"page\": 1,\n  \"pageSize\": 50\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/preview",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "preview"
+       ]
+      },
+      "description": "Base = preço de oferta (offer_book.target_price, cai pro preço de venda se não houver). Regra só para preço >= 10, trava de margem mínima 25% e arredondamento (core.price_rounding_*)."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /offer-book-rules/preview — COMPETITIVE_PRICE (priceBaseSources)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200', () => pm.response.code === 200);",
+         "const b = pm.response.json();",
+         "pm.test('paginated shape', () => Array.isArray(b.rows) && typeof b.total === 'number');",
+         "pm.test('row has finalPrice', () => b.rows.length === 0 || typeof b.rows[0].finalPrice === 'number');"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"calculationBaseType\": \"COMPETITIVE_PRICE\",\n  \"priceBaseSources\": [\n    \"OWN_PRICE\",\n    \"DROGAL\",\n    \"DROGASIL\"\n  ],\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 5\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"classifications\": [\n        \"GENERICO\"\n      ],\n      \"minMargin\": 20\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 50\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/preview",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "preview"
+       ]
+      },
+      "description": "Base = menor preço entre as fontes (OWN_PRICE = preço próprio/oferta; demais = concorrentes em shared_catalog.product). priceBaseSources é OBRIGATÓRIO nesse modo. Produto sem preço competitivo volta com skippedNoCompetitorPrice=true."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /offer-book-rules/preview — 400 (eans + classifications juntos)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('400 quando eans e classifications vêm juntos', () => pm.response.code === 400);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"calculationBaseType\": \"SALE_PRICE\",\n  \"eans\": [\n    \"{{ean}}\"\n  ],\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [],\n  \"priceLocks\": []\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/preview",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "preview"
+       ]
+      },
+      "description": "Exemplo de erro de validação: mandar `eans` e `classifications` ao mesmo tempo retorna 400. Mande exatamente um dos dois."
+     },
+     "response": []
+    }
+   ]
   }
  ]
 }
