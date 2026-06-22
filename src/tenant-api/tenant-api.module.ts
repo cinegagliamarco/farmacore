@@ -12,6 +12,12 @@ import { OfferBookRulesController } from './offer-book-rules/offer-book-rules.co
 import { OfferBookRulesService } from './offer-book-rules/offer-book-rules.service';
 import { OfferCampaignsController } from './offer-campaigns/offer-campaigns.controller';
 import { OfferCampaignsService } from './offer-campaigns/offer-campaigns.service';
+import { ClustersController } from './pricing/clusters.controller';
+import { ClustersService } from './pricing/clusters.service';
+import { PricingSuggestionsController } from './pricing/pricing-suggestions.controller';
+import { PricingSuggestionsService } from './pricing/pricing-suggestions.service';
+import { SuggestionRulesController } from './pricing/suggestion-rules.controller';
+import { SuggestionRulesService } from './pricing/suggestion-rules.service';
 
 /**
  * Tenant-user-facing API (the FE's surface). Every route is tenant-scoped
@@ -26,6 +32,9 @@ import { OfferCampaignsService } from './offer-campaigns/offer-campaigns.service
     PriceRoundingController,
     OfferCampaignsController,
     OfferBookRulesController,
+    SuggestionRulesController,
+    ClustersController,
+    PricingSuggestionsController,
   ],
   providers: [
     CatalogService,
@@ -35,6 +44,9 @@ import { OfferCampaignsService } from './offer-campaigns/offer-campaigns.service
     PriceRoundingService,
     OfferCampaignsService,
     OfferBookRulesService,
+    SuggestionRulesService,
+    ClustersService,
+    PricingSuggestionsService,
   ],
 })
 export class TenantApiModule {}
