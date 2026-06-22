@@ -611,6 +611,8 @@ export class CatalogService {
     if (status.length) add('p.status = ANY($?)', status);
     if (q.monitored === 'true') add('p.monitored = $?', true);
     if (q.monitored === 'false') add('p.monitored = $?', false);
+    if (q.receiptFrom) add('p.receipt_date >= $?', q.receiptFrom);
+    if (q.receiptTo) add('p.receipt_date <= $?', q.receiptTo);
 
     return {
       where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',
