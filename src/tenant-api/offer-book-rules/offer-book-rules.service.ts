@@ -299,7 +299,8 @@ export class OfferBookRulesService {
       };
     }
 
-    let newMargin = cost > 0 ? ((finalPrice - cost) / finalPrice) * 100 : 0;
+    let newMargin =
+      cost > 0 && finalPrice > 0 ? ((finalPrice - cost) / finalPrice) * 100 : 0;
     const priceAfterRule = finalPrice;
 
     // Price lock: bump the price to the minimum-margin floor when current or
@@ -333,7 +334,10 @@ export class OfferBookRulesService {
     if (roundingResult !== null) {
       finalPrice = roundingResult;
       priceRoundingApplied = true;
-      newMargin = cost > 0 ? ((finalPrice - cost) / finalPrice) * 100 : 0;
+      newMargin =
+        cost > 0 && finalPrice > 0
+          ? ((finalPrice - cost) / finalPrice) * 100
+          : 0;
       if (priceLockApplied && baseOfferPrice > 0)
         appliedPercentageValue = this.effectivePercentage(
           actionType,
@@ -717,7 +721,7 @@ function toPreviewProduct(r: Record<string, unknown>): PreviewProductInput {
     salePrice: num(r.price),
     cost: num(r.cost),
     margin: num(r.margin),
-    offerPrice: r.offerPrice == null ? null : Number(r.offerPrice),
+    offerPrice: r.offerPrice == null ? null : num(r.offerPrice),
     competitorPrices: {},
   };
 }

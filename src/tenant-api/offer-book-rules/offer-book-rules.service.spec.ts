@@ -290,6 +290,33 @@ describe('OfferBookRulesService.calculatePreviews', () => {
     // (baseOfferPrice 100 - finalPrice 87.59) / 100 * 100
     expect(r.appliedPercentageValue).toBe(12.41);
   });
+
+  it('keeps newMargin finite when a 100% discount drives the price to zero', () => {
+    const [r] = service.calculatePreviews(
+      [product({ salePrice: 100, cost: 50 })],
+      params({
+        pricingRules: [
+          { actionType: PricingActionType.DISCOUNT, percentageValue: 100 },
+        ],
+      }),
+    );
+    expect(r.finalPrice).toBe(0);
+    expect(r.newMargin).toBe(0);
+    expect(Number.isFinite(r.newMargin)).toBe(true);
+  });
+
+  it('applies a price lock even with no matching rule (actionType stays null)', () => {
+    const [r] = service.calculatePreviews(
+      [product({ salePrice: 100, cost: 90 })],
+      params({ priceLocks: [{ minMargin: 20 }] }),
+    );
+    expect(r.actionType).toBeNull();
+    expect(r.priceLockApplied).toBe(true);
+    expect(r.finalPrice).toBe(112.5);
+    expect(r.newMargin).toBe(20);
+    // null actionType → effectivePercentage uses the increase formula
+    expect(r.appliedPercentageValue).toBe(12.5);
+  });
 });
 
 describe('OfferBookRulesService overlap validation', () => {

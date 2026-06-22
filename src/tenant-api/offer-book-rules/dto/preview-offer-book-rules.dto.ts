@@ -10,6 +10,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   registerDecorator,
@@ -84,8 +85,12 @@ export class CreatePricingRuleDto {
   @IsNotEmpty()
   public actionType!: PricingActionType;
 
+  // 0–100: a negative value would invert the action (a "discount" that raises
+  // the price) and a >100 discount would produce a negative final price.
   @IsNumber()
   @IsNotEmpty()
+  @Min(0)
+  @Max(100)
   public percentageValue!: number;
 
   @IsOptional()
@@ -100,8 +105,12 @@ export class CreatePriceLockDto {
   @IsString({ each: true })
   public classifications?: string[];
 
+  // 0–99.99: minMargin >= 100 makes the floor `cost / (1 - minMargin/100)`
+  // divide by zero/negative; the lock would also silently never apply.
   @IsNumber()
   @IsNotEmpty()
+  @Min(0)
+  @Max(99.99)
   public minMargin!: number;
 
   @IsOptional()
@@ -121,10 +130,12 @@ export class PreviewOfferBookRulesDto {
   public priceBaseSources?: PriceBaseSource[];
 
   /** Tenant product EANs to preview. Mutually exclusive with `classifications`. */
+  // Digits only — they hit `p.ean = ANY($1::bigint[])`, so a non-numeric EAN
+  // would be a Postgres cast error (500) instead of a clean 400.
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(10000)
-  @IsString({ each: true })
+  @Matches(/^\d+$/, { each: true })
   public eans?: string[];
 
   /** Classification path prefixes to preview. Mutually exclusive with `eans`. */
