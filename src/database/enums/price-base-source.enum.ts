@@ -1,0 +1,8 @@
+export enum PriceBaseSource {
+  OWN_PRICE = 'OWN_PRICE',
+  DROGAL = 'DROGAL',
+  DROGASIL = 'DROGASIL',
+  PAGUE_MENOS = 'PAGUE_MENOS',
+  IKESAKI = 'IKESAKI',
+  MICHELASSI = 'MICHELASSI',
+}

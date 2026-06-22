@@ -8,6 +8,8 @@ import { PriceRoundingController } from './config/price-rounding.controller';
 import { PriceRoundingService } from './config/price-rounding.service';
 import { SettingsController } from './config/settings.controller';
 import { SettingsService } from './config/settings.service';
+import { OfferBookRulesController } from './offer-book-rules/offer-book-rules.controller';
+import { OfferBookRulesService } from './offer-book-rules/offer-book-rules.service';
 import { OfferCampaignsController } from './offer-campaigns/offer-campaigns.controller';
 import { OfferCampaignsService } from './offer-campaigns/offer-campaigns.service';
 
@@ -23,6 +25,7 @@ import { OfferCampaignsService } from './offer-campaigns/offer-campaigns.service
     ClassificationsController,
     PriceRoundingController,
     OfferCampaignsController,
+    OfferBookRulesController,
   ],
   providers: [
     CatalogService,
@@ -31,6 +34,7 @@ import { OfferCampaignsService } from './offer-campaigns/offer-campaigns.service
     ClassificationsService,
     PriceRoundingService,
     OfferCampaignsService,
+    OfferBookRulesService,
   ],
 })
 export class TenantApiModule {}
