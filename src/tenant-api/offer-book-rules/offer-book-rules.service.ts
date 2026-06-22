@@ -610,10 +610,13 @@ export class OfferBookRulesService {
         'WHERE p.active = true AND p.deleted_at IS NULL AND p.ean = ANY($1::bigint[])';
       params = [dto.eans];
     } else {
+      // starts_with (not LIKE) so a classification name containing % or _ is
+      // matched literally; the `' > '` boundary keeps "Medica" from matching
+      // "Medicamentos" (legacy used a bare prefix and would).
       const conds = dto
         .classifications!.map(
           (_c, i) =>
-            `(cls.path = $${i + 1} OR cls.path LIKE $${i + 1} || ' > %')`,
+            `(cls.path = $${i + 1} OR starts_with(cls.path, $${i + 1} || ' > '))`,
         )
         .join(' OR ');
       where = `WHERE p.active = true AND p.deleted_at IS NULL AND (${conds})`;
@@ -634,7 +637,7 @@ export class OfferBookRulesService {
               COALESCE(cls.path, '') AS classification,
               ob.target_price AS "offerPrice"
        ${joins} ${where}
-       ORDER BY p.ean ASC
+       ORDER BY p.name ASC, p.ean ASC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, pageSize, (page - 1) * pageSize],
     );

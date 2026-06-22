@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsBoolean,
@@ -9,6 +10,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   Min,
   registerDecorator,
   ValidateNested,
@@ -121,21 +123,25 @@ export class PreviewOfferBookRulesDto {
   /** Tenant product EANs to preview. Mutually exclusive with `classifications`. */
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(10000)
   @IsString({ each: true })
   public eans?: string[];
 
   /** Classification path prefixes to preview. Mutually exclusive with `eans`. */
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(500)
   @IsString({ each: true })
   public classifications?: string[];
 
   @IsArray()
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => CreatePricingRuleDto)
   public pricingRules!: CreatePricingRuleDto[];
 
   @IsArray()
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => CreatePriceLockDto)
   public priceLocks!: CreatePriceLockDto[];
@@ -148,6 +154,7 @@ export class PreviewOfferBookRulesDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100000)
   public page?: number;
 
   @IsOptional()
