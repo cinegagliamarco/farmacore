@@ -26,6 +26,7 @@ export const BATCHED_STEPS: ReadonlyArray<PipelineStep> = [
   PipelineStep.SYNC_BASE_PRODUCT_STOCK,
   PipelineStep.CALC_BASE_PRODUCT_METRICS,
   PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES,
+  PipelineStep.APPLY_PRICE,
 ];
 
 /**
@@ -97,6 +98,10 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [batchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 1,
   [batchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 1,
   [batchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 1,
+
+  // apply em massa: escrita no ERP é serial (prefetch 1) por segurança.
+  [dispatchStep(PipelineStep.APPLY_PRICE)]: 1,
+  [batchStep(PipelineStep.APPLY_PRICE)]: 1,
 
   // per-origin scrape consumers: one message per EAN, prefetch = legacy
   // per-origin parallel request count.
