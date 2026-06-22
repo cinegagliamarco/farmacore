@@ -86,7 +86,7 @@ export class PricingApplyService {
   public async apply(
     em: EntityManager,
     slug: string,
-    requestedBy: string,
+    requestedBy: string | null,
     dto: ApplyPricesDto,
   ): Promise<ApplyResponse> {
     const existing: Array<{ id: string; total: number }> = await em.query(

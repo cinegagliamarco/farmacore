@@ -16,6 +16,9 @@ import { ClustersController } from './pricing/clusters.controller';
 import { ClustersService } from './pricing/clusters.service';
 import { PricingApplyController } from './pricing/pricing-apply.controller';
 import { PricingApplyService } from './pricing/pricing-apply.service';
+import { PricingScheduleController } from './pricing/pricing-schedule.controller';
+import { PricingScheduleService } from './pricing/pricing-schedule.service';
+import { PricingScheduleCron } from './pricing/pricing-schedule.cron';
 import { PricingSuggestionsController } from './pricing/pricing-suggestions.controller';
 import { PricingSuggestionsService } from './pricing/pricing-suggestions.service';
 import { SuggestionRulesController } from './pricing/suggestion-rules.controller';
@@ -38,6 +41,7 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
     ClustersController,
     PricingSuggestionsController,
     PricingApplyController,
+    PricingScheduleController,
   ],
   providers: [
     CatalogService,
@@ -51,6 +55,8 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
     ClustersService,
     PricingSuggestionsService,
     PricingApplyService,
+    PricingScheduleService,
+    PricingScheduleCron,
   ],
 })
 export class TenantApiModule {}
