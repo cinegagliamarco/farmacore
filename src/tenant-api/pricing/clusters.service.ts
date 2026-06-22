@@ -99,6 +99,11 @@ export class ClustersService {
     em: EntityManager,
     id: string,
   ): Promise<{ id: string; name: string }> {
+    const rows: Array<{ name: string }> = await em.query(
+      `SELECT name FROM product_cluster WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
+      [id],
+    );
+    if (!rows.length) throw new NotFoundException(`cluster ${id} not found`);
     const usedBy: Array<{ name: string }> = await em.query(
       `SELECT name FROM pricing_suggestion_rule
         WHERE deleted_at IS NULL
@@ -111,14 +116,13 @@ export class ClustersService {
         `Cluster em uso pela(s) regra(s): ${names}. Remova a regra antes.`,
       );
     }
-    const deleted: Array<{ id: string; name: string }> = await em.query(
-      `UPDATE product_cluster SET deleted_at = now()
-        WHERE id = $1 AND deleted_at IS NULL
-        RETURNING id, name`,
+    // UPDATE sem RETURNING (em.query com RETURNING volta [rows, count]); o nome
+    // já foi lido acima.
+    await em.query(
+      `UPDATE product_cluster SET deleted_at = now() WHERE id = $1`,
       [id],
     );
-    if (!deleted.length) throw new NotFoundException(`cluster ${id} not found`);
-    return deleted[0];
+    return { id, name: rows[0].name };
   }
 
   /**

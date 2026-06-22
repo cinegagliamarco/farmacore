@@ -217,6 +217,21 @@ describe('Pricing suggestions (e2e)', () => {
         .expect(201);
       await del(`/pricing/clusters/${cluster.body.id}`).expect(409);
     });
+
+    it('apaga um cluster não referenciado', async () => {
+      const cluster = await post('/pricing/clusters')
+        .send({ name: 'Cluster B', eans: [EAN] })
+        .expect(201);
+      await del(`/pricing/clusters/${cluster.body.id}`)
+        .expect(200)
+        .expect((r) =>
+          expect(r.body).toEqual({ id: cluster.body.id, name: 'Cluster B' }),
+        );
+      const list = await get('/pricing/clusters').expect(200);
+      expect(
+        list.body.some((c: { id: string }) => c.id === cluster.body.id),
+      ).toBe(false);
+    });
   });
 
   describe('GET /pricing/suggestions — motor', () => {

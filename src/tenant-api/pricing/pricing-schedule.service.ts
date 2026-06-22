@@ -4,7 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
-import { ScheduleItem } from '../../database/entities/tenant/pricing-schedule.entity';
+import {
+  PricingScheduleEntity,
+  ScheduleItem,
+} from '../../database/entities/tenant/pricing-schedule.entity';
 import { CreateScheduleDto } from './dto/schedule.dto';
 
 export interface ScheduleView {
@@ -87,17 +90,19 @@ export class PricingScheduleService {
     em: EntityManager,
     id: string,
   ): Promise<{ id: string; cancelled: boolean }> {
-    const current = await this.get(em, id);
-    if (current.status !== 'pending') {
-      throw new ConflictException(
-        `schedule ${id} is ${current.status} and cannot be cancelled`,
-      );
-    }
-    await em.query(
-      `UPDATE pricing_schedule SET status='cancelled', updated_at=now() WHERE id=$1`,
-      [id],
+    // Guard atômico de status: se o cron já travou + disparou (FOR UPDATE SKIP
+    // LOCKED), este UPDATE espera o lock e então afeta 0 linhas (status='fired')
+    // — não sobrescreve um agendamento já disparado para 'cancelled'. Usa o
+    // repositório (`.affected`) em vez de UPDATE..RETURNING (que com em.query
+    // volta [rows, count] e confundiria a contagem).
+    const res = await em
+      .getRepository(PricingScheduleEntity)
+      .update({ id, status: 'pending' }, { status: 'cancelled' });
+    if (res.affected) return { id, cancelled: true };
+    const current = await this.get(em, id); // 404 se não existir
+    throw new ConflictException(
+      `schedule ${id} is ${current.status} and cannot be cancelled`,
     );
-    return { id, cancelled: true };
   }
 
   /** Agendamentos vencidos e ainda pendentes, travados (SKIP LOCKED) para esta

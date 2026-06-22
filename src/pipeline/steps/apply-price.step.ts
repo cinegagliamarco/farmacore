@@ -19,10 +19,14 @@ type Permanent = { status: 'skipped' | 'failed'; reason: string };
 
 /**
  * Aplica os itens de um batch de apply ao ERP (CatalogMutationService) dentro da
- * transação do tenant. Erro PERMANENTE (monitored / sem external_id / sem
- * credencial / produto sumiu) vira status do item + reason — NÃO re-lança, para
- * o fan-in seguir. Erro TRANSITÓRIO (rede/HTTP do A7) re-lança → o batch
- * re-tenta. Idempotente em redelivery: só processa itens `pending`.
+ * transação do tenant. **Nunca re-lança** — qualquer erro (permanente ou
+ * transitório) vira status do item + reason e o loop segue. Isto é deliberado e
+ * money-safe: o push ao A7 é um efeito colateral NÃO-transacional dentro da tx
+ * do batch; se um erro num item rolasse a tx inteira, os itens já empurrados ao
+ * ERP perderiam o `applied` local e seriam RE-empurrados no redelivery
+ * (double-write). Falha transitória → item `failed`/`erro_transitorio`, visível
+ * no relatório para reaplicação manual (o operador reenvia só os EANs falhos).
+ * Idempotente em redelivery: só processa itens `pending`.
  */
 @Injectable()
 export class ApplyPriceStep {
@@ -61,8 +65,12 @@ export class ApplyPriceStep {
         await this.mark(em, item.id, 'applied', null, erpResult);
         applied++;
       } catch (err) {
-        const mapped = this.mapPermanent(err);
-        if (!mapped) throw err; // transitório → retry do batch inteiro
+        // Transitório (rede/HTTP do A7) vira `failed` e segue — NÃO re-lança
+        // (re-throw rolaria a tx do batch e re-empurraria itens já aplicados).
+        const mapped = this.mapPermanent(err) ?? {
+          status: 'failed' as const,
+          reason: 'erro_transitorio',
+        };
         await this.mark(em, item.id, mapped.status, mapped.reason, null);
         if (mapped.status === 'skipped') skipped++;
         else failed++;

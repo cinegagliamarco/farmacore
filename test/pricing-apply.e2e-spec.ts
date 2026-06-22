@@ -22,6 +22,7 @@ const SCHEMA = 'tenant_e2eapply';
 const EAN_OK = '7894444444444';
 const EAN_MON = '7894444444445';
 const EAN_CAMP = '7894444444446';
+const EAN_NOCOST = '7894444444447';
 const a7 = { changePrices: jest.fn(), upsertOffer: jest.fn() };
 const creds = { baseUrl: 'https://erp.test', apiKey: 'key' };
 
@@ -78,9 +79,10 @@ describe('Pricing apply (e2e)', () => {
     await ds.query(
       `INSERT INTO ${SCHEMA}.product
          (ean, name, active, price, cost, external_id, monitored, status) VALUES
-        (${EAN_OK},   'A', true, 8.00, 6.0000, '7001', false, 'OK'),
-        (${EAN_MON},  'B', true, 8.00, 6.0000, '7002', true,  'OK'),
-        (${EAN_CAMP}, 'C', true, 8.00, 6.0000, '7003', false, 'OK')`,
+        (${EAN_OK},     'A', true, 8.00, 6.0000, '7001', false, 'OK'),
+        (${EAN_MON},    'B', true, 8.00, 6.0000, '7002', true,  'OK'),
+        (${EAN_CAMP},   'C', true, 8.00, 6.0000, '7003', false, 'OK'),
+        (${EAN_NOCOST}, 'D', true, 8.00, NULL,   '7004', false, 'OK')`,
     );
     // EAN_CAMP num caderno (offer_book.external_id) com campanha ativa.
     await ds.query(
@@ -144,14 +146,59 @@ describe('Pricing apply (e2e)', () => {
         idempotencyKey: 'k-mixed',
         items: [
           { ean: EAN_OK, target: 'precoVenda', price: 10 },
-          { ean: EAN_OK, target: 'precoVenda', price: 4 }, // 4 < custo 6
+          { ean: EAN_MON, target: 'precoVenda', price: 4 }, // 4 < custo 6
         ],
       })
       .expect(202);
     expect(res.body.accepted).toBe(1);
     expect(res.body.rejected).toEqual([
-      { ean: EAN_OK, reason: 'abaixo_do_piso' },
+      { ean: EAN_MON, reason: 'abaixo_do_piso' },
     ]);
+  });
+
+  it('rejeita produto sem custo (não deixa preço ~0 chegar ao ERP)', async () => {
+    const res = await post('/pricing/apply')
+      .send({
+        idempotencyKey: 'k-nocost',
+        items: [{ ean: EAN_NOCOST, target: 'precoVenda', price: 0.01 }],
+      })
+      .expect(202);
+    expect(res.body.accepted).toBe(0);
+    expect(res.body.rejected).toEqual([
+      { ean: EAN_NOCOST, reason: 'sem_custo' },
+    ]);
+  });
+
+  it('dedup por (ean,target): itens repetidos viram um (o último vence)', async () => {
+    const res = await post('/pricing/apply')
+      .send({
+        idempotencyKey: 'k-dup',
+        items: [
+          { ean: EAN_OK, target: 'precoVenda', price: 10 },
+          { ean: EAN_OK, target: 'precoVenda', price: 11 },
+        ],
+      })
+      .expect(202);
+    expect(res.body.accepted).toBe(1);
+    const report = await get(`/pricing/apply/${res.body.applyRunId}`).expect(
+      200,
+    );
+    expect(report.body.total).toBe(1);
+    expect(Number(report.body.items[0].price)).toBe(11); // último venceu
+  });
+
+  it('dispatch enfileirado SEM standalone (senão o run nunca fecha em done)', async () => {
+    const res = await post('/pricing/apply')
+      .send({
+        idempotencyKey: 'k-nostandalone',
+        items: [{ ean: EAN_OK, target: 'precoVenda', price: 12 }],
+      })
+      .expect(202);
+    const [outbox] = await ds.query(
+      `SELECT message FROM core.pipeline_outbox WHERE pipeline_run_id = $1`,
+      [res.body.applyRunId],
+    );
+    expect(outbox.message.standalone).toBeFalsy();
   });
 
   it('idempotência: mesmo key → mesmo run', async () => {

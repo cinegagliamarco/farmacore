@@ -149,5 +149,8 @@ describe('Pricing schedule (e2e)', () => {
     );
     expect(report.body.total).toBe(1);
     expect(report.body.items[0]).toMatchObject({ ean: EAN, status: 'pending' });
+
+    // Cancelar um já disparado é 409 (cancel atômico não sobrescreve 'fired').
+    await del(`/pricing/schedules/${created.body.id}`).expect(409);
   });
 });

@@ -1,7 +1,9 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Header, Query } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
 import type { JwtPayload } from '../../auth/jwt-payload.type';
+import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import { ListSuggestionsQueryDto } from './dto/list-suggestions.query';
 import {
@@ -18,7 +20,12 @@ import {
 export class PricingSuggestionsController {
   constructor(private readonly suggestions: PricingSuggestionsService) {}
 
+  // Operator/admin: a geração carrega o catálogo inteiro e calcula em memória —
+  // restringir reduz a superfície de custo (um VIEWER não dispara o full-scan).
+  // Cache curto ameniza chamadas repetidas (ex.: paginação).
   @Get()
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  @Header('Cache-Control', 'private, max-age=30')
   public list(
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,

@@ -67,6 +67,8 @@ const num = (v: unknown): number | null => {
 
 const DEFAULT_PER_PAGE = 100;
 const MAX_PER_PAGE = 1000;
+// Tolerância de meio-centavo (mesma do motor) para comparações de preço.
+const PRICE_EPSILON = 0.005;
 
 /**
  * Aplicação de preço em massa (Fase 3, mode=agora). Revalida cada item
@@ -89,26 +91,19 @@ export class PricingApplyService {
     requestedBy: string | null,
     dto: ApplyPricesDto,
   ): Promise<ApplyResponse> {
-    const existing: Array<{ id: string; total: number }> = await em.query(
-      `SELECT id, total FROM pricing_apply_run
-        WHERE idempotency_key = $1 AND deleted_at IS NULL LIMIT 1`,
-      [dto.idempotencyKey],
-    );
-    if (existing.length) {
-      return {
-        applyRunId: existing[0].id,
-        accepted: Number(existing[0].total),
-        rejected: [],
-        idempotent: true,
-      };
-    }
+    const existing = await this.findByIdempotencyKey(em, dto.idempotencyKey);
+    if (existing) return existing;
 
     const { accepted, rejected } = await this.revalidate(em, dto.items);
     const applyRunId = randomUUID();
-    await em.query(
+    // ON CONFLICT em vez de read-then-insert: dois POSTs simultâneos com a mesma
+    // key não viram 500 — o perdedor recebe o run existente (idempotente).
+    const inserted: Array<{ id: string }> = await em.query(
       `INSERT INTO pricing_apply_run
          (id, idempotency_key, mode, requested_by, status, total)
-       VALUES ($1, $2, $3, $4, 'pending', $5)`,
+       VALUES ($1, $2, $3, $4, 'pending', $5)
+       ON CONFLICT (idempotency_key) DO NOTHING
+       RETURNING id`,
       [
         applyRunId,
         dto.idempotencyKey,
@@ -117,29 +112,17 @@ export class PricingApplyService {
         accepted.length,
       ],
     );
-    for (const a of accepted) {
-      await em.query(
-        `INSERT INTO pricing_apply_item
-           (apply_run_id, ean, target, price, caderno_id, price_old_sell,
-            price_old_offer, rule_id, cost_at_apply, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')`,
-        [
-          applyRunId,
-          a.ean,
-          a.target,
-          a.price,
-          a.cadernoId,
-          a.priceOldSell,
-          a.priceOldOffer,
-          a.ruleId,
-          a.costAtApply,
-        ],
-      );
+    if (!inserted.length) {
+      return (await this.findByIdempotencyKey(em, dto.idempotencyKey))!;
     }
+
+    await this.insertItems(em, applyRunId, accepted);
 
     if (accepted.length > 0) {
       // Outbox = publica o dispatch só APÓS o commit da request (senão o
-      // consumer correria o commit e não acharia o run).
+      // consumer correria o commit e não acharia o run). Sem `standalone`: é o
+      // successors() do último batch que fecha o run em `done` — standalone o
+      // suprimiria e o run ficaria preso em `running`.
       await this.outbox.insertMany(em, applyRunId, slug, [
         newPipelineMessage({
           pipelineRunId: applyRunId,
@@ -147,7 +130,6 @@ export class PricingApplyService {
           step: PipelineStep.APPLY_PRICE,
           queue: dispatchStep(PipelineStep.APPLY_PRICE),
           payload: {},
-          standalone: true,
         }),
       ]);
     } else {
@@ -158,6 +140,59 @@ export class PricingApplyService {
     }
 
     return { applyRunId, accepted: accepted.length, rejected };
+  }
+
+  private async findByIdempotencyKey(
+    em: EntityManager,
+    key: string,
+  ): Promise<ApplyResponse | null> {
+    const rows: Array<{ id: string; total: number }> = await em.query(
+      `SELECT id, total FROM pricing_apply_run WHERE idempotency_key = $1 LIMIT 1`,
+      [key],
+    );
+    if (!rows.length) return null;
+    return {
+      applyRunId: rows[0].id,
+      accepted: Number(rows[0].total),
+      rejected: [],
+      idempotent: true,
+    };
+  }
+
+  /** Insere os itens em lotes multi-row (até 5000 itens → poucos round-trips). */
+  private async insertItems(
+    em: EntityManager,
+    applyRunId: string,
+    accepted: AcceptedItem[],
+  ): Promise<void> {
+    const CHUNK = 500;
+    for (let i = 0; i < accepted.length; i += CHUNK) {
+      const slice = accepted.slice(i, i + CHUNK);
+      const params: unknown[] = [applyRunId];
+      const values = slice
+        .map((a, j) => {
+          const b = 1 + j * 8;
+          params.push(
+            a.ean,
+            a.target,
+            a.price,
+            a.cadernoId,
+            a.priceOldSell,
+            a.priceOldOffer,
+            a.ruleId,
+            a.costAtApply,
+          );
+          return `($1,$${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8})`;
+        })
+        .join(',');
+      await em.query(
+        `INSERT INTO pricing_apply_item
+           (apply_run_id, ean, target, price, caderno_id, price_old_sell,
+            price_old_offer, rule_id, cost_at_apply)
+         VALUES ${values}`,
+        params,
+      );
+    }
   }
 
   public async report(
@@ -230,9 +265,16 @@ export class PricingApplyService {
       ? await this.clusters.loadActiveClusterMembership(em)
       : new Map<string, string[]>();
 
+    // Dedup por (ean, target): dois itens para o mesmo alvo causariam preço
+    // final não-determinístico no ERP (batches correm em ordem indefinida).
+    // O último vence (intenção mais recente do operador).
+    const deduped = [
+      ...new Map(items.map((i) => [`${i.ean}|${i.target}`, i])).values(),
+    ];
+
     const accepted: AcceptedItem[] = [];
     const rejected: ApplyRejection[] = [];
-    for (const item of items) {
+    for (const item of deduped) {
       const row = byEan.get(item.ean);
       if (!row) {
         rejected.push({ ean: item.ean, reason: 'nao_encontrado' });
@@ -240,6 +282,16 @@ export class PricingApplyService {
       }
       const cost = num(row.cost) ?? 0;
       const precoVenda = num(row.precoVenda) ?? 0;
+      // Sem custo não há piso de margem confiável (mesma guarda do motor) — sem
+      // isto, floor cairia para 0 e um preço ~0 chegaria ao ERP.
+      if (cost <= 0) {
+        rejected.push({ ean: item.ean, reason: 'sem_custo' });
+        continue;
+      }
+      if (item.price <= 0) {
+        rejected.push({ ean: item.ean, reason: 'preco_invalido' });
+        continue;
+      }
       const clusterIds = membership.get(item.ean) ?? [];
       const winner = resolveWinner(
         clusterIds.length
@@ -255,13 +307,13 @@ export class PricingApplyService {
         ? priceForMargin(cost, Number(winner.minMargin))
         : cost;
 
-      if (item.price + 0.005 < floor) {
+      if (item.price + PRICE_EPSILON < floor) {
         rejected.push({ ean: item.ean, reason: 'abaixo_do_piso' });
         continue;
       }
       let cadernoId: number | null = null;
       if (item.target === 'precoOferta') {
-        if (precoVenda > 0 && item.price > precoVenda + 0.005) {
+        if (precoVenda > 0 && item.price > precoVenda + PRICE_EPSILON) {
           rejected.push({ ean: item.ean, reason: 'acima_do_venda' });
           continue;
         }
