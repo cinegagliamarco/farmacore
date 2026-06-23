@@ -8,9 +8,22 @@
 
 ---
 
+## Atualização 2026-06-23 — endpoint de origens de concorrente (resolve §17.11 backend)
+
+Depois da primeira versão deste plano, o backend ganhou um endpoint dedicado. **Onde o plano disser "derive as origens habilitadas de `GET /pricing/suggestions`" ou "não há endpoint dedicado", leia isto como a fonte canônica:**
+
+- **`GET /pricing/competitor-origins`** (operator/admin) → `[{ origin, priority, enabled }]` do tenant. É a **fonte única do seletor de concorrentes no formulário de regra** e da ordem da cascata. Não precisa mais derivar de `suggestions` (que falhava com lista vazia ou antes de carregar a tela).
+  - O FE deve oferecer apenas `enabled: true` (ou exibir desabilitados em cinza), na ordem `priority ASC`.
+- As **colunas da tabela de Sugestões continuam vindo de `rows[].product.competitors[]`** (já só as habilitadas, mesma ordem) — isso NÃO muda.
+- **Nova trava de validação:** criar/editar/preview de regra com concorrente **não habilitado** no tenant → `400 "Concorrente não habilitado para o tenant: X"`. (O `400 "Concorrente inválido: X"` continua para valor fora do enum.) Logo, o seletor deve sempre vir desse endpoint para nunca oferecer uma origem que o save vai rejeitar.
+
+Contrato completo no Apêndice de API e no `docs/pricing-api.openapi.json` / `docs/pricing-api.md`.
+
+---
+
 # Parte I — Enquadramento
 
-I have confirmed the load-bearing details: no global prefix, no CORS config, no custom exception filter (so default NestJS error envelopes `{statusCode, message, error}`), and the `whitelist + forbidNonWhitelisted + transform` ValidationPipe. Now I'll write the framing sections.
+> Premissas confirmadas no backend: sem prefixo global, sem CORS custom, sem exception filter custom (envelopes de erro padrão do NestJS `{statusCode, message, error}`), e ValidationPipe com `whitelist + forbidNonWhitelisted + transform`.
 
 ---
 
@@ -812,7 +825,7 @@ src/pages/precos/RegrasSugestao.tsx          (lista — porta direta, ajustes de
 src/components/precos/RegraSugestaoDialog.tsx (form — reescrito com RHF+zod)
 src/components/precos/CompetitorWeightField.tsx  (NOVO — extrai a linha concorrente+peso, data-driven)
 src/hooks/useSuggestionRules.ts              (reescrito p/ REST: list/save/delete)
-src/hooks/useCompetitorOrigins.ts            (NOVO — deriva as 9 origens; ver §"Origens dinâmicas")
+src/hooks/useCompetitorOrigins.ts            (NOVO — GET /pricing/competitor-origins; ver §"Origens dinâmicas")
 src/types/pricingSuggestion.ts               (reescrito: enum MAIÚSCULO 9 origens, sem priceRoundingTypeId, +2 flags)
 src/schemas/suggestionRule.schema.ts         (NOVO — zod do form + transform p/ payload)
 ```
@@ -842,9 +855,10 @@ export type CompetitorMode = 'weighted' | 'cascade' | 'lowest';
 
 ### Origens dinâmicas (substitui os 3 hard-coded)
 
-O legado fixava `ALL_SUGGESTION_COMPETITORS = ['drogal','drogasil','michelassi']`. Não há endpoint dedicado de origens neste módulo. **Decisão para o seletor (`useCompetitorOrigins`):**
-- **Fonte primária:** derivar das origens presentes em `GET /pricing/suggestions` → `rows[].product.competitors[].origin` (uma entrada por origem habilitada do tenant, na ordem `priority ASC, origin ASC`). É a fonte de verdade do que o tenant tem habilitado (data-contracts §2).
-- **Fallback** (lista de regras vazia / suggestions ainda não carregadas): as 9 origens de `CompetitorOrigin`, na ordem do enum. **Edge case:** ao editar uma regra cuja `competitors[]` contém uma origem que não está mais habilitada, mesclar essa origem na lista exibida (marcada) para não perdê-la silenciosamente no round-trip — mas avisar inline ("origem não habilitada"). Enviar origem não habilitada → 400 (`Concorrente inválido: X`).
+O legado fixava `ALL_SUGGESTION_COMPETITORS = ['drogal','drogasil','michelassi']`. Agora há **endpoint dedicado**. **Decisão para o seletor (`useCompetitorOrigins`):**
+- **Fonte canônica:** `GET /pricing/competitor-origins` → `[{ origin, priority, enabled }]` do tenant. Hook `useCompetitorOrigins()` (`useQuery`, `staleTime` longo) → exibe `enabled: true` na ordem `priority ASC`. As colunas da tabela de Sugestões seguem vindo de `rows[].product.competitors[].origin` (mesmo conjunto/ordem) — isso não muda.
+- **Edge case:** ao editar uma regra cuja `competitors[]` contém uma origem que **não está mais habilitada**, mesclar essa origem na lista exibida (marcada) para não perdê-la silenciosamente no round-trip — mas avisar inline ("origem não habilitada") e impedir o save de adicioná-la (o backend rejeita: 400). 
+- **400 do save:** origem não habilitada → `Concorrente não habilitado para o tenant: X`; valor fora do enum → `Concorrente inválido: X`.
 
 > Nota de simplicidade (CLAUDE.md): `useCompetitorOrigins` é um `useMemo`/`useQuery` fino sobre dados já buscados, não um sistema de config. Não criar abstração de "registry de origens".
 
@@ -999,7 +1013,7 @@ Porta `RegrasSugestao.tsx` quase intacto. Ajustes:
 5. **Concorrência sem concorrente** → submit bloqueado pelo zod com "Estratégia de concorrência precisa de pelo menos um concorrente." (sem chamada de rede).
 6. **Pesos ≠ 100% em weighted** → dica inline `Total: N% — ajuste pra 100%`, botão Salvar bloqueado; se forçado, 400 do service.
 7. **Concorrente duplicado** não é possível pela UI; um payload duplicado responde 400 "Concorrente duplicado: X".
-8. **Seletor de concorrentes** lista as origens **habilitadas do tenant** (derivadas de `/pricing/suggestions`), com fallback às 9 do enum; nunca os 3 hard-coded antigos.
+8. **Seletor de concorrentes** lista as origens **habilitadas do tenant** via `GET /pricing/competitor-origins` (filtre `enabled: true`, ordem `priority ASC`); nunca os 3 hard-coded antigos. Origem não habilitada → save retorna `400 "Concorrente não habilitado para o tenant: X"`.
 9. **`blockPbmInMargin`** e **`cascadeByPriority`** aparecem como `Switch` com tooltip; o segundo só aparece em concorrência+cascade; ambos viajam no payload e voltam no round-trip.
 10. **Sem `priceRoundingTypeId`** em nenhum lugar (form, payload, type) — só o toggle `applyRounding` (default true).
 11. **Toggle `active` inline** na tabela faz `PATCH` e persiste; toast "Regra ativada/desativada".
@@ -2374,7 +2388,7 @@ const apiProductSchema = z.object({
 | `priceRoundingTypeId: number \| null` (linha 57) | — (removido; só `applyRounding: boolean`) | **Remover do type, do `FormState` e do envio.** Apagar o `Select` de tipo + o hook `usePriceRoundingTypes` no `RegraSugestaoDialog`. `applyRounding` (toggle) basta. |
 | — | `blockPbmInMargin: boolean` (novo, default `false`) | **Adicionar** toggle no form. Label: "Bloquear PBM também na estratégia margem". |
 | — | `cascadeByPriority: boolean` (novo, default `false`) | **Adicionar** toggle (só relevante em `competitorMode === 'cascade'`). Label: "Seguir prioridade do tenant na cascata". |
-| `competitors[].competitor` minúsculo | `CompetitorOrigin` MAIÚSCULO (9) | Seletor de concorrentes no form passa a oferecer as **origens habilitadas do tenant** (derivadas de `suggestions.rows[].product.competitors[].origin`, deduplicadas). Enviar origem não habilitada → 400 `Concorrente inválido: X`. |
+| `competitors[].competitor` minúsculo | `CompetitorOrigin` MAIÚSCULO (9) | Seletor de concorrentes no form vem de **`GET /pricing/competitor-origins`** (origens habilitadas do tenant). Enviar não habilitada → 400 `Concorrente não habilitado para o tenant: X`; fora do enum → 400 `Concorrente inválido: X`. |
 | `id, name, clusterId, clusterName, excludeClusterIds, strategy, minMargin, competitorMode, variationPct, noCompetitorMargin, priceControlled, ignorePbm, active, createdAt, updatedAt` | iguais | Sem mudança. |
 
 #### 2.5 Clusters — **sem mudança de contrato**
@@ -2413,7 +2427,7 @@ Sequência:
 | Seleção em massa hoje é por `productId` numérico; apply é por EAN | Migrar `selected: Set<ean>` (string) no estado da tela; remover qualquer `productId`. Chave de linha da tabela = `ean`. |
 | `cost/price* === null` renderizado como `0` (decisão de preço errada na cara do operador) | UI distingue `null` ("—") de `0` ("R$ 0,00"). Validar no QA. |
 | `priceComposition[].competitor` MAIÚSCULO não casa com `SUGGESTION_COMPETITOR_LABELS` minúsculo legado | Reescrever a constante de labels para `CompetitorOrigin` MAIÚSCULO (9 chaves) antes do corte. |
-| Origens habilitadas variam por tenant; seletor de concorrentes do form pode listar origem não habilitada → 400 no save | Derivar a lista de origens habilitadas de `suggestions.rows[].product.competitors[].origin` (deduplicada); idealmente um endpoint dedicado de config de origens (fora deste módulo) se existir. |
+| Origens habilitadas variam por tenant; seletor de concorrentes do form pode listar origem não habilitada → 400 no save | **Resolvido:** usar `GET /pricing/competitor-origins` (endpoint dedicado, origens habilitadas do tenant). O save valida e retorna 400 se a origem não estiver habilitada. |
 | Decisão `VIEWER_PRICING` em aberto (gap §1.3) | Não bloqueia Ondas 0–3 (todas operator/admin, auditoria admin). Tratar como item separado; não desenhar tela read-only especulativamente. |
 
 ### 6. Critérios de aceite observáveis
@@ -2667,7 +2681,7 @@ Os 9 valores do enum (todos): `DROGAL`, `DROGASIL`, `PAGUE_MENOS`, `IKESAKI`, `M
 - O tenant habilita um subconjunto dessas 9 origens (tabela `core.tenant_competitor_origin`, com `enabled` + `priority`). O FE **não deve assumir as 9**.
 - A fonte de verdade do que renderizar é o array `product.competitors[]` em cada linha de `GET /pricing/suggestions` — ele contém **uma entrada por origem habilitada do tenant**, já na ordem `priority ASC, origin ASC`. Renderize uma coluna de concorrente por entrada, na ordem em que vêm.
 - Cada coluna mostra `price` (`null` = sem coleta → renderizar “—”), badge PBM se `isPbm`, e o `van` (código/identificador da origem, pode ser `null`).
-- No formulário de regra (`competitors[]`), o seletor de concorrentes deve oferecer **só as origens habilitadas do tenant** (não há endpoint dedicado aqui; derive das origens presentes em `suggestions.rows[].product.competitors[]`, ou de um endpoint de config de origens fora deste módulo). Enviar uma origem não habilitada/ inexistente → 400 (`Concorrente inválido: X`).
+- No formulário de regra (`competitors[]`), o seletor de concorrentes deve oferecer **só as origens habilitadas do tenant**, vindas de **`GET /pricing/competitor-origins`** (`enabled: true`, ordem `priority ASC`). Enviar origem não habilitada → 400 (`Concorrente não habilitado para o tenant: X`); fora do enum → 400 (`Concorrente inválido: X`).
 - `weight` só aparece/edita quando `competitorMode === 'weighted'`; em `cascade`/`lowest` o peso é ignorado (backend grava 1).
 
 ---
@@ -3205,7 +3219,7 @@ A camada externa (`suggestionRowSchema`, `apiResponseSchema`: `count, suggestion
 
 ## Resumo executável para o redesenho
 1. **Reescrever `usePricingSuggestionProducts.ts`**: trocar os 9 campos por-concorrente do `apiProductSchema` por `competitors: z.array(z.object({ origin, price: number().nullable(), isPbm, van: string().nullable() }))`; **remover `id` obrigatório** (ou `.optional()`); aceitar `null` em `cost/priceForSell/priceForOffer/margin/averageVariation` (`z.union([string, number]).nullable()`); remover `curve`.
-2. **Generalizar concorrentes de 3→9**: `SuggestionCompetitor`, `SUGGESTION_COMPETITOR_LABELS`, `ALL_SUGGESTION_COMPETITORS` e toda a UI de composição/badges precisam virar data-driven pelo enum `CompetitorOrigin` (vir do backend, idealmente via `/pricing/competitor-origins`).
+2. **Generalizar concorrentes de 3→9**: `SuggestionCompetitor`, `SUGGESTION_COMPETITOR_LABELS`, `ALL_SUGGESTION_COMPETITORS` e toda a UI de composição/badges precisam virar data-driven pelo enum `CompetitorOrigin`, vindo do backend via **`GET /pricing/competitor-origins`** (já existe — origens habilitadas do tenant).
 3. **`SuggestionRule` + `RegraSugestaoDialog`**: remover `priceRoundingTypeId` (e o Select + `usePriceRoundingTypes`); **adicionar** os toggles `blockPbmInMargin` e `cascadeByPriority`.
 4. Migrar URLs de endpoint do estilo `fn/<edge-function>` (`pricing-suggestions-products`, `pricing-suggestion-rules-*`, `clusters-*`, `offer-campaign-list`) para as rotas REST do novo NestJS (`/pricing/suggestions`, `/pricing/rules`, `/pricing/clusters`, etc.).
 
@@ -3245,7 +3259,8 @@ Status crítico do plano: as Fases 1–2 estão entregues no backend, mas **valo
 - **O conflito:** o backend generalizou para **9 origens** (`DROGAL, DROGASIL, PAGUE_MENOS, IKESAKI, MICHELASSI, PACHECO, SAO_PAULO, VENANCIO, INDIANA`), habilitadas/priorizadas por tenant em `core.tenant_competitor_origin`. O legado é hard-coded em **3 colunas** (Drogal/Drogasil/Michelassi) com **PBM/van só de Drogal+Drogasil**.
 - **Decisão a fechar:** a tela mostra **colunas dinâmicas por origem habilitada** ou um **subconjunto fixo**? E **como exibir PBM/van para N origens** (hoje van vem por-origem no array `competitors[]`, antes era só 2 colunas)?
 - **Por que trava o FE:** "isso fecha o shape final de `competitors[]` e desbloqueia o redesign do front." Sem essa decisão, o FE não sabe como renderizar a linha de produto.
-- **Dono + prazo: A DEFINIR** (marcado "decisão de layout da tela (outro repo)").
+- **Atualização 2026-06-23 (backend resolveu a parte de dados):** existe `GET /pricing/competitor-origins` → `[{origin, priority, enabled}]` do tenant; a tabela e o seletor de regra têm fonte canônica das origens habilitadas, e o save valida contra elas (400 se não habilitada). **O que resta é só a decisão de LAYOUT visual** (colunas dinâmicas vs. subconjunto fixo; como exibir PBM/van por origem) — design da tela, não contrato.
+- **Dono + prazo: A DEFINIR** — só a parte visual (a fonte de dados está fechada).
 
 ### 1.3 RBAC / viewer — §17.3, §7, §12, §17-bis #3
 
