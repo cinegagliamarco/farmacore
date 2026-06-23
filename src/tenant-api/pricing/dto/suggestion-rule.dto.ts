@@ -95,6 +95,14 @@ export class UpsertSuggestionRuleDto {
 
   @IsOptional()
   @IsBoolean()
+  public blockPbmInMargin?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  public cascadeByPriority?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   public applyRounding?: boolean;
 
   @IsOptional()

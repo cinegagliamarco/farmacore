@@ -49,6 +49,8 @@ const margemRule: SuggestionRule = {
   noCompetitorMargin: null,
   priceControlled: false,
   ignorePbm: false,
+  blockPbmInMargin: false,
+  cascadeByPriority: false,
   applyRounding: false,
   active: true,
   createdAt: '2026-06-01T00:00:00.000Z',
@@ -101,6 +103,14 @@ describe('computeSuggestion — PBM', () => {
     const r = computeSuggestion(product({ pbm: true }), {
       ...margemRule,
       ignorePbm: true,
+    });
+    expect(r).toMatchObject({ kind: 'none', reason: 'pbm' });
+  });
+
+  it('blockPbmInMargin bloqueia PBM na estratégia margem (§17.5a)', () => {
+    const r = computeSuggestion(product({ pbm: true }), {
+      ...margemRule,
+      blockPbmInMargin: true,
     });
     expect(r).toMatchObject({ kind: 'none', reason: 'pbm' });
   });

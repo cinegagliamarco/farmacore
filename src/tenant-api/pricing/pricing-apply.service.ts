@@ -21,6 +21,7 @@ import {
   type SuggestionProduct,
 } from './pricing-suggestion.engine';
 import { ClustersService } from './clusters.service';
+import { applyCascadePriority, originPriorities } from './pricing-rules.util';
 import { SuggestionRulesService } from './suggestion-rules.service';
 import { ApplyItemDto, ApplyPricesDto } from './dto/apply.dto';
 
@@ -283,7 +284,12 @@ export class PricingApplyService {
     const rows = await this.loadEansData(em, origins, eans);
     const byEan = new Map(rows.map((r) => [r.ean, r]));
 
-    const active = (await this.rules.list(em)).filter((r) => r.active);
+    let active = (await this.rules.list(em)).filter((r) => r.active);
+    if (
+      active.some((r) => r.competitorMode === 'cascade' && r.cascadeByPriority)
+    ) {
+      active = applyCascadePriority(active, await originPriorities(em, slug));
+    }
     const clusterRules = active.filter((r) => r.clusterId);
     const classRules = active.filter((r) => !r.clusterId);
     const usesClusters = active.some(

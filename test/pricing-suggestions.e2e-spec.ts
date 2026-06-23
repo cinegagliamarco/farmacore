@@ -162,6 +162,33 @@ describe('Pricing suggestions (e2e)', () => {
         .expect(400);
     });
 
+    it('400 concorrente duplicado (§17.4)', async () => {
+      await post('/pricing/suggestion-rules')
+        .send({
+          name: 'dup',
+          minMargin: 10,
+          strategy: 'concorrencia',
+          competitorMode: 'cascade',
+          competitors: [{ competitor: 'DROGAL' }, { competitor: 'DROGAL' }],
+        })
+        .expect(400);
+    });
+
+    it('persiste flags de política (blockPbmInMargin, cascadeByPriority)', async () => {
+      const r = await post('/pricing/suggestion-rules')
+        .send({
+          name: 'flags',
+          minMargin: 30,
+          blockPbmInMargin: true,
+          cascadeByPriority: true,
+        })
+        .expect(201);
+      expect(r.body).toMatchObject({
+        blockPbmInMargin: true,
+        cascadeByPriority: true,
+      });
+    });
+
     it('400 clusterId malformado (não-UUID)', async () => {
       await post('/pricing/suggestion-rules')
         .send({ name: 'uuid ruim', minMargin: 10, clusterId: 'nao-é-uuid' })

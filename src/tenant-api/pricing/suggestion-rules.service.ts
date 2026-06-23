@@ -29,6 +29,8 @@ export interface SuggestionRuleApi {
   noCompetitorMargin: number | null;
   priceControlled: boolean;
   ignorePbm: boolean;
+  blockPbmInMargin: boolean;
+  cascadeByPriority: boolean;
   applyRounding: boolean;
   active: boolean;
   createdAt: string;
@@ -52,6 +54,8 @@ interface RuleRow {
   noCompetitorMargin: string | null;
   priceControlled: boolean;
   ignorePbm: boolean;
+  blockPbmInMargin: boolean;
+  cascadeByPriority: boolean;
   applyRounding: boolean;
   active: boolean;
   createdAt: Date;
@@ -75,6 +79,8 @@ export class SuggestionRulesService {
               r.variation_pct AS "variationPct",
               r.no_competitor_margin AS "noCompetitorMargin",
               r.price_controlled AS "priceControlled", r.ignore_pbm AS "ignorePbm",
+              r.block_pbm_in_margin AS "blockPbmInMargin",
+              r.cascade_by_priority AS "cascadeByPriority",
               r.apply_rounding AS "applyRounding", r.active,
               r.created_at AS "createdAt", r.updated_at AS "updatedAt"
          FROM pricing_suggestion_rule r
@@ -158,6 +164,8 @@ export class SuggestionRulesService {
         r.noCompetitorMargin == null ? null : Number(r.noCompetitorMargin),
       priceControlled: r.priceControlled,
       ignorePbm: r.ignorePbm,
+      blockPbmInMargin: r.blockPbmInMargin,
+      cascadeByPriority: r.cascadeByPriority,
       applyRounding: r.applyRounding,
       active: r.active,
       createdAt: new Date(r.createdAt).toISOString(),
@@ -219,7 +227,11 @@ export class SuggestionRulesService {
         }
         weight = raw.weight;
       }
-      if (seen.has(raw.competitor)) continue;
+      if (seen.has(raw.competitor)) {
+        throw new BadRequestException(
+          `Concorrente duplicado: ${raw.competitor}.`,
+        );
+      }
       seen.add(raw.competitor);
       competitors.push({ competitor: raw.competitor, weight });
     }
@@ -248,6 +260,8 @@ export class SuggestionRulesService {
       noCompetitorMargin,
       priceControlled: dto.priceControlled ?? false,
       ignorePbm: dto.ignorePbm ?? false,
+      blockPbmInMargin: dto.blockPbmInMargin ?? false,
+      cascadeByPriority: dto.cascadeByPriority ?? false,
       applyRounding: dto.applyRounding ?? true,
       active: dto.active ?? true,
     };

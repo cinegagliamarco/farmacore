@@ -4,6 +4,7 @@ import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { resolveTenantId } from '../../tenant/tenant-lookup';
 import { PriceRoundingService } from '../config/price-rounding.service';
 import { ClustersService } from './clusters.service';
+import { applyCascadePriority, originPriorities } from './pricing-rules.util';
 import { ListSuggestionsQueryDto } from './dto/list-suggestions.query';
 import {
   computeSuggestion,
@@ -111,7 +112,17 @@ export class PricingSuggestionsService {
       ? allRows.filter((p) => bookSet.has((p.book ?? '').trim()))
       : allRows;
 
-    const activeRules = (await this.rules.list(em)).filter((r) => r.active);
+    let activeRules = (await this.rules.list(em)).filter((r) => r.active);
+    if (
+      activeRules.some(
+        (r) => r.competitorMode === 'cascade' && r.cascadeByPriority,
+      )
+    ) {
+      activeRules = applyCascadePriority(
+        activeRules,
+        await originPriorities(em, slug),
+      );
+    }
     const clusterRules = activeRules.filter((r) => r.clusterId);
     const classRules = activeRules.filter((r) => !r.clusterId);
     const usesClusters = activeRules.some(
