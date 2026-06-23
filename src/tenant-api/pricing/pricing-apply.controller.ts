@@ -15,10 +15,12 @@ import type { JwtPayload } from '../../auth/jwt-payload.type';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import { AuditService } from './audit.service';
-import { ApplyPricesDto } from './dto/apply.dto';
+import { ApplyPricesDto, PreviewApplyDto } from './dto/apply.dto';
 import {
+  ApplyPreview,
   ApplyReport,
   ApplyResponse,
+  ApplyRunSummary,
   PricingApplyService,
 } from './pricing-apply.service';
 
@@ -49,6 +51,52 @@ export class PricingApplyController {
         entity: 'apply_run',
         entityId: res.applyRunId,
         changes: { accepted: res.accepted, rejected: res.rejected.length },
+      });
+    }
+    return res;
+  }
+
+  @Get()
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  public list(
+    @TenantEm() em: EntityManager,
+    @Query('page') page?: string,
+    @Query('perPage') perPage?: string,
+  ): Promise<ApplyRunSummary[]> {
+    return this.apply.list(
+      em,
+      page ? Number(page) : undefined,
+      perPage ? Number(perPage) : undefined,
+    );
+  }
+
+  @Post('preview')
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  @HttpCode(200)
+  public preview(
+    @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: PreviewApplyDto,
+  ): Promise<ApplyPreview> {
+    return this.apply.preview(em, user.tenantId, dto.items);
+  }
+
+  @Post(':id/rollback')
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  @HttpCode(202)
+  public async rollback(
+    @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ApplyResponse> {
+    const res = await this.apply.rollback(em, user.tenantId, user.sub, id);
+    if (!res.idempotent) {
+      await this.audit.log(em, {
+        actor: user.sub,
+        action: 'rollback',
+        entity: 'apply_run',
+        entityId: res.applyRunId,
+        changes: { sourceRunId: id, accepted: res.accepted },
       });
     }
     return res;

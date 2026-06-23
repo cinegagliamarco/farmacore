@@ -33,6 +33,16 @@ export class ApplyItemDto {
   public cadernoId?: number;
 }
 
+/** Dry-run do apply: só os itens; nada é persistido nem enfileirado. */
+export class PreviewApplyDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5000)
+  @ValidateNested({ each: true })
+  @Type(() => ApplyItemDto)
+  public items!: ApplyItemDto[];
+}
+
 /**
  * Aplica preços aprovados em massa. `mode=agora` empurra imediatamente ao ERP
  * via pipeline. `idempotencyKey` torna o reenvio do mesmo POST um no-op.

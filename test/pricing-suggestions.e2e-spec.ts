@@ -337,4 +337,29 @@ describe('Pricing suggestions (e2e)', () => {
       expect(row.result.suggestion.price).toBeCloseTo(12, 2); // segue DROGAL
     });
   });
+
+  describe('POST /pricing/suggestions/preview — dry-run de regra', () => {
+    it('calcula com a regra transitória e não a persiste', async () => {
+      const before = (await get('/pricing/suggestion-rules').expect(200)).body
+        .length;
+      const res = await post('/pricing/suggestions/preview')
+        .send({ name: 'Preview 50', minMargin: 50 })
+        .expect(200);
+      expect(res.body.activeRuleCount).toBe(1); // só a transitória
+      const row = res.body.rows.find(
+        (r: { product: { ean: string } }) => r.product.ean === EAN,
+      );
+      expect(row.result.kind).toBe('suggestion');
+      expect(row.result.suggestion.price).toBeCloseTo(12, 2); // 6 / 0.5
+      const after = (await get('/pricing/suggestion-rules').expect(200)).body
+        .length;
+      expect(after).toBe(before); // nada salvo
+    });
+
+    it('valida a regra do preview (concorrência sem concorrentes → 400)', async () => {
+      await post('/pricing/suggestions/preview')
+        .send({ name: 'ruim', minMargin: 10, strategy: 'concorrencia' })
+        .expect(400);
+    });
+  });
 });

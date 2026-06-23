@@ -48,6 +48,29 @@ export interface ApplyReport {
   items: Record<string, unknown>[];
 }
 
+export interface ApplyRunSummary {
+  id: string;
+  status: string;
+  mode: string;
+  total: number;
+  applied: number;
+  skipped: number;
+  failed: number;
+  createdAt: string;
+}
+
+export interface ApplyPreview {
+  total: number;
+  accepted: {
+    ean: string;
+    target: string;
+    price: number;
+    basis: string | null;
+  }[];
+  rejected: ApplyRejection[];
+  wouldAbort: boolean;
+}
+
 interface ProductRow {
   ean: string;
   cost: string | null;
@@ -265,6 +288,107 @@ export class PricingApplyService {
       [id, limit, offset],
     );
     return { ...runs[0], items };
+  }
+
+  /** Histórico de runs (não-deletados), mais recentes primeiro. */
+  public async list(
+    em: EntityManager,
+    page = 1,
+    perPage = DEFAULT_PER_PAGE,
+  ): Promise<ApplyRunSummary[]> {
+    const limit = Math.min(Math.max(perPage, 1), MAX_PER_PAGE);
+    const offset = (Math.max(page, 1) - 1) * limit;
+    return em.query(
+      `SELECT id, status, mode, total, applied, skipped, failed,
+              created_at AS "createdAt"
+         FROM pricing_apply_run
+        WHERE deleted_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+  }
+
+  /**
+   * Dry-run: revalida os itens (mesmas guarda-corpos do apply) e devolve o que
+   * SERIA aceito/rejeitado — sem criar run nem enfileirar nada. `wouldAbort`
+   * sinaliza que o circuit breaker barraria o lote real.
+   */
+  public async preview(
+    em: EntityManager,
+    slug: string,
+    items: ApplyItemDto[],
+  ): Promise<ApplyPreview> {
+    const { accepted, rejected } = await this.revalidate(em, slug, items);
+    const total = accepted.length + rejected.length;
+    const wouldAbort =
+      total >= CIRCUIT_MIN_ITEMS &&
+      rejected.length / total > CIRCUIT_MAX_REJECT_RATE;
+    return {
+      total,
+      accepted: accepted.map((a) => ({
+        ean: a.ean,
+        target: a.target,
+        price: a.price,
+        basis: a.basis,
+      })),
+      rejected,
+      wouldAbort,
+    };
+  }
+
+  /**
+   * Desfaz um run: reaplica o preço ANTERIOR (price_old do alvo) de cada item
+   * que de fato chegou ao ERP (status='applied'). Reusa o apply (passa pelas
+   * mesmas guarda-corpos — não restaura preço hoje inválido) com idempotência
+   * `rollback:<runId>`, então repetir o POST é seguro.
+   */
+  public async rollback(
+    em: EntityManager,
+    slug: string,
+    requestedBy: string | null,
+    runId: string,
+  ): Promise<ApplyResponse> {
+    const runs: Array<{ id: string }> = await em.query(
+      `SELECT id FROM pricing_apply_run
+        WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
+      [runId],
+    );
+    if (!runs.length)
+      throw new NotFoundException(`apply run ${runId} not found`);
+
+    const rows: Array<{
+      ean: string;
+      target: ApplyItemDto['target'];
+      priceOld: string | null;
+      cadernoId: number | null;
+    }> = await em.query(
+      `SELECT ean::text AS ean, target, caderno_id AS "cadernoId",
+              CASE WHEN target = 'precoOferta' THEN price_old_offer
+                   ELSE price_old_sell END AS "priceOld"
+         FROM pricing_apply_item
+        WHERE apply_run_id = $1 AND status = 'applied'`,
+      [runId],
+    );
+    const items: ApplyItemDto[] = rows
+      .map((r) => ({
+        ean: r.ean,
+        target: r.target,
+        price: num(r.priceOld) ?? 0,
+        cadernoId: r.cadernoId ?? undefined,
+      }))
+      .filter((i) => i.price > 0);
+    if (!items.length) {
+      throw new HttpException(
+        { message: `Run ${runId} não tem item aplicado reversível.` },
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+    return this.apply(em, slug, requestedBy, {
+      idempotencyKey: `rollback:${runId}`,
+      mode: 'agora',
+      items,
+    });
   }
 
   /**

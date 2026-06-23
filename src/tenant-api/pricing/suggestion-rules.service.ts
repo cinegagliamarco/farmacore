@@ -141,6 +141,38 @@ export class SuggestionRulesService {
     return { id, deleted: true };
   }
 
+  /**
+   * Regra transitória (não persistida) a partir do DTO, para o dry-run da
+   * sugestão. Passa pela MESMA validação do create — o preview reflete o que
+   * a regra realmente faria se salva.
+   */
+  public buildTransient(dto: UpsertSuggestionRuleDto): SuggestionRuleApi {
+    const v = this.validate(dto);
+    return {
+      id: 'preview',
+      name: v.name!,
+      classifications: v.classifications!,
+      clusterId: v.clusterId ?? null,
+      clusterName: null,
+      excludeClusterIds: v.excludeClusterIds!,
+      strategy: v.strategy!,
+      minMargin: Number(v.minMargin),
+      competitorMode: v.competitorMode!,
+      competitors: v.competitors!,
+      variationPct: Number(v.variationPct),
+      noCompetitorMargin:
+        v.noCompetitorMargin == null ? null : Number(v.noCompetitorMargin),
+      priceControlled: v.priceControlled!,
+      ignorePbm: v.ignorePbm!,
+      blockPbmInMargin: v.blockPbmInMargin!,
+      cascadeByPriority: v.cascadeByPriority!,
+      applyRounding: v.applyRounding!,
+      active: true,
+      createdAt: '',
+      updatedAt: '',
+    };
+  }
+
   private async get(em: EntityManager, id: string): Promise<SuggestionRuleApi> {
     const rule = (await this.list(em)).find((r) => r.id === id);
     if (!rule) throw new NotFoundException(`rule ${id} not found`);

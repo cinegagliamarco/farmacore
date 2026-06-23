@@ -16,7 +16,11 @@ import {
   type SuggestionProduct,
   type SuggestionResult,
 } from './pricing-suggestion.engine';
-import { SuggestionRulesService } from './suggestion-rules.service';
+import {
+  SuggestionRuleApi,
+  SuggestionRulesService,
+} from './suggestion-rules.service';
+import { UpsertSuggestionRuleDto } from './dto/suggestion-rule.dto';
 
 interface CompetitorView {
   origin: CompetitorOrigin;
@@ -84,10 +88,24 @@ export class PricingSuggestionsService {
     private readonly priceRounding: PriceRoundingService,
   ) {}
 
+  /**
+   * Dry-run de uma regra ainda não salva: calcula a sugestão de toda a base
+   * usando SÓ essa regra transitória. Mesmo pipeline do `suggestions`.
+   */
+  public preview(
+    em: EntityManager,
+    slug: string,
+    dto: UpsertSuggestionRuleDto,
+    q: ListSuggestionsQueryDto,
+  ): Promise<SuggestionsResponse> {
+    return this.suggestions(em, slug, q, [this.rules.buildTransient(dto)]);
+  }
+
   public async suggestions(
     em: EntityManager,
     slug: string,
     q: ListSuggestionsQueryDto,
+    overrideRules?: SuggestionRuleApi[],
   ): Promise<SuggestionsResponse> {
     const page = Math.max(1, q.page ?? 1);
     const perPage = Math.min(1000, Math.max(1, q.perPage ?? 50));
@@ -112,7 +130,9 @@ export class PricingSuggestionsService {
       ? allRows.filter((p) => bookSet.has((p.book ?? '').trim()))
       : allRows;
 
-    let activeRules = (await this.rules.list(em)).filter((r) => r.active);
+    let activeRules = (overrideRules ?? (await this.rules.list(em))).filter(
+      (r) => r.active,
+    );
     if (
       activeRules.some(
         (r) => r.competitorMode === 'cascade' && r.cascadeByPriority,

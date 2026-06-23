@@ -24,6 +24,7 @@ const EAN_MON = '7894444444445';
 const EAN_CAMP = '7894444444446';
 const EAN_NOCOST = '7894444444447';
 const EAN_VAR = '7894444444448'; // produto dedicado (não mutado por outros testes)
+const EAN_RB = '7894444444449'; // dedicado ao rollback
 const a7 = { changePrices: jest.fn(), upsertOffer: jest.fn() };
 const creds = { baseUrl: 'https://erp.test', apiKey: 'key' };
 
@@ -84,7 +85,8 @@ describe('Pricing apply (e2e)', () => {
         (${EAN_MON},    'B', true, 8.00, 6.0000, '7002', true,  'OK'),
         (${EAN_CAMP},   'C', true, 8.00, 6.0000, '7003', false, 'OK'),
         (${EAN_NOCOST}, 'D', true, 8.00, NULL,   '7004', false, 'OK'),
-        (${EAN_VAR},    'E', true, 8.00, 6.0000, '7005', false, 'OK')`,
+        (${EAN_VAR},    'E', true, 8.00, 6.0000, '7005', false, 'OK'),
+        (${EAN_RB},     'F', true, 20.00, 6.0000, '7006', false, 'OK')`,
     );
     // EAN_CAMP num caderno (offer_book.external_id) com campanha ativa.
     await ds.query(
@@ -326,5 +328,75 @@ describe('Pricing apply (e2e)', () => {
     );
     expect(report.body.items[0].basis).toBe('margem_minima');
     expect(rule.body.id).toBeTruthy();
+  });
+
+  it('dry-run (preview): aceita/rejeita sem criar run', async () => {
+    const [{ count: before }] = await ds.query(
+      `SELECT count(*)::int AS count FROM ${SCHEMA}.pricing_apply_run`,
+    );
+    const res = await post('/pricing/apply/preview')
+      .send({
+        items: [
+          { ean: EAN_RB, target: 'precoVenda', price: 22 },
+          { ean: EAN_MON, target: 'precoVenda', price: 4 }, // < piso
+        ],
+      })
+      .expect(200);
+    expect(res.body.total).toBe(2);
+    expect(res.body.accepted).toEqual([
+      expect.objectContaining({ ean: EAN_RB, target: 'precoVenda', price: 22 }),
+    ]);
+    expect(res.body.rejected).toEqual([
+      { ean: EAN_MON, reason: 'abaixo_do_piso' },
+    ]);
+    expect(res.body.wouldAbort).toBe(false);
+    const [{ count: after }] = await ds.query(
+      `SELECT count(*)::int AS count FROM ${SCHEMA}.pricing_apply_run`,
+    );
+    expect(after).toBe(before); // nada persistido
+  });
+
+  it('GET /pricing/apply lista os runs (mais recentes primeiro)', async () => {
+    const created = await post('/pricing/apply')
+      .send({
+        idempotencyKey: 'k-list',
+        items: [{ ean: EAN_RB, target: 'precoVenda', price: 21 }],
+      })
+      .expect(202);
+    const list = await get('/pricing/apply').expect(200);
+    expect(Array.isArray(list.body)).toBe(true);
+    expect(list.body[0].id).toBe(created.body.applyRunId);
+    expect(list.body[0]).toHaveProperty('createdAt');
+  });
+
+  it('rollback: restaura o preço anterior do item aplicado', async () => {
+    const applyRes = await post('/pricing/apply')
+      .send({
+        idempotencyKey: 'k-rb-apply',
+        items: [{ ean: EAN_RB, target: 'precoVenda', price: 24 }],
+      })
+      .expect(202);
+    await runWorker(applyRes.body.applyRunId);
+    const [afterApply] = await ds.query(
+      `SELECT price FROM ${SCHEMA}.product WHERE ean = ${EAN_RB}`,
+    );
+    expect(Number(afterApply.price)).toBe(24);
+
+    const rbRes = await post(
+      `/pricing/apply/${applyRes.body.applyRunId}/rollback`,
+    ).expect(202);
+    expect(rbRes.body.accepted).toBe(1);
+    expect(rbRes.body.applyRunId).not.toBe(applyRes.body.applyRunId);
+    await runWorker(rbRes.body.applyRunId);
+    const [afterRb] = await ds.query(
+      `SELECT price FROM ${SCHEMA}.product WHERE ean = ${EAN_RB}`,
+    );
+    expect(Number(afterRb.price)).toBe(20); // preço original restaurado
+  });
+
+  it('rollback de run inexistente → 404', async () => {
+    await post(
+      '/pricing/apply/00000000-0000-0000-0000-000000000000/rollback',
+    ).expect(404);
   });
 });
