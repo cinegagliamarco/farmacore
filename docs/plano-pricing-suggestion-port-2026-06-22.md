@@ -520,7 +520,7 @@ Decisão do dono: **implementar tudo que é viável no backend como _flag config
 |---|---|---|---|
 | 1 | Contrato vs. front pricy | 🔴 **impossível aqui** | Tela vive em outro repo. Backend pronto. |
 | 2 | ERP-scheduled (paridade de resiliência) | 🔴 **impossível aqui** | farmacore não tem o `/scheduling` do ERP. Em vez de paridade, demos **recorrência/recálculo no cron do farmacore** (§17.9 abaixo). |
-| 3 | RBAC / aprovação do apply | ✅ **flag** | `PRICING_APPLY_REQUIRES_APPROVAL` (default off) segura o dispatch até `POST /pricing/apply/:id/approve` (admin); `/reject` falha o run. Leituras/mutações já OPERATOR/ADMIN; trilha em ADMIN. |
+| 3 | RBAC / aprovação do apply | ✅ **flag** | `PRICING_APPLY_REQUIRES_APPROVAL` (default off) segura o dispatch do **apply ad-hoc** até `POST /pricing/apply/:id/approve` (admin); `/reject` falha o run. **Escopo:** a flag gateia só o POST direto — agendamento (autorizado na criação) e rollback passam pelo apply sem nova aprovação. Leituras/mutações já OPERATOR/ADMIN; trilha em ADMIN. |
 | 4 | Dedup silencioso de concorrente | ✅ **feito** | Agora `400` em concorrente duplicado (era dedup silencioso). |
 | 5a | PBM bloqueado também em `margem` | ✅ **flag por regra** | `blockPbmInMargin` (default false = comportamento atual). |
 | 5b | PBM derivado do ERP do tenant | 🔴 **impossível aqui** | Depende de `metadata.isPbm` do item vir do ERP; hoje é OR sobre concorrentes. |

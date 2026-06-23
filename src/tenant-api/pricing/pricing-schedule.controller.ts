@@ -32,11 +32,13 @@ export class PricingScheduleController {
   ) {}
 
   @Get()
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
   public list(@TenantEm() em: EntityManager): Promise<ScheduleView[]> {
     return this.schedules.list(em);
   }
 
   @Get(':id')
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
   public get(
     @TenantEm() em: EntityManager,
     @Param('id', ParseUUIDPipe) id: string,

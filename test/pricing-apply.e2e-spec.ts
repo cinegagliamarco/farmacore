@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module';
 import { A7PharmaApiClient } from '../src/integration/a7-pharma-api.client';
 import { IntegrationConnectionService } from '../src/integration/integration-connection.service';
 import { ApplyPriceStep } from '../src/pipeline/steps/apply-price.step';
+import { PricingRetentionCron } from '../src/tenant-api/pricing/pricing-retention.cron';
 import { TenantTransactionService } from '../src/tenant/tenant-transaction.service';
 
 /**
@@ -32,13 +33,15 @@ describe('Pricing apply (e2e)', () => {
   let app: INestApplication;
   let ds: DataSource;
   let token: string;
+  let operatorToken: string;
   let step: ApplyPriceStep;
   let tx: TenantTransactionService;
+  let retention: PricingRetentionCron;
 
-  const post = (path: string) =>
+  const post = (path: string, tok = token) =>
     request(app.getHttpServer())
       .post(path)
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${tok}`);
   const get = (path: string) =>
     request(app.getHttpServer())
       .get(path)
@@ -61,6 +64,7 @@ describe('Pricing apply (e2e)', () => {
     ds = app.get(DataSource);
     step = app.get(ApplyPriceStep);
     tx = app.get(TenantTransactionService);
+    retention = app.get(PricingRetentionCron);
 
     await ds.query(`CREATE SCHEMA IF NOT EXISTS "${SCHEMA}"`);
     await ds.query(
@@ -71,7 +75,8 @@ describe('Pricing apply (e2e)', () => {
     const hash = await argon2.hash('secret123');
     await ds.query(
       `INSERT INTO core."user" (tenant_id, email, password_hash, role, status)
-       VALUES ($1, 'admin@e2e.test', $2, 'admin', 'active')
+       VALUES ($1, 'admin@e2e.test', $2, 'admin', 'active'),
+              ($1, 'op@e2e.test', $2, 'operator', 'active')
        ON CONFLICT (tenant_id, email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
       [SLUG, hash],
     );
@@ -108,6 +113,11 @@ describe('Pricing apply (e2e)', () => {
       })
       .expect(200);
     token = login.body.accessToken;
+    const opLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: 'op@e2e.test', password: 'secret123', tenantSlug: SLUG })
+      .expect(200);
+    operatorToken = opLogin.body.accessToken;
   }, 60000);
 
   afterAll(async () => {
@@ -467,6 +477,47 @@ describe('Pricing apply (e2e)', () => {
       await post(
         '/pricing/apply/00000000-0000-0000-0000-000000000000/approve',
       ).expect(404);
+    });
+
+    it('operator não aprova nem rejeita (admin-only, 403)', async () => {
+      const id = '00000000-0000-0000-0000-000000000000';
+      await post(`/pricing/apply/${id}/approve`, operatorToken).expect(403);
+      await post(`/pricing/apply/${id}/reject`, operatorToken).expect(403);
+    });
+  });
+
+  describe('retenção (PricingRetentionCron)', () => {
+    const seedRun = (status: string, ageDays: number): Promise<void> =>
+      ds.query(
+        `INSERT INTO ${SCHEMA}.pricing_apply_run
+           (idempotency_key, status, total, created_at)
+         VALUES ($1, $2, 1, now() - make_interval(days => $3))`,
+        [`ret-${status}-${ageDays}-${Date.now()}`, status, ageDays],
+      );
+
+    it('soft-deleta só os runs encerrados além do TTL', async () => {
+      await seedRun('done', 200); // velho + done → apaga
+      await seedRun('failed', 200); // velho + failed → apaga
+      await seedRun('done', 1); // recente → mantém
+      await seedRun('running', 200); // velho mas não encerrado → mantém
+
+      await retention.sweep();
+
+      const rows: Array<{ status: string; deleted: boolean }> = await ds.query(
+        `SELECT status, deleted_at IS NOT NULL AS deleted
+           FROM ${SCHEMA}.pricing_apply_run
+          WHERE idempotency_key LIKE 'ret-%'`,
+      );
+      const deleted = rows
+        .filter((r) => r.deleted)
+        .map((r) => r.status)
+        .sort();
+      const kept = rows
+        .filter((r) => !r.deleted)
+        .map((r) => r.status)
+        .sort();
+      expect(deleted).toEqual(['done', 'failed']);
+      expect(kept).toEqual(['done', 'running']);
     });
   });
 });

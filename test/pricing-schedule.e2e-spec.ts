@@ -18,6 +18,7 @@ import { PricingScheduleCron } from '../src/tenant-api/pricing/pricing-schedule.
 const SLUG = 'e2esched';
 const SCHEMA = 'tenant_e2esched';
 const EAN = '7895555555555';
+const EAN_OFF = '7895555555556'; // tem oferta → motor escolhe target precoOferta
 const a7 = { changePrices: jest.fn(), upsertOffer: jest.fn() };
 const creds = { baseUrl: 'https://erp.test', apiKey: 'key' };
 
@@ -73,8 +74,15 @@ describe('Pricing schedule (e2e)', () => {
     execSync(`npm run migration:tenant ${SLUG}`, { stdio: 'inherit' });
     await ds.query(
       `INSERT INTO ${SCHEMA}.product
-         (ean, name, active, price, cost, external_id, monitored, status)
-       VALUES (${EAN}, 'A', true, 8.00, 6.0000, '8001', false, 'OK')`,
+         (ean, name, active, price, cost, external_id, monitored, status) VALUES
+        (${EAN},     'A', true, 8.00,  6.0000, '8001', false, 'OK'),
+        (${EAN_OFF}, 'B', true, 20.00, 6.0000, '8002', false, 'OK')`,
+    );
+    // EAN_OFF tem caderno de oferta ABAIXO do piso (8 < 6/0.5=12) → motor sugere
+    // SUBIR a oferta para 12, no precoOferta (não no venda que o item pediu).
+    await ds.query(
+      `INSERT INTO ${SCHEMA}.offer_book (ean, description, target_price, external_id)
+       VALUES (${EAN_OFF}, 'promo', 8.00, 8200)`,
     );
 
     const login = await request(app.getHttpServer())
@@ -218,5 +226,31 @@ describe('Pricing schedule (e2e)', () => {
     );
     expect(report.body.total).toBe(1);
     expect(Number(report.body.items[0].price)).toBe(12); // recalculado, não 99
+  });
+
+  it('recalc usa o ALVO do motor, não o do item agendado', async () => {
+    // Reusa a regra "Margem 50" do teste anterior. EAN_OFF tem caderno → o motor
+    // sugere no precoOferta (6/0.5 = 12 ≤ venda 20), mesmo o item pedindo venda.
+    const created = await post('/pricing/schedules')
+      .send({
+        runAt: new Date(Date.now() + 3600_000).toISOString(),
+        items: [{ ean: EAN_OFF, target: 'precoVenda', price: 99 }],
+        recalc: true,
+      })
+      .expect(201);
+    await ds.query(
+      `UPDATE ${SCHEMA}.pricing_schedule SET run_at = now() - interval '1 minute' WHERE id = $1`,
+      [created.body.id],
+    );
+    await cron.fire();
+
+    const sched = await get(`/pricing/schedules/${created.body.id}`).expect(
+      200,
+    );
+    const report = await get(`/pricing/apply/${sched.body.applyRunId}`).expect(
+      200,
+    );
+    expect(report.body.items[0]).toMatchObject({ target: 'precoOferta' });
+    expect(Number(report.body.items[0].price)).toBe(12);
   });
 });

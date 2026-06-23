@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { EntityManager } from 'typeorm';
 import { TenantService } from '../../tenant/tenant.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { ScheduleItem } from '../../database/entities/tenant/pricing-schedule.entity';
@@ -52,7 +51,7 @@ export class PricingScheduleCron {
       if (!due.length) return;
       // Recalcula uma vez por tenant (motor varre o catálogo inteiro).
       const suggested = due.some((s) => s.recalc)
-        ? await this.recalcMap(em, slug)
+        ? await this.suggestions.priceMap(em, slug)
         : null;
       for (const s of due) {
         const items =
@@ -77,36 +76,26 @@ export class PricingScheduleCron {
     });
   }
 
-  /** Preço sugerido pelo motor por EAN (todas as páginas com sugestão). */
-  private async recalcMap(
-    em: EntityManager,
-    slug: string,
-  ): Promise<Map<string, number>> {
-    const map = new Map<string, number>();
-    for (let page = 1; ; page++) {
-      const res = await this.suggestions.suggestions(em, slug, {
-        page,
-        perPage: 1000,
-        onlyWithSuggestion: 'true',
-      });
-      for (const row of res.rows) {
-        if (row.result.kind === 'suggestion') {
-          map.set(row.product.ean, row.result.suggestion.price);
-        }
-      }
-      if (page * 1000 >= res.count) break;
-    }
-    return map;
-  }
-
-  /** Troca o preço congelado pelo sugerido; descarta item sem sugestão fresca. */
+  /**
+   * Troca o congelado pela sugestão fresca do motor (preço E alvo — o motor
+   * decide venda vs oferta, não o item agendado); descarta item sem sugestão.
+   */
   private recalcItems(
     items: ScheduleItem[],
-    suggested: Map<string, number>,
+    suggested: Map<string, { target: ApplyItemDto['target']; price: number }>,
   ): ApplyItemDto[] {
     return items.flatMap((i) => {
-      const price = suggested.get(i.ean);
-      return price === undefined ? [] : [{ ...i, price }];
+      const s = suggested.get(i.ean);
+      return s === undefined
+        ? []
+        : [
+            {
+              ean: i.ean,
+              target: s.target,
+              price: s.price,
+              cadernoId: i.cadernoId,
+            },
+          ];
     });
   }
 }
