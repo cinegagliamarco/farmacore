@@ -1,11 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { EntityManager } from 'typeorm';
+import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
+import { resolveTenantId } from '../../tenant/tenant-lookup';
 import { OutboxRepository } from '../../queue/outbox.repository';
 import { dispatchStep } from '../../queue/constants';
 import { newPipelineMessage } from '../../queue/types';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import {
+  computeSuggestion,
   findClusterRuleForProduct,
   findRuleForProduct,
   priceForMargin,
@@ -46,6 +54,8 @@ interface ProductRow {
   precoOferta: string | null;
   classificacao: string | null;
   cadernoId: string | null;
+  competitorPrices: Partial<Record<CompetitorOrigin, number>>;
+  pbm: boolean;
 }
 
 interface AcceptedItem {
@@ -56,6 +66,7 @@ interface AcceptedItem {
   priceOldSell: number | null;
   priceOldOffer: number | null;
   ruleId: string | null;
+  basis: string | null;
   costAtApply: number | null;
 }
 
@@ -69,6 +80,13 @@ const DEFAULT_PER_PAGE = 100;
 const MAX_PER_PAGE = 1000;
 // Tolerância de meio-centavo (mesma do motor) para comparações de preço.
 const PRICE_EPSILON = 0.005;
+// Teto de variação (fat-finger / bug): rejeita preço que sobe >3x ou cai a <1/3
+// do preço atual do alvo. Salvaguarda — não trava repricing legítimo. Tunável.
+const VARIATION_CEILING = 3;
+// Circuit breaker: em lote grande (≥10) com >50% rejeitado, aborta o run inteiro
+// (provável regra/bug ruim) em vez de aplicar a fração "válida". Tunável.
+const CIRCUIT_MIN_ITEMS = 10;
+const CIRCUIT_MAX_REJECT_RATE = 0.5;
 
 /**
  * Aplicação de preço em massa (Fase 3, mode=agora). Revalida cada item
@@ -94,7 +112,23 @@ export class PricingApplyService {
     const existing = await this.findByIdempotencyKey(em, dto.idempotencyKey);
     if (existing) return existing;
 
-    const { accepted, rejected } = await this.revalidate(em, dto.items);
+    const { accepted, rejected } = await this.revalidate(em, slug, dto.items);
+    // Circuit breaker: lote grande majoritariamente rejeitado → não aplica nada
+    // (provável regra/bug que mis-precificaria a base). Devolve 422 + detalhe.
+    const total = accepted.length + rejected.length;
+    if (
+      total >= CIRCUIT_MIN_ITEMS &&
+      rejected.length / total > CIRCUIT_MAX_REJECT_RATE
+    ) {
+      throw new HttpException(
+        {
+          message: `Lote abortado: ${rejected.length}/${total} itens rejeitados. Revise as regras/preços.`,
+          aborted: true,
+          rejected,
+        },
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
     const applyRunId = randomUUID();
     // ON CONFLICT em vez de read-then-insert: dois POSTs simultâneos com a mesma
     // key não viram 500 — o perdedor recebe o run existente (idempotente).
@@ -171,7 +205,7 @@ export class PricingApplyService {
       const params: unknown[] = [applyRunId];
       const values = slice
         .map((a, j) => {
-          const b = 1 + j * 8;
+          const b = 1 + j * 9;
           params.push(
             a.ean,
             a.target,
@@ -180,15 +214,16 @@ export class PricingApplyService {
             a.priceOldSell,
             a.priceOldOffer,
             a.ruleId,
+            a.basis,
             a.costAtApply,
           );
-          return `($1,$${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8})`;
+          return `($1,$${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9})`;
         })
         .join(',');
       await em.query(
         `INSERT INTO pricing_apply_item
            (apply_run_id, ean, target, price, caderno_id, price_old_sell,
-            price_old_offer, rule_id, cost_at_apply)
+            price_old_offer, rule_id, basis, cost_at_apply)
          VALUES ${values}`,
         params,
       );
@@ -218,7 +253,7 @@ export class PricingApplyService {
     const limit = Math.min(Math.max(perPage, 1), MAX_PER_PAGE);
     const offset = (Math.max(page, 1) - 1) * limit;
     const items: Record<string, unknown>[] = await em.query(
-      `SELECT ean, target, price, status, reason,
+      `SELECT ean, target, price, status, reason, basis,
               price_old_sell AS "priceOld", caderno_id AS "cadernoId",
               rule_id AS "ruleId", erp_result AS "erpResult",
               applied_at AS "appliedAt"
@@ -240,19 +275,12 @@ export class PricingApplyService {
    */
   private async revalidate(
     em: EntityManager,
+    slug: string,
     items: ApplyItemDto[],
   ): Promise<{ accepted: AcceptedItem[]; rejected: ApplyRejection[] }> {
     const eans = [...new Set(items.map((i) => i.ean))];
-    const rows: ProductRow[] = await em.query(
-      `SELECT p.ean::text AS ean, p.cost, p.price AS "precoVenda",
-              ob.target_price AS "precoOferta", c.name AS classificacao,
-              ob.external_id::text AS "cadernoId"
-         FROM product p
-         LEFT JOIN classification c ON c.id = p.classification_id
-         LEFT JOIN offer_book ob ON ob.ean = p.ean
-        WHERE p.ean = ANY($1::bigint[])`,
-      [eans],
-    );
+    const origins = await this.enabledOrigins(em, slug);
+    const rows = await this.loadEansData(em, origins, eans);
     const byEan = new Map(rows.map((r) => [r.ean, r]));
 
     const active = (await this.rules.list(em)).filter((r) => r.active);
@@ -282,6 +310,7 @@ export class PricingApplyService {
       }
       const cost = num(row.cost) ?? 0;
       const precoVenda = num(row.precoVenda) ?? 0;
+      const precoOferta = num(row.precoOferta) ?? 0;
       // Sem custo não há piso de margem confiável (mesma guarda do motor) — sem
       // isto, floor cairia para 0 e um preço ~0 chegaria ao ERP.
       if (cost <= 0) {
@@ -293,15 +322,12 @@ export class PricingApplyService {
         continue;
       }
       const clusterIds = membership.get(item.ean) ?? [];
+      const sp = this.toSuggestionProduct(row, cost, precoVenda, precoOferta);
       const winner = resolveWinner(
         clusterIds.length
           ? findClusterRuleForProduct(clusterRules, clusterIds)
           : null,
-        findRuleForProduct(
-          { classificacao: row.classificacao ?? '' } as SuggestionProduct,
-          classRules,
-          clusterIds,
-        ),
+        findRuleForProduct(sp, classRules, clusterIds),
       ).winner;
       const floor = winner
         ? priceForMargin(cost, Number(winner.minMargin))
@@ -309,6 +335,16 @@ export class PricingApplyService {
 
       if (item.price + PRICE_EPSILON < floor) {
         rejected.push({ ean: item.ean, reason: 'abaixo_do_piso' });
+        continue;
+      }
+      // Teto de variação vs preço atual do alvo (fat-finger / bug).
+      const current = item.target === 'precoOferta' ? precoOferta : precoVenda;
+      if (
+        current > 0 &&
+        (item.price > current * VARIATION_CEILING ||
+          item.price * VARIATION_CEILING < current)
+      ) {
+        rejected.push({ ean: item.ean, reason: 'variacao_excessiva' });
         continue;
       }
       let cadernoId: number | null = null;
@@ -323,17 +359,113 @@ export class PricingApplyService {
           continue;
         }
       }
+      // basis para auditoria: roda o motor (rounding não afeta o basis → []).
+      const result = winner ? computeSuggestion(sp, winner, []) : null;
       accepted.push({
         ean: item.ean,
         target: item.target,
         price: item.price,
         cadernoId,
         priceOldSell: precoVenda || null,
-        priceOldOffer: num(row.precoOferta),
+        priceOldOffer: precoOferta || null,
         ruleId: winner?.id ?? null,
+        basis: result?.kind === 'suggestion' ? result.suggestion.basis : null,
         costAtApply: cost || null,
       });
     }
     return { accepted, rejected };
+  }
+
+  /** Origens de concorrente habilitadas do tenant (core, fora do search_path). */
+  private async enabledOrigins(
+    em: EntityManager,
+    slug: string,
+  ): Promise<CompetitorOrigin[]> {
+    const tenantId = await resolveTenantId(em, slug);
+    const rows: Array<{ origin: CompetitorOrigin }> = await em.query(
+      `SELECT origin FROM core.tenant_competitor_origin
+        WHERE tenant_id = $1 AND enabled = true
+        ORDER BY priority ASC, origin ASC`,
+      [tenantId],
+    );
+    return rows
+      .map((r) => r.origin)
+      .filter((o): o is CompetitorOrigin =>
+        Object.values(CompetitorOrigin).includes(o),
+      );
+  }
+
+  /** Dados dos EANs do apply: produto + caderno + preço/PBM de cada origem
+   *  habilitada (join dinâmico, valores do enum — seguro interpolar). */
+  private async loadEansData(
+    em: EntityManager,
+    origins: CompetitorOrigin[],
+    eans: string[],
+  ): Promise<ProductRow[]> {
+    const joins = origins
+      .map(
+        (o) =>
+          `LEFT JOIN shared_catalog.product o_${o} ON o_${o}.ean = p.ean AND o_${o}.origin = '${o}'`,
+      )
+      .join('\n         ');
+    const selects = origins
+      .map(
+        (o) =>
+          `o_${o}.price AS "${o}__price", (o_${o}.metadata->>'isPbm') = 'true' AS "${o}__isPbm"`,
+      )
+      .join(', ');
+    const rows: Array<Record<string, unknown>> = await em.query(
+      `SELECT p.ean::text AS ean, p.cost, p.price AS "precoVenda",
+              ob.target_price AS "precoOferta", c.name AS classificacao,
+              ob.external_id::text AS "cadernoId"
+              ${selects ? ',' + selects : ''}
+         FROM product p
+         LEFT JOIN classification c ON c.id = p.classification_id
+         LEFT JOIN offer_book ob ON ob.ean = p.ean
+         ${joins}
+        WHERE p.ean = ANY($1::bigint[])`,
+      [eans],
+    );
+    return rows.map((r) => {
+      const competitorPrices: Partial<Record<CompetitorOrigin, number>> = {};
+      let pbm = false;
+      for (const o of origins) {
+        const price = num(r[`${o}__price`]);
+        if (price && price > 0) competitorPrices[o] = price;
+        if (r[`${o}__isPbm`] === true) pbm = true;
+      }
+      return {
+        ean: String(r.ean),
+        cost: r.cost as string | null,
+        precoVenda: r.precoVenda as string | null,
+        precoOferta: r.precoOferta as string | null,
+        classificacao: r.classificacao as string | null,
+        cadernoId: r.cadernoId as string | null,
+        competitorPrices,
+        pbm,
+      };
+    });
+  }
+
+  private toSuggestionProduct(
+    row: ProductRow,
+    custo: number,
+    precoVenda: number,
+    precoOferta: number,
+  ): SuggestionProduct {
+    return {
+      id: 0,
+      ean: row.ean,
+      nome: '',
+      fabricante: '',
+      classificacao: row.classificacao ?? '',
+      cadernoOferta: '',
+      custo,
+      precoVenda,
+      precoOferta,
+      competitorPrices: row.competitorPrices,
+      margem: 0,
+      pbm: row.pbm,
+    };
   }
 }

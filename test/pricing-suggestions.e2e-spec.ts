@@ -25,6 +25,7 @@ describe('Pricing suggestions (e2e)', () => {
   let ds: DataSource;
   let adminToken: string;
   let operatorToken: string;
+  let viewerToken: string;
   let tenantId: string;
 
   const get = (path: string, token = adminToken) =>
@@ -66,7 +67,8 @@ describe('Pricing suggestions (e2e)', () => {
     await ds.query(
       `INSERT INTO core."user" (tenant_id, email, password_hash, role, status)
        VALUES ($1, 'admin@e2e.test', $2, 'admin', 'active'),
-              ($1, 'op@e2e.test', $2, 'operator', 'active')
+              ($1, 'op@e2e.test', $2, 'operator', 'active'),
+              ($1, 'viewer@e2e.test', $2, 'viewer', 'active')
        ON CONFLICT (tenant_id, email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
       [SLUG, hash],
     );
@@ -107,6 +109,7 @@ describe('Pricing suggestions (e2e)', () => {
     };
     adminToken = await login('admin@e2e.test');
     operatorToken = await login('op@e2e.test');
+    viewerToken = await login('viewer@e2e.test');
   }, 60000);
 
   afterAll(async () => {
@@ -199,6 +202,11 @@ describe('Pricing suggestions (e2e)', () => {
       await post('/pricing/suggestion-rules', operatorToken)
         .send({ name: 'op rule', minMargin: 20 })
         .expect(201);
+    });
+
+    it('viewer não lê regras nem clusters (403)', async () => {
+      await get('/pricing/suggestion-rules', viewerToken).expect(403);
+      await get('/pricing/clusters', viewerToken).expect(403);
     });
   });
 

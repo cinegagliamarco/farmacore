@@ -19,14 +19,16 @@ import {
 } from './suggestion-rules.service';
 
 /**
- * Regras de sugestão de preços do tenant. Leitura aberta; mutações exigem
- * operator/admin. Escopo de tenant pelo SearchPathInterceptor global.
+ * Regras de sugestão de preços do tenant. Leitura e mutação exigem operator/admin
+ * (custo/margem/composição são sensíveis). Escopo de tenant pelo
+ * SearchPathInterceptor global.
  */
 @Controller('pricing/suggestion-rules')
 export class SuggestionRulesController {
   constructor(private readonly rules: SuggestionRulesService) {}
 
   @Get()
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
   public list(@TenantEm() em: EntityManager): Promise<SuggestionRuleApi[]> {
     return this.rules.list(em);
   }

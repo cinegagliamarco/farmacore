@@ -23,6 +23,7 @@ const EAN_OK = '7894444444444';
 const EAN_MON = '7894444444445';
 const EAN_CAMP = '7894444444446';
 const EAN_NOCOST = '7894444444447';
+const EAN_VAR = '7894444444448'; // produto dedicado (não mutado por outros testes)
 const a7 = { changePrices: jest.fn(), upsertOffer: jest.fn() };
 const creds = { baseUrl: 'https://erp.test', apiKey: 'key' };
 
@@ -82,7 +83,8 @@ describe('Pricing apply (e2e)', () => {
         (${EAN_OK},     'A', true, 8.00, 6.0000, '7001', false, 'OK'),
         (${EAN_MON},    'B', true, 8.00, 6.0000, '7002', true,  'OK'),
         (${EAN_CAMP},   'C', true, 8.00, 6.0000, '7003', false, 'OK'),
-        (${EAN_NOCOST}, 'D', true, 8.00, NULL,   '7004', false, 'OK')`,
+        (${EAN_NOCOST}, 'D', true, 8.00, NULL,   '7004', false, 'OK'),
+        (${EAN_VAR},    'E', true, 8.00, 6.0000, '7005', false, 'OK')`,
     );
     // EAN_CAMP num caderno (offer_book.external_id) com campanha ativa.
     await ds.query(
@@ -278,5 +280,51 @@ describe('Pricing apply (e2e)', () => {
       status: 'skipped',
       reason: 'em_campanha',
     });
+  });
+
+  it('rejeita variação excessiva (>3x o preço atual)', async () => {
+    // EAN_VAR venda atual = 8; preço 30 = >3x → fat-finger.
+    const res = await post('/pricing/apply')
+      .send({
+        idempotencyKey: 'k-var',
+        items: [{ ean: EAN_VAR, target: 'precoVenda', price: 30 }],
+      })
+      .expect(202);
+    expect(res.body.accepted).toBe(0);
+    expect(res.body.rejected).toEqual([
+      { ean: EAN_VAR, reason: 'variacao_excessiva' },
+    ]);
+  });
+
+  it('circuit breaker: lote grande majoritariamente rejeitado → 422', async () => {
+    const items = Array.from({ length: 10 }, (_, i) => ({
+      ean: `78900000000${10 + i}`, // EANs inexistentes → nao_encontrado
+      target: 'precoVenda' as const,
+      price: 10,
+    }));
+    const res = await post('/pricing/apply')
+      .send({ idempotencyKey: 'k-circuit', items })
+      .expect(422);
+    expect(res.body.aborted).toBe(true);
+    expect(res.body.rejected).toHaveLength(10);
+  });
+
+  it('grava basis na auditoria (motor)', async () => {
+    const rule = await post('/pricing/suggestion-rules')
+      .send({ name: 'Catch-all 40', minMargin: 40 })
+      .expect(201);
+    // EAN_VAR custo 6, venda 8 (margem 25% < 40%) → piso 10, basis margem_minima.
+    const res = await post('/pricing/apply')
+      .send({
+        idempotencyKey: 'k-basis',
+        items: [{ ean: EAN_VAR, target: 'precoVenda', price: 10 }],
+      })
+      .expect(202);
+    expect(res.body.accepted).toBe(1);
+    const report = await get(`/pricing/apply/${res.body.applyRunId}`).expect(
+      200,
+    );
+    expect(report.body.items[0].basis).toBe('margem_minima');
+    expect(rule.body.id).toBeTruthy();
   });
 });

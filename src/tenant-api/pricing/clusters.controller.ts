@@ -24,11 +24,13 @@ export class ClustersController {
   constructor(private readonly clusters: ClustersService) {}
 
   @Get()
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
   public list(@TenantEm() em: EntityManager): Promise<ClusterApi[]> {
     return this.clusters.list(em);
   }
 
   @Get(':id')
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
   public get(
     @TenantEm() em: EntityManager,
     @Param('id', ParseUUIDPipe) id: string,
