@@ -399,4 +399,74 @@ describe('Pricing apply (e2e)', () => {
       '/pricing/apply/00000000-0000-0000-0000-000000000000/rollback',
     ).expect(404);
   });
+
+  describe('fluxo de aprovação (§17.3, flag PRICING_APPLY_REQUIRES_APPROVAL)', () => {
+    afterEach(() => delete process.env.PRICING_APPLY_REQUIRES_APPROVAL);
+
+    it('segura o dispatch até aprovar; aprovar enfileira', async () => {
+      process.env.PRICING_APPLY_REQUIRES_APPROVAL = '1';
+      const res = await post('/pricing/apply')
+        .send({
+          idempotencyKey: 'k-appr',
+          items: [{ ean: EAN_RB, target: 'precoVenda', price: 21 }],
+        })
+        .expect(202);
+      expect(res.body.approvalStatus).toBe('pending');
+      const before = await ds.query(
+        `SELECT 1 FROM core.pipeline_outbox WHERE pipeline_run_id = $1`,
+        [res.body.applyRunId],
+      );
+      expect(before).toHaveLength(0); // dispatch NÃO enfileirado
+
+      const rep1 = await get(`/pricing/apply/${res.body.applyRunId}`).expect(
+        200,
+      );
+      expect(rep1.body.status).toBe('pending');
+      expect(rep1.body.approvalStatus).toBe('pending');
+
+      await post(`/pricing/apply/${res.body.applyRunId}/approve`)
+        .expect(202)
+        .expect((r) => expect(r.body.approved).toBe(true));
+      const after = await ds.query(
+        `SELECT 1 FROM core.pipeline_outbox WHERE pipeline_run_id = $1`,
+        [res.body.applyRunId],
+      );
+      expect(after).toHaveLength(1); // agora despachado
+      const rep2 = await get(`/pricing/apply/${res.body.applyRunId}`).expect(
+        200,
+      );
+      expect(rep2.body.approvalStatus).toBe('approved');
+    });
+
+    it('rejeitar marca o run e os itens como failed', async () => {
+      process.env.PRICING_APPLY_REQUIRES_APPROVAL = '1';
+      const res = await post('/pricing/apply')
+        .send({
+          idempotencyKey: 'k-rej',
+          items: [{ ean: EAN_RB, target: 'precoVenda', price: 22 }],
+        })
+        .expect(202);
+      await post(`/pricing/apply/${res.body.applyRunId}/reject`)
+        .expect(200)
+        .expect((r) => expect(r.body.rejected).toBe(true));
+      const rep = await get(`/pricing/apply/${res.body.applyRunId}`).expect(
+        200,
+      );
+      expect(rep.body.status).toBe('failed');
+      expect(rep.body.approvalStatus).toBe('rejected');
+      expect(rep.body.failed).toBe(1);
+      expect(rep.body.items[0]).toMatchObject({
+        status: 'failed',
+        reason: 'rejeitado',
+      });
+      // re-aprovar um já decidido → 409
+      await post(`/pricing/apply/${res.body.applyRunId}/approve`).expect(409);
+    });
+
+    it('aprovar run inexistente → 404', async () => {
+      await post(
+        '/pricing/apply/00000000-0000-0000-0000-000000000000/approve',
+      ).expect(404);
+    });
+  });
 });

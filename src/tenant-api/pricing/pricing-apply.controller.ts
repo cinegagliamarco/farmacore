@@ -43,16 +43,55 @@ export class PricingApplyController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: ApplyPricesDto,
   ): Promise<ApplyResponse> {
-    const res = await this.apply.apply(em, user.tenantId, user.sub, dto);
+    const requireApproval = process.env.PRICING_APPLY_REQUIRES_APPROVAL === '1';
+    const res = await this.apply.apply(em, user.tenantId, user.sub, dto, {
+      requireApproval,
+    });
     if (!res.idempotent) {
       await this.audit.log(em, {
         actor: user.sub,
-        action: 'apply',
+        action: res.approvalStatus === 'pending' ? 'apply_pending' : 'apply',
         entity: 'apply_run',
         entityId: res.applyRunId,
         changes: { accepted: res.accepted, rejected: res.rejected.length },
       });
     }
+    return res;
+  }
+
+  @Post(':id/approve')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(202)
+  public async approve(
+    @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ id: string; approved: boolean }> {
+    const res = await this.apply.approve(em, user.tenantId, id);
+    await this.audit.log(em, {
+      actor: user.sub,
+      action: 'approve',
+      entity: 'apply_run',
+      entityId: id,
+    });
+    return res;
+  }
+
+  @Post(':id/reject')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(200)
+  public async reject(
+    @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ id: string; rejected: boolean }> {
+    const res = await this.apply.reject(em, id);
+    await this.audit.log(em, {
+      actor: user.sub,
+      action: 'reject',
+      entity: 'apply_run',
+      entityId: id,
+    });
     return res;
   }
 

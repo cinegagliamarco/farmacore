@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -7,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { EntityManager } from 'typeorm';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
+import { PricingApplyRunEntity } from '../../database/entities/tenant/pricing-apply-run.entity';
 import { resolveTenantId } from '../../tenant/tenant-lookup';
 import { OutboxRepository } from '../../queue/outbox.repository';
 import { dispatchStep } from '../../queue/constants';
@@ -35,12 +37,15 @@ export interface ApplyResponse {
   accepted: number;
   rejected: ApplyRejection[];
   idempotent?: boolean;
+  // 'pending' quando o run aguarda aprovação (não despachado ainda).
+  approvalStatus?: 'pending';
 }
 
 export interface ApplyReport {
   id: string;
   status: string;
   mode: string;
+  approvalStatus: string | null;
   total: number;
   applied: number;
   skipped: number;
@@ -52,6 +57,7 @@ export interface ApplyRunSummary {
   id: string;
   status: string;
   mode: string;
+  approvalStatus: string | null;
   total: number;
   applied: number;
   skipped: number;
@@ -132,6 +138,7 @@ export class PricingApplyService {
     slug: string,
     requestedBy: string | null,
     dto: ApplyPricesDto,
+    opts: { requireApproval?: boolean } = {},
   ): Promise<ApplyResponse> {
     const existing = await this.findByIdempotencyKey(em, dto.idempotencyKey);
     if (existing) return existing;
@@ -176,28 +183,114 @@ export class PricingApplyService {
 
     await this.insertItems(em, applyRunId, accepted);
 
-    if (accepted.length > 0) {
-      // Outbox = publica o dispatch só APÓS o commit da request (senão o
-      // consumer correria o commit e não acharia o run). Sem `standalone`: é o
-      // successors() do último batch que fecha o run em `done` — standalone o
-      // suprimiria e o run ficaria preso em `running`.
-      await this.outbox.insertMany(em, applyRunId, slug, [
-        newPipelineMessage({
-          pipelineRunId: applyRunId,
-          tenantId: slug,
-          step: PipelineStep.APPLY_PRICE,
-          queue: dispatchStep(PipelineStep.APPLY_PRICE),
-          payload: {},
-        }),
-      ]);
-    } else {
+    if (accepted.length === 0) {
       await em.query(
         `UPDATE pricing_apply_run SET status='done', updated_at=now() WHERE id=$1`,
         [applyRunId],
       );
+      return { applyRunId, accepted: 0, rejected };
     }
-
+    if (opts.requireApproval) {
+      // Segura o dispatch: o run fica 'pending' até um admin aprovar.
+      await em.query(
+        `UPDATE pricing_apply_run SET approval_status='pending' WHERE id=$1`,
+        [applyRunId],
+      );
+      return {
+        applyRunId,
+        accepted: accepted.length,
+        rejected,
+        approvalStatus: 'pending',
+      };
+    }
+    await this.enqueueDispatch(em, slug, applyRunId);
     return { applyRunId, accepted: accepted.length, rejected };
+  }
+
+  /**
+   * Aprova um run que aguardava aprovação e despacha ao ERP. Idempotente no
+   * sentido de estado: só transita de 'pending' → 'approved' (UPDATE filtra o
+   * status atual via repositório → `.affected`, evitando o [rows,count]).
+   */
+  public async approve(
+    em: EntityManager,
+    slug: string,
+    runId: string,
+  ): Promise<{ id: string; approved: boolean }> {
+    const res = await em
+      .getRepository(PricingApplyRunEntity)
+      .update(
+        { id: runId, approvalStatus: 'pending' },
+        { approvalStatus: 'approved' },
+      );
+    if (!res.affected) throw await this.approvalConflict(em, runId);
+    await this.enqueueDispatch(em, slug, runId);
+    return { id: runId, approved: true };
+  }
+
+  /** Rejeita um run pendente: marca o run e os itens como failed (não despacha). */
+  public async reject(
+    em: EntityManager,
+    runId: string,
+  ): Promise<{ id: string; rejected: boolean }> {
+    const res = await em
+      .getRepository(PricingApplyRunEntity)
+      .update(
+        { id: runId, approvalStatus: 'pending' },
+        { approvalStatus: 'rejected', status: 'failed' },
+      );
+    if (!res.affected) throw await this.approvalConflict(em, runId);
+    await em.query(
+      `UPDATE pricing_apply_run par
+          SET failed = par.total, updated_at = now()
+        WHERE id = $1`,
+      [runId],
+    );
+    await em.query(
+      `UPDATE pricing_apply_item
+          SET status='failed', reason='rejeitado'
+        WHERE apply_run_id = $1 AND status = 'pending'`,
+      [runId],
+    );
+    return { id: runId, rejected: true };
+  }
+
+  private async approvalConflict(
+    em: EntityManager,
+    runId: string,
+  ): Promise<HttpException> {
+    const rows: Array<{ approvalStatus: string | null }> = await em.query(
+      `SELECT approval_status AS "approvalStatus" FROM pricing_apply_run
+        WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
+      [runId],
+    );
+    if (!rows.length)
+      return new NotFoundException(`apply run ${runId} not found`);
+    return new ConflictException(
+      `apply run ${runId} não está aguardando aprovação (${rows[0].approvalStatus ?? 'sem aprovação'}).`,
+    );
+  }
+
+  /**
+   * Outbox = publica o dispatch só APÓS o commit da request (senão o consumer
+   * correria o commit e não acharia o run). Sem `standalone`: é o successors()
+   * do último batch que fecha o run em `done` — standalone o suprimiria e o run
+   * ficaria preso em `running`.
+   */
+  private async enqueueDispatch(
+    em: EntityManager,
+    slug: string,
+    applyRunId: string,
+  ): Promise<void> {
+    await this.outbox.insertMany(em, applyRunId, slug, [
+      newPipelineMessage({
+        pipelineRunId: applyRunId,
+        tenantId: slug,
+        step: PipelineStep.APPLY_PRICE,
+        queue: dispatchStep(PipelineStep.APPLY_PRICE),
+        payload: {},
+      }),
+    ]);
   }
 
   private async findByIdempotencyKey(
@@ -264,12 +357,14 @@ export class PricingApplyService {
       id: string;
       status: string;
       mode: string;
+      approvalStatus: string | null;
       total: number;
       applied: number;
       skipped: number;
       failed: number;
     }> = await em.query(
-      `SELECT id, status, mode, total, applied, skipped, failed
+      `SELECT id, status, mode, approval_status AS "approvalStatus",
+              total, applied, skipped, failed
          FROM pricing_apply_run WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
       [id],
     );
@@ -299,8 +394,8 @@ export class PricingApplyService {
     const limit = Math.min(Math.max(perPage, 1), MAX_PER_PAGE);
     const offset = (Math.max(page, 1) - 1) * limit;
     return em.query(
-      `SELECT id, status, mode, total, applied, skipped, failed,
-              created_at AS "createdAt"
+      `SELECT id, status, mode, approval_status AS "approvalStatus",
+              total, applied, skipped, failed, created_at AS "createdAt"
          FROM pricing_apply_run
         WHERE deleted_at IS NULL
         ORDER BY created_at DESC

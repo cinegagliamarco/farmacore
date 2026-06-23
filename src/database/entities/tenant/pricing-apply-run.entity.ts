@@ -3,6 +3,7 @@ import { BaseEntity } from '../base.entity';
 
 export type ApplyMode = 'agora' | 'agendado';
 export type ApplyRunStatus = 'pending' | 'running' | 'done' | 'failed';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 /**
  * Run de aplicação de preço em massa. `id` é o pipelineRunId do fan-in
@@ -35,4 +36,8 @@ export class PricingApplyRunEntity extends BaseEntity {
 
   @Column({ type: 'int', default: 0 })
   public failed!: number;
+
+  // null = sem fluxo de aprovação (comportamento padrão).
+  @Column({ name: 'approval_status', type: 'text', nullable: true })
+  public approvalStatus!: ApprovalStatus | null;
 }

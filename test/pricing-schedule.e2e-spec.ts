@@ -153,4 +153,70 @@ describe('Pricing schedule (e2e)', () => {
     // Cancelar um já disparado é 409 (cancel atômico não sobrescreve 'fired').
     await del(`/pricing/schedules/${created.body.id}`).expect(409);
   });
+
+  it('cronExpr inválido → 400', async () => {
+    await post('/pricing/schedules')
+      .send({
+        runAt: new Date(Date.now() + 3600_000).toISOString(),
+        items: [{ ean: EAN, target: 'precoVenda', price: 10 }],
+        cronExpr: 'isto não é cron',
+      })
+      .expect(400);
+  });
+
+  it('recorrência: cronExpr re-arma para a próxima ocorrência (não fica fired)', async () => {
+    const created = await post('/pricing/schedules')
+      .send({
+        runAt: new Date(Date.now() + 3600_000).toISOString(),
+        items: [{ ean: EAN, target: 'precoVenda', price: 12 }],
+        cronExpr: '0 0 * * *', // diário à meia-noite
+      })
+      .expect(201);
+    expect(created.body.cronExpr).toBe('0 0 * * *');
+    expect(created.body.recalc).toBe(false);
+
+    await ds.query(
+      `UPDATE ${SCHEMA}.pricing_schedule SET run_at = now() - interval '1 minute' WHERE id = $1`,
+      [created.body.id],
+    );
+    await cron.fire();
+
+    const sched = await get(`/pricing/schedules/${created.body.id}`).expect(
+      200,
+    );
+    expect(sched.body.status).toBe('pending'); // re-armado, não 'fired'
+    expect(sched.body.applyRunId).toBeTruthy(); // último disparo registrado
+    expect(new Date(sched.body.runAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('recalc: recalcula o preço pelo motor no disparo (ignora o congelado)', async () => {
+    // margem 50 → motor sugere custo/(1-0.5) = 6/0.5 = 12 para o EAN.
+    await post('/pricing/suggestion-rules')
+      .send({ name: 'Margem 50', minMargin: 50 })
+      .expect(201);
+    const created = await post('/pricing/schedules')
+      .send({
+        runAt: new Date(Date.now() + 3600_000).toISOString(),
+        items: [{ ean: EAN, target: 'precoVenda', price: 99 }], // congelado absurdo
+        recalc: true,
+      })
+      .expect(201);
+    expect(created.body.recalc).toBe(true);
+
+    await ds.query(
+      `UPDATE ${SCHEMA}.pricing_schedule SET run_at = now() - interval '1 minute' WHERE id = $1`,
+      [created.body.id],
+    );
+    await cron.fire();
+
+    const sched = await get(`/pricing/schedules/${created.body.id}`).expect(
+      200,
+    );
+    expect(sched.body.status).toBe('fired'); // one-shot
+    const report = await get(`/pricing/apply/${sched.body.applyRunId}`).expect(
+      200,
+    );
+    expect(report.body.total).toBe(1);
+    expect(Number(report.body.items[0].price)).toBe(12); // recalculado, não 99
+  });
 });
