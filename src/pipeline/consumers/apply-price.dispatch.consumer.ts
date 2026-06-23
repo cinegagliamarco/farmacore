@@ -14,6 +14,7 @@ import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
+import { IntegrationConnectionService } from '../../integration/integration-connection.service';
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
 
 const BATCH_SIZE = 50;
@@ -31,6 +32,7 @@ export class ApplyPriceDispatchConsumer extends DispatchPipelineConsumer {
   protected readonly logicalStep = PipelineStep.APPLY_PRICE;
 
   constructor(
+    private readonly integrationConn: IntegrationConnectionService,
     runs: PipelineRunService,
     retry: RetryService,
     tx: TenantTransactionService,
@@ -66,6 +68,29 @@ export class ApplyPriceDispatchConsumer extends DispatchPipelineConsumer {
       await ctx.em.query(
         `UPDATE pricing_apply_run SET status='done', updated_at=now() WHERE id=$1`,
         [runId],
+      );
+      return { batches: [] };
+    }
+
+    // Pré-checagem: sem credencial A7 o run inteiro falha de uma vez, em vez de
+    // milhares de chamadas item-a-item que só descobririam isso no batch.
+    const creds = await this.integrationConn.getApiCredentials(
+      ctx.message.tenantId,
+    );
+    if (!creds) {
+      await ctx.em.query(
+        `UPDATE pricing_apply_item
+            SET status='failed', reason='a7_nao_configurado', updated_at=now()
+          WHERE apply_run_id=$1 AND status='pending'`,
+        [runId],
+      );
+      await ctx.em.query(
+        `UPDATE pricing_apply_run
+            SET status='done', failed=total, updated_at=now() WHERE id=$1`,
+        [runId],
+      );
+      this.logger.warn(
+        `apply-price dispatch: tenant ${ctx.message.tenantId} sem credencial A7; run ${runId} marcado failed`,
       );
       return { batches: [] };
     }

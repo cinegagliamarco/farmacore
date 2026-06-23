@@ -268,7 +268,9 @@ export function computeSuggestion(
     let alvo: number | null = null;
 
     if (rule.competitorMode === 'cascade') {
-      // Ranking por prioridade: usa o primeiro da ordem que tiver preço.
+      // Cascata: usa o primeiro concorrente DA ORDEM DO ARRAY (a ordem que o
+      // operador definiu em rule.competitors) que tiver preço. Não reordena por
+      // priority de tenant_competitor_origin (decisão em aberto — plano §17.6).
       for (const c of competitors) {
         const price = competitorPrice(product, c.competitor);
         if (price > 0) {
