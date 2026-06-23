@@ -93,12 +93,13 @@ export class PricingSuggestionsService {
    * Dry-run de uma regra ainda não salva: calcula a sugestão de toda a base
    * usando SÓ essa regra transitória. Mesmo pipeline do `suggestions`.
    */
-  public preview(
+  public async preview(
     em: EntityManager,
     slug: string,
     dto: UpsertSuggestionRuleDto,
     q: ListSuggestionsQueryDto,
   ): Promise<SuggestionsResponse> {
+    await this.rules.assertCompetitorsEnabled(em, slug, dto.competitors);
     return this.suggestions(em, slug, q, [this.rules.buildTransient(dto)]);
   }
 

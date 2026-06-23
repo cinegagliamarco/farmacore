@@ -11,6 +11,7 @@ import {
   RuleCompetitor,
   SuggestionStrategy,
 } from '../../database/entities/tenant/pricing-suggestion-rule.entity';
+import { CompetitorOriginsService } from './competitor-origins.service';
 import { UpsertSuggestionRuleDto } from './dto/suggestion-rule.dto';
 
 /** Regra como o HTTP a devolve e o motor a consome (numéricos como number). */
@@ -69,6 +70,8 @@ interface RuleRow {
  */
 @Injectable()
 export class SuggestionRulesService {
+  constructor(private readonly origins: CompetitorOriginsService) {}
+
   public async list(em: EntityManager): Promise<SuggestionRuleApi[]> {
     const rows: RuleRow[] = await em.query(
       `SELECT r.id, r.name, r.classifications,
@@ -93,8 +96,10 @@ export class SuggestionRulesService {
 
   public async create(
     em: EntityManager,
+    slug: string,
     dto: UpsertSuggestionRuleDto,
   ): Promise<SuggestionRuleApi> {
+    await this.assertCompetitorsEnabled(em, slug, dto.competitors);
     const values = this.validate(dto);
     const repo = em.getRepository(PricingSuggestionRuleEntity);
     const saved = await this.runOrMapFk(() => repo.save(repo.create(values)));
@@ -103,14 +108,37 @@ export class SuggestionRulesService {
 
   public async update(
     em: EntityManager,
+    slug: string,
     id: string,
     dto: UpsertSuggestionRuleDto,
   ): Promise<SuggestionRuleApi> {
+    await this.assertCompetitorsEnabled(em, slug, dto.competitors);
     const values = this.validate(dto);
     const repo = em.getRepository(PricingSuggestionRuleEntity);
     const res = await this.runOrMapFk(() => repo.update({ id }, values));
     if (!res.affected) throw new NotFoundException(`rule ${id} not found`);
     return this.get(em, id);
+  }
+
+  /**
+   * Concorrentes da regra devem estar HABILITADOS no tenant — não faz sentido
+   * seguir quem o tenant não cruza. Origem não-habilitada → 400 (em vez de
+   * virar config morta que o motor ignora silenciosamente).
+   */
+  public async assertCompetitorsEnabled(
+    em: EntityManager,
+    slug: string,
+    competitors: UpsertSuggestionRuleDto['competitors'],
+  ): Promise<void> {
+    if (!competitors?.length) return;
+    const enabled = await this.origins.enabledSet(em, slug);
+    for (const c of competitors) {
+      if (!enabled.has(c.competitor)) {
+        throw new BadRequestException(
+          `Concorrente não habilitado para o tenant: ${c.competitor}.`,
+        );
+      }
+    }
   }
 
   /** FK cluster_id violada (23503): cluster apagado/inexistente → 400 claro. */

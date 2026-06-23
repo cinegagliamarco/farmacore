@@ -25,6 +25,10 @@
       "description": "CRUD de clusters de produto (operator/admin)"
     },
     {
+      "name": "competitor-origins",
+      "description": "Origens de concorrente habilitadas do tenant (leitura)"
+    },
+    {
       "name": "suggestions",
       "description": "Motor de sugestão + dry-run (operator/admin)"
     },
@@ -680,6 +684,48 @@
           },
           "409": {
             "description": "Cluster em uso por regra ativa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/competitor-origins": {
+      "get": {
+        "tags": [
+          "competitor-origins"
+        ],
+        "summary": "Origens de concorrente do tenant (para o seletor da regra)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompetitorOriginView"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role insuficiente",
             "content": {
               "application/json": {
                 "schema": {
@@ -1777,6 +1823,26 @@
           "VENANCIO",
           "INDIANA"
         ]
+      },
+      "CompetitorOriginView": {
+        "type": "object",
+        "required": [
+          "origin",
+          "priority",
+          "enabled"
+        ],
+        "properties": {
+          "origin": {
+            "$ref": "#/components/schemas/CompetitorOrigin"
+          },
+          "priority": {
+            "type": "integer",
+            "description": "menor = antes (cascade por prioridade)"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
       },
       "SuggestionStrategy": {
         "type": "string",

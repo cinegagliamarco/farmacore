@@ -174,6 +174,29 @@ describe('Pricing suggestions (e2e)', () => {
         .expect(400);
     });
 
+    it('400 concorrente não habilitado no tenant (§17.11)', async () => {
+      // só DROGAL está habilitado para o e2epricing; DROGASIL não.
+      await post('/pricing/suggestion-rules')
+        .send({
+          name: 'origem fora',
+          minMargin: 10,
+          strategy: 'concorrencia',
+          competitorMode: 'lowest',
+          competitors: [{ competitor: 'DROGASIL' }],
+        })
+        .expect(400);
+      // o preview (dry-run) aplica a mesma trava
+      await post('/pricing/suggestions/preview')
+        .send({
+          name: 'preview fora',
+          minMargin: 10,
+          strategy: 'concorrencia',
+          competitorMode: 'lowest',
+          competitors: [{ competitor: 'DROGASIL' }],
+        })
+        .expect(400);
+    });
+
     it('persiste flags de política (blockPbmInMargin, cascadeByPriority)', async () => {
       const r = await post('/pricing/suggestion-rules')
         .send({
@@ -203,6 +226,16 @@ describe('Pricing suggestions (e2e)', () => {
           clusterId: '00000000-0000-0000-0000-000000000000',
         })
         .expect(400);
+    });
+  });
+
+  describe('GET /pricing/competitor-origins (§17.11)', () => {
+    it('lista só as origens do tenant; viewer 403', async () => {
+      const res = await get('/pricing/competitor-origins').expect(200);
+      expect(res.body).toEqual([
+        expect.objectContaining({ origin: 'DROGAL', enabled: true }),
+      ]);
+      await get('/pricing/competitor-origins', viewerToken).expect(403);
     });
   });
 

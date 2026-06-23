@@ -14,6 +14,8 @@ import { OfferCampaignsController } from './offer-campaigns/offer-campaigns.cont
 import { OfferCampaignsService } from './offer-campaigns/offer-campaigns.service';
 import { AuditController } from './pricing/audit.controller';
 import { AuditService } from './pricing/audit.service';
+import { CompetitorOriginsController } from './pricing/competitor-origins.controller';
+import { CompetitorOriginsService } from './pricing/competitor-origins.service';
 import { ClustersController } from './pricing/clusters.controller';
 import { ClustersService } from './pricing/clusters.service';
 import { PricingApplyController } from './pricing/pricing-apply.controller';
@@ -46,6 +48,7 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
     PricingApplyController,
     PricingScheduleController,
     AuditController,
+    CompetitorOriginsController,
   ],
   providers: [
     CatalogService,
@@ -63,6 +66,7 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
     PricingScheduleCron,
     PricingRetentionCron,
     AuditService,
+    CompetitorOriginsService,
   ],
 })
 export class TenantApiModule {}

@@ -26,6 +26,7 @@ const spec = {
     { name: 'auth', description: 'Login / sessão' },
     { name: 'suggestion-rules', description: 'CRUD de regras de sugestão (operator/admin)' },
     { name: 'clusters', description: 'CRUD de clusters de produto (operator/admin)' },
+    { name: 'competitor-origins', description: 'Origens de concorrente habilitadas do tenant (leitura)' },
     { name: 'suggestions', description: 'Motor de sugestão + dry-run (operator/admin)' },
     { name: 'apply', description: 'Aplicação de preço em massa, histórico, rollback, aprovação' },
     { name: 'schedules', description: 'Agendamentos (one-shot, recorrente, recálculo)' },
@@ -87,6 +88,10 @@ const spec = {
         responses: { 200: okJson({ type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' } }, required: ['id', 'name'] }), ...errResp(404, 'Cluster não encontrado'), ...errResp(409, 'Cluster em uso por regra ativa') } },
     },
 
+    '/pricing/competitor-origins': {
+      get: { tags: ['competitor-origins'], summary: 'Origens de concorrente do tenant (para o seletor da regra)', security: bearer, ...roles('operator', 'admin'),
+        responses: { 200: okJson({ type: 'array', items: ref('CompetitorOriginView') }), ...errResp(403, 'Role insuficiente') } },
+    },
     '/pricing/suggestions': {
       get: { tags: ['suggestions'], summary: 'Gera sugestões (full-scan; Cache-Control private 30s)', security: bearer, ...roles('operator', 'admin'),
         parameters: [
@@ -203,6 +208,10 @@ const spec = {
 
       UserRole: { type: 'string', enum: ['admin', 'operator', 'viewer'] },
       CompetitorOrigin: { type: 'string', enum: COMPETITORS },
+      CompetitorOriginView: {
+        type: 'object', required: ['origin', 'priority', 'enabled'],
+        properties: { origin: ref('CompetitorOrigin'), priority: { type: 'integer', description: 'menor = antes (cascade por prioridade)' }, enabled: { type: 'boolean' } },
+      },
       SuggestionStrategy: { type: 'string', enum: ['margem', 'concorrencia'] },
       CompetitorMode: { type: 'string', enum: ['weighted', 'cascade', 'lowest'] },
       SuggestionTarget: { type: 'string', enum: ['precoVenda', 'precoOferta'] },
