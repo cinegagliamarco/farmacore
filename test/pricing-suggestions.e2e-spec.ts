@@ -237,6 +237,34 @@ describe('Pricing suggestions (e2e)', () => {
     });
   });
 
+  describe('trilha de auditoria (§17.10)', () => {
+    it('registra create/update/delete da regra e expõe em GET /pricing/audit (admin)', async () => {
+      const created = await post('/pricing/suggestion-rules')
+        .send({ name: 'auditada', minMargin: 25 })
+        .expect(201);
+      await request(app.getHttpServer())
+        .patch(`/pricing/suggestion-rules/${created.body.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'auditada-v2', minMargin: 26 })
+        .expect(200);
+      await del(`/pricing/suggestion-rules/${created.body.id}`).expect(200);
+
+      const audit = await get(
+        `/pricing/audit?entity=suggestion_rule&entityId=${created.body.id}`,
+      ).expect(200);
+      const actions = (audit.body as Array<{ action: string }>).map(
+        (e) => e.action,
+      );
+      expect(actions).toEqual(
+        expect.arrayContaining(['create', 'update', 'delete']),
+      );
+    });
+
+    it('operator não acessa a trilha (admin-only, 403)', async () => {
+      await get('/pricing/audit', operatorToken).expect(403);
+    });
+  });
+
   describe('cluster — bloqueio de delete em uso', () => {
     it('409 ao apagar cluster referenciado por uma regra', async () => {
       const cluster = await post('/pricing/clusters')

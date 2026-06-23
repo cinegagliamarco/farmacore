@@ -12,10 +12,13 @@ import { OfferBookRulesController } from './offer-book-rules/offer-book-rules.co
 import { OfferBookRulesService } from './offer-book-rules/offer-book-rules.service';
 import { OfferCampaignsController } from './offer-campaigns/offer-campaigns.controller';
 import { OfferCampaignsService } from './offer-campaigns/offer-campaigns.service';
+import { AuditController } from './pricing/audit.controller';
+import { AuditService } from './pricing/audit.service';
 import { ClustersController } from './pricing/clusters.controller';
 import { ClustersService } from './pricing/clusters.service';
 import { PricingApplyController } from './pricing/pricing-apply.controller';
 import { PricingApplyService } from './pricing/pricing-apply.service';
+import { PricingRetentionCron } from './pricing/pricing-retention.cron';
 import { PricingScheduleController } from './pricing/pricing-schedule.controller';
 import { PricingScheduleService } from './pricing/pricing-schedule.service';
 import { PricingScheduleCron } from './pricing/pricing-schedule.cron';
@@ -42,6 +45,7 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
     PricingSuggestionsController,
     PricingApplyController,
     PricingScheduleController,
+    AuditController,
   ],
   providers: [
     CatalogService,
@@ -57,6 +61,8 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
     PricingApplyService,
     PricingScheduleService,
     PricingScheduleCron,
+    PricingRetentionCron,
+    AuditService,
   ],
 })
 export class TenantApiModule {}

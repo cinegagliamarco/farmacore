@@ -14,6 +14,7 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import type { JwtPayload } from '../../auth/jwt-payload.type';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
+import { AuditService } from './audit.service';
 import { ApplyPricesDto } from './dto/apply.dto';
 import {
   ApplyReport,
@@ -27,17 +28,30 @@ import {
  */
 @Controller('pricing/apply')
 export class PricingApplyController {
-  constructor(private readonly apply: PricingApplyService) {}
+  constructor(
+    private readonly apply: PricingApplyService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Post()
   @Roles(UserRole.OPERATOR, UserRole.ADMIN)
   @HttpCode(202)
-  public create(
+  public async create(
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
     @Body() dto: ApplyPricesDto,
   ): Promise<ApplyResponse> {
-    return this.apply.apply(em, user.tenantId, user.sub, dto);
+    const res = await this.apply.apply(em, user.tenantId, user.sub, dto);
+    if (!res.idempotent) {
+      await this.audit.log(em, {
+        actor: user.sub,
+        action: 'apply',
+        entity: 'apply_run',
+        entityId: res.applyRunId,
+        changes: { accepted: res.accepted, rejected: res.rejected.length },
+      });
+    }
+    return res;
   }
 
   @Get(':id')
