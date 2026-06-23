@@ -71,6 +71,14 @@ export class PricingSuggestionRuleEntity extends BaseEntity {
   @Column({ name: 'ignore_pbm', type: 'boolean', default: false })
   public ignorePbm!: boolean;
 
+  // Bloqueia produto PBM também na estratégia margem (§17.5a). Default false.
+  @Column({ name: 'block_pbm_in_margin', type: 'boolean', default: false })
+  public blockPbmInMargin!: boolean;
+
+  // Cascata segue a priority das origens em vez da ordem do array (§17.6).
+  @Column({ name: 'cascade_by_priority', type: 'boolean', default: false })
+  public cascadeByPriority!: boolean;
+
   @Column({ name: 'apply_rounding', type: 'boolean', default: true })
   public applyRounding!: boolean;
 

@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { CronTime, validateCronExpression } from 'cron';
 import { EntityManager } from 'typeorm';
 import {
   PricingScheduleEntity,
@@ -16,13 +18,18 @@ export interface ScheduleView {
   status: string;
   applyRunId: string | null;
   itemCount: number;
+  cronExpr: string | null;
+  recalc: boolean;
   createdAt: string;
 }
 
 export interface DueSchedule {
   id: string;
+  runAt: Date;
   requestedBy: string | null;
   items: ScheduleItem[];
+  cronExpr: string | null;
+  recalc: boolean;
 }
 
 interface ScheduleRow {
@@ -31,6 +38,8 @@ interface ScheduleRow {
   status: string;
   applyRunId: string | null;
   items: ScheduleItem[];
+  cronExpr: string | null;
+  recalc: boolean;
   createdAt: Date;
 }
 
@@ -40,8 +49,14 @@ const toView = (r: ScheduleRow): ScheduleView => ({
   status: r.status,
   applyRunId: r.applyRunId,
   itemCount: Array.isArray(r.items) ? r.items.length : 0,
+  cronExpr: r.cronExpr,
+  recalc: r.recalc,
   createdAt: new Date(r.createdAt).toISOString(),
 });
+
+/** Próxima ocorrência (UTC) de um cron, como Date. */
+const nextOccurrence = (cronExpr: string): Date =>
+  new CronTime(cronExpr, 'UTC').sendAt().toJSDate();
 
 /**
  * CRUD dos agendamentos de aplicação (one-shot). `claimDue`/`markFired` são o
@@ -54,12 +69,22 @@ export class PricingScheduleService {
     requestedBy: string,
     dto: CreateScheduleDto,
   ): Promise<ScheduleView> {
+    if (dto.cronExpr && !validateCronExpression(dto.cronExpr).valid) {
+      throw new BadRequestException(`cron inválido: ${dto.cronExpr}`);
+    }
     const [row]: ScheduleRow[] = await em.query(
-      `INSERT INTO pricing_schedule (run_at, requested_by, items)
-       VALUES ($1, $2, $3::jsonb)
-       RETURNING id, run_at AS "runAt", status,
-                 apply_run_id AS "applyRunId", items, created_at AS "createdAt"`,
-      [dto.runAt, requestedBy, JSON.stringify(dto.items)],
+      `INSERT INTO pricing_schedule
+         (run_at, requested_by, items, cron_expr, recalc)
+       VALUES ($1, $2, $3::jsonb, $4, $5)
+       RETURNING id, run_at AS "runAt", status, apply_run_id AS "applyRunId",
+                 items, cron_expr AS "cronExpr", recalc, created_at AS "createdAt"`,
+      [
+        dto.runAt,
+        requestedBy,
+        JSON.stringify(dto.items),
+        dto.cronExpr ?? null,
+        dto.recalc ?? false,
+      ],
     );
     return toView(row);
   }
@@ -67,7 +92,7 @@ export class PricingScheduleService {
   public async list(em: EntityManager): Promise<ScheduleView[]> {
     const rows: ScheduleRow[] = await em.query(
       `SELECT id, run_at AS "runAt", status, apply_run_id AS "applyRunId",
-              items, created_at AS "createdAt"
+              items, cron_expr AS "cronExpr", recalc, created_at AS "createdAt"
          FROM pricing_schedule
         WHERE deleted_at IS NULL
         ORDER BY run_at DESC`,
@@ -78,7 +103,7 @@ export class PricingScheduleService {
   public async get(em: EntityManager, id: string): Promise<ScheduleView> {
     const rows: ScheduleRow[] = await em.query(
       `SELECT id, run_at AS "runAt", status, apply_run_id AS "applyRunId",
-              items, created_at AS "createdAt"
+              items, cron_expr AS "cronExpr", recalc, created_at AS "createdAt"
          FROM pricing_schedule WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
       [id],
     );
@@ -109,7 +134,8 @@ export class PricingScheduleService {
    *  transação — só uma réplica de API pega cada um. */
   public async claimDue(em: EntityManager): Promise<DueSchedule[]> {
     return em.query(
-      `SELECT id, requested_by AS "requestedBy", items
+      `SELECT id, run_at AS "runAt", requested_by AS "requestedBy", items,
+              cron_expr AS "cronExpr", recalc
          FROM pricing_schedule
         WHERE status = 'pending' AND deleted_at IS NULL AND run_at <= now()
         ORDER BY run_at ASC
@@ -121,13 +147,32 @@ export class PricingScheduleService {
   public async markFired(
     em: EntityManager,
     id: string,
-    applyRunId: string,
+    applyRunId: string | null,
   ): Promise<void> {
     await em.query(
       `UPDATE pricing_schedule
           SET status='fired', apply_run_id=$2, fired_at=now(), updated_at=now()
         WHERE id=$1`,
       [id, applyRunId],
+    );
+  }
+
+  /**
+   * Recorrente: registra o último disparo e re-arma para a próxima ocorrência
+   * do cron (volta a 'pending'). Mantém histórico em `apply_run_id`/`fired_at`
+   * do disparo mais recente.
+   */
+  public async reArm(
+    em: EntityManager,
+    id: string,
+    cronExpr: string,
+    applyRunId: string | null,
+  ): Promise<void> {
+    await em.query(
+      `UPDATE pricing_schedule
+          SET run_at=$2, apply_run_id=$3, fired_at=now(), updated_at=now()
+        WHERE id=$1`,
+      [id, nextOccurrence(cronExpr), applyRunId],
     );
   }
 }

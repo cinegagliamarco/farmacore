@@ -4,6 +4,7 @@ import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { resolveTenantId } from '../../tenant/tenant-lookup';
 import { PriceRoundingService } from '../config/price-rounding.service';
 import { ClustersService } from './clusters.service';
+import { applyCascadePriority, originPriorities } from './pricing-rules.util';
 import { ListSuggestionsQueryDto } from './dto/list-suggestions.query';
 import {
   computeSuggestion,
@@ -14,8 +15,13 @@ import {
   type PriceRoundingRange,
   type SuggestionProduct,
   type SuggestionResult,
+  type SuggestionTarget,
 } from './pricing-suggestion.engine';
-import { SuggestionRulesService } from './suggestion-rules.service';
+import {
+  SuggestionRuleApi,
+  SuggestionRulesService,
+} from './suggestion-rules.service';
+import { UpsertSuggestionRuleDto } from './dto/suggestion-rule.dto';
 
 interface CompetitorView {
   origin: CompetitorOrigin;
@@ -83,10 +89,24 @@ export class PricingSuggestionsService {
     private readonly priceRounding: PriceRoundingService,
   ) {}
 
+  /**
+   * Dry-run de uma regra ainda não salva: calcula a sugestão de toda a base
+   * usando SÓ essa regra transitória. Mesmo pipeline do `suggestions`.
+   */
+  public preview(
+    em: EntityManager,
+    slug: string,
+    dto: UpsertSuggestionRuleDto,
+    q: ListSuggestionsQueryDto,
+  ): Promise<SuggestionsResponse> {
+    return this.suggestions(em, slug, q, [this.rules.buildTransient(dto)]);
+  }
+
   public async suggestions(
     em: EntityManager,
     slug: string,
     q: ListSuggestionsQueryDto,
+    overrideRules?: SuggestionRuleApi[],
   ): Promise<SuggestionsResponse> {
     const page = Math.max(1, q.page ?? 1);
     const perPage = Math.min(1000, Math.max(1, q.perPage ?? 50));
@@ -111,44 +131,8 @@ export class PricingSuggestionsService {
       ? allRows.filter((p) => bookSet.has((p.book ?? '').trim()))
       : allRows;
 
-    const activeRules = (await this.rules.list(em)).filter((r) => r.active);
-    const clusterRules = activeRules.filter((r) => r.clusterId);
-    const classRules = activeRules.filter((r) => !r.clusterId);
-    const usesClusters = activeRules.some(
-      (r) => r.clusterId || r.excludeClusterIds.length > 0,
-    );
-    const membership = usesClusters
-      ? await this.clusters.loadActiveClusterMembership(em)
-      : new Map<string, string[]>();
-
-    const roundingRanges = activeRules.some((r) => r.applyRounding)
-      ? await this.roundingRanges(em, slug)
-      : [];
-
-    const computed = productRows.map((product) => {
-      const sp = this.toSuggestionProduct(product);
-      const clusterIds = membership.get(product.ean) ?? [];
-      const clusterRule = clusterIds.length
-        ? findClusterRuleForProduct(clusterRules, clusterIds)
-        : null;
-      const classRule = findRuleForProduct(sp, classRules, clusterIds);
-      const { winner, overrodeRule } = resolveWinner(clusterRule, classRule);
-      const result: SuggestionResult = winner
-        ? computeSuggestion(
-            sp,
-            winner,
-            winner.applyRounding ? roundingRanges : [],
-          )
-        : { kind: 'none', reason: 'sem_regra' };
-      const origem: ClusterOrigin | null = winner?.clusterId
-        ? {
-            clusterId: winner.clusterId,
-            clusterName: winner.clusterName ?? null,
-            overrodeRuleName: overrodeRule?.name ?? null,
-          }
-        : null;
-      return { product, sp, result, origem };
-    });
+    const ctx = await this.ruleContext(em, slug, overrideRules);
+    const computed = productRows.map((p) => this.computeRow(p, ctx));
 
     let filtered = computed;
     if (onlyWithSuggestion) {
@@ -186,9 +170,115 @@ export class PricingSuggestionsService {
       count: filtered.length,
       suggestionCount,
       lockCount,
-      activeRuleCount: activeRules.length,
+      activeRuleCount: ctx.activeRules.length,
       availableBooks,
     };
+  }
+
+  /**
+   * Sugestão por EAN para TODO o catálogo, em UMA passada (load + compute uma
+   * vez). Usado pelo recálculo do agendamento — evita reescanear o catálogo por
+   * página como faria paginar `suggestions()`. Carrega o `target` ESCOLHIDO pelo
+   * motor (venda vs oferta), não o do item agendado.
+   */
+  public async priceMap(
+    em: EntityManager,
+    slug: string,
+  ): Promise<Map<string, { target: SuggestionTarget; price: number }>> {
+    const origins = await this.enabledOrigins(em, slug);
+    const allRows = await this.loadProducts(em, origins);
+    const ctx = await this.ruleContext(em, slug);
+    const map = new Map<string, { target: SuggestionTarget; price: number }>();
+    for (const product of allRows) {
+      const { result } = this.computeRow(product, ctx);
+      if (result.kind === 'suggestion') {
+        map.set(product.ean, {
+          target: result.suggestion.target,
+          price: result.suggestion.price,
+        });
+      }
+    }
+    return map;
+  }
+
+  /** Regras ativas (reordenadas por priority se houver cascadeByPriority) +
+   *  membership de cluster + faixas de arredondamento — o contexto do cálculo. */
+  private async ruleContext(
+    em: EntityManager,
+    slug: string,
+    overrideRules?: SuggestionRuleApi[],
+  ): Promise<{
+    activeRules: SuggestionRuleApi[];
+    clusterRules: SuggestionRuleApi[];
+    classRules: SuggestionRuleApi[];
+    membership: Map<string, string[]>;
+    roundingRanges: PriceRoundingRange[];
+  }> {
+    let activeRules = (overrideRules ?? (await this.rules.list(em))).filter(
+      (r) => r.active,
+    );
+    if (
+      activeRules.some(
+        (r) => r.competitorMode === 'cascade' && r.cascadeByPriority,
+      )
+    ) {
+      activeRules = applyCascadePriority(
+        activeRules,
+        await originPriorities(em, slug),
+      );
+    }
+    const usesClusters = activeRules.some(
+      (r) => r.clusterId || r.excludeClusterIds.length > 0,
+    );
+    return {
+      activeRules,
+      clusterRules: activeRules.filter((r) => r.clusterId),
+      classRules: activeRules.filter((r) => !r.clusterId),
+      membership: usesClusters
+        ? await this.clusters.loadActiveClusterMembership(em)
+        : new Map<string, string[]>(),
+      roundingRanges: activeRules.some((r) => r.applyRounding)
+        ? await this.roundingRanges(em, slug)
+        : [],
+    };
+  }
+
+  private computeRow(
+    product: ResponseProduct,
+    ctx: {
+      clusterRules: SuggestionRuleApi[];
+      classRules: SuggestionRuleApi[];
+      membership: Map<string, string[]>;
+      roundingRanges: PriceRoundingRange[];
+    },
+  ): {
+    product: ResponseProduct;
+    sp: SuggestionProduct;
+    result: SuggestionResult;
+    origem: ClusterOrigin | null;
+  } {
+    const sp = this.toSuggestionProduct(product);
+    const clusterIds = ctx.membership.get(product.ean) ?? [];
+    const clusterRule = clusterIds.length
+      ? findClusterRuleForProduct(ctx.clusterRules, clusterIds)
+      : null;
+    const classRule = findRuleForProduct(sp, ctx.classRules, clusterIds);
+    const { winner, overrodeRule } = resolveWinner(clusterRule, classRule);
+    const result: SuggestionResult = winner
+      ? computeSuggestion(
+          sp,
+          winner,
+          winner.applyRounding ? ctx.roundingRanges : [],
+        )
+      : { kind: 'none', reason: 'sem_regra' };
+    const origem: ClusterOrigin | null = winner?.clusterId
+      ? {
+          clusterId: winner.clusterId,
+          clusterName: winner.clusterName ?? null,
+          overrodeRuleName: overrodeRule?.name ?? null,
+        }
+      : null;
+    return { product, sp, result, origem };
   }
 
   private resultHadRule(r: SuggestionResult): boolean {

@@ -512,12 +512,33 @@ O `GET /suggestions` **carrega o catálogo inteiro do tenant cruzado com N orige
 10. **Auditoria mínima antes de produção.** Confirmar o conjunto obrigatório por item (ator, preço anterior/novo, regra/basis, timestamp, resultado A7) e se CRUD de regra/cluster também precisa de `auditLog` (o legado tinha).
 11. **N origens na tela.** O backend generalizou para 9 origens; a tela/legado é hard-coded em 3 colunas com PBM/van só de Drogal+Drogasil. A tela vai mostrar colunas dinâmicas por origem habilitada ou um subconjunto fixo? Como exibir PBM/van para N origens? Isso fecha o shape final de `competitors[]` e desbloqueia o redesign do front.
 
+### 17-bis. Status de implementação (atualização 2026-06-22)
+
+Decisão do dono: **implementar tudo que é viável no backend como _flag configurável com default = comportamento atual_**; itens que dependem de frontend ou de infra do ERP ficam documentados como **impossíveis neste repo**. Convenção das policies: opt-in, default preserva o comportamento de hoje.
+
+| # | Item | Status | Como |
+|---|---|---|---|
+| 1 | Contrato vs. front pricy | 🔴 **impossível aqui** | Tela vive em outro repo. Backend pronto. |
+| 2 | ERP-scheduled (paridade de resiliência) | 🔴 **impossível aqui** | farmacore não tem o `/scheduling` do ERP. Em vez de paridade, demos **recorrência/recálculo no cron do farmacore** (§17.9 abaixo). |
+| 3 | RBAC / aprovação do apply | ✅ **flag** | `PRICING_APPLY_REQUIRES_APPROVAL` (default off) segura o dispatch do **apply ad-hoc** até `POST /pricing/apply/:id/approve` (admin); `/reject` falha o run. **Escopo:** a flag gateia só o POST direto — agendamento (autorizado na criação) e rollback passam pelo apply sem nova aprovação. Leituras/mutações já OPERATOR/ADMIN; trilha em ADMIN. |
+| 4 | Dedup silencioso de concorrente | ✅ **feito** | Agora `400` em concorrente duplicado (era dedup silencioso). |
+| 5a | PBM bloqueado também em `margem` | ✅ **flag por regra** | `blockPbmInMargin` (default false = comportamento atual). |
+| 5b | PBM derivado do ERP do tenant | 🔴 **impossível aqui** | Depende de `metadata.isPbm` do item vir do ERP; hoje é OR sobre concorrentes. |
+| 6 | `cascade` por `priority` do tenant | ✅ **flag por regra** | `cascadeByPriority` reordena pelos `core.tenant_competitor_origin.priority` (default false = ordem do array). |
+| 7 | Retenção/TTL dos runs | ✅ **flag** | `PricingRetentionCron` soft-deleta runs encerrados > `PRICING_RUN_TTL_DAYS` (default 90). |
+| 8 | Override por banda | ✅ **feito** | `revalidate` aceita o preço congelado se `≥ floor`, `≤ precoVenda` (oferta) e dentro do teto de variação. |
+| 9 | Schedule: recalcular vs. congelar | ✅ **flag por schedule** | `recalc` (default false = congela). `cronExpr` dá recorrência (re-arma na próxima ocorrência). |
+| 10 | Auditoria mínima | ✅ **feito** | `audit_log` + `AuditService` no CRUD de regra/cluster, apply, schedule; `basis`/`price_old_*` por item; `GET /pricing/audit` (admin). |
+| 11 | N origens na tela | 🔴 **impossível aqui** | Decisão de layout da tela (outro repo). |
+
+**Circuit breaker** (§9.5/§17.9) já entregue: aborta o run (`422`) se lote grande (≥10) tiver > 50% rejeitado. Limites são constantes tunáveis no service.
+
 ## 18. Roadmap futuro / fora de escopo
 
-- **Materializar sugestões** num passo de pipeline e servir do banco (escala além do load-all; §13).
-- **Histórico de aplicações** e rollback de preço via snapshot `price_old_*` (base já no modelo da Fase 3, §6/§9.6).
-- **Simulação / dry-run** de uma regra antes de salvar, e dry-run de um schedule.
-- **Frontend** das telas `/regras` e `/precos/sugestoes` no novo app (este repo é só backend) — **pré-condição para valor ao usuário** (§14, §17.1).
+- ✅ **Histórico de aplicações + rollback** — `GET /pricing/apply` lista os runs; `POST /pricing/apply/:id/rollback` reaplica o `price_old_*` dos itens aplicados.
+- ✅ **Dry-run** — `POST /pricing/suggestions/preview` (regra ainda não salva) e `POST /pricing/apply/preview` (revalida sem persistir, cobre o pré-check de um schedule).
+- 🔴 **Materializar sugestões** num passo de pipeline e servir do banco (escala além do load-all; §13) — **ainda futuro**: hoje o recálculo do schedule pagina o load-all, suficiente no volume atual; materializar é otimização de escala, não requisito.
+- 🔴 **Frontend** das telas `/regras` e `/precos/sugestoes` no novo app (este repo é só backend) — **impossível aqui**, pré-condição para valor ao usuário (§14, §17.1).
 
 ## 19. Anexo A — Divergências do plano legado (verificação)
 

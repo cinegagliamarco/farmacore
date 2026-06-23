@@ -29,6 +29,8 @@ export interface SuggestionRuleApi {
   noCompetitorMargin: number | null;
   priceControlled: boolean;
   ignorePbm: boolean;
+  blockPbmInMargin: boolean;
+  cascadeByPriority: boolean;
   applyRounding: boolean;
   active: boolean;
   createdAt: string;
@@ -52,6 +54,8 @@ interface RuleRow {
   noCompetitorMargin: string | null;
   priceControlled: boolean;
   ignorePbm: boolean;
+  blockPbmInMargin: boolean;
+  cascadeByPriority: boolean;
   applyRounding: boolean;
   active: boolean;
   createdAt: Date;
@@ -75,6 +79,8 @@ export class SuggestionRulesService {
               r.variation_pct AS "variationPct",
               r.no_competitor_margin AS "noCompetitorMargin",
               r.price_controlled AS "priceControlled", r.ignore_pbm AS "ignorePbm",
+              r.block_pbm_in_margin AS "blockPbmInMargin",
+              r.cascade_by_priority AS "cascadeByPriority",
               r.apply_rounding AS "applyRounding", r.active,
               r.created_at AS "createdAt", r.updated_at AS "updatedAt"
          FROM pricing_suggestion_rule r
@@ -135,6 +141,38 @@ export class SuggestionRulesService {
     return { id, deleted: true };
   }
 
+  /**
+   * Regra transitória (não persistida) a partir do DTO, para o dry-run da
+   * sugestão. Passa pela MESMA validação do create — o preview reflete o que
+   * a regra realmente faria se salva.
+   */
+  public buildTransient(dto: UpsertSuggestionRuleDto): SuggestionRuleApi {
+    const v = this.validate(dto);
+    return {
+      id: 'preview',
+      name: v.name!,
+      classifications: v.classifications!,
+      clusterId: v.clusterId ?? null,
+      clusterName: null,
+      excludeClusterIds: v.excludeClusterIds!,
+      strategy: v.strategy!,
+      minMargin: Number(v.minMargin),
+      competitorMode: v.competitorMode!,
+      competitors: v.competitors!,
+      variationPct: Number(v.variationPct),
+      noCompetitorMargin:
+        v.noCompetitorMargin == null ? null : Number(v.noCompetitorMargin),
+      priceControlled: v.priceControlled!,
+      ignorePbm: v.ignorePbm!,
+      blockPbmInMargin: v.blockPbmInMargin!,
+      cascadeByPriority: v.cascadeByPriority!,
+      applyRounding: v.applyRounding!,
+      active: true,
+      createdAt: '',
+      updatedAt: '',
+    };
+  }
+
   private async get(em: EntityManager, id: string): Promise<SuggestionRuleApi> {
     const rule = (await this.list(em)).find((r) => r.id === id);
     if (!rule) throw new NotFoundException(`rule ${id} not found`);
@@ -158,6 +196,8 @@ export class SuggestionRulesService {
         r.noCompetitorMargin == null ? null : Number(r.noCompetitorMargin),
       priceControlled: r.priceControlled,
       ignorePbm: r.ignorePbm,
+      blockPbmInMargin: r.blockPbmInMargin,
+      cascadeByPriority: r.cascadeByPriority,
       applyRounding: r.applyRounding,
       active: r.active,
       createdAt: new Date(r.createdAt).toISOString(),
@@ -219,7 +259,11 @@ export class SuggestionRulesService {
         }
         weight = raw.weight;
       }
-      if (seen.has(raw.competitor)) continue;
+      if (seen.has(raw.competitor)) {
+        throw new BadRequestException(
+          `Concorrente duplicado: ${raw.competitor}.`,
+        );
+      }
       seen.add(raw.competitor);
       competitors.push({ competitor: raw.competitor, weight });
     }
@@ -248,6 +292,8 @@ export class SuggestionRulesService {
       noCompetitorMargin,
       priceControlled: dto.priceControlled ?? false,
       ignorePbm: dto.ignorePbm ?? false,
+      blockPbmInMargin: dto.blockPbmInMargin ?? false,
+      cascadeByPriority: dto.cascadeByPriority ?? false,
       applyRounding: dto.applyRounding ?? true,
       active: dto.active ?? true,
     };

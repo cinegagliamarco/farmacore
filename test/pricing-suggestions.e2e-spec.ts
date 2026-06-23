@@ -25,6 +25,7 @@ describe('Pricing suggestions (e2e)', () => {
   let ds: DataSource;
   let adminToken: string;
   let operatorToken: string;
+  let viewerToken: string;
   let tenantId: string;
 
   const get = (path: string, token = adminToken) =>
@@ -66,7 +67,8 @@ describe('Pricing suggestions (e2e)', () => {
     await ds.query(
       `INSERT INTO core."user" (tenant_id, email, password_hash, role, status)
        VALUES ($1, 'admin@e2e.test', $2, 'admin', 'active'),
-              ($1, 'op@e2e.test', $2, 'operator', 'active')
+              ($1, 'op@e2e.test', $2, 'operator', 'active'),
+              ($1, 'viewer@e2e.test', $2, 'viewer', 'active')
        ON CONFLICT (tenant_id, email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
       [SLUG, hash],
     );
@@ -107,6 +109,7 @@ describe('Pricing suggestions (e2e)', () => {
     };
     adminToken = await login('admin@e2e.test');
     operatorToken = await login('op@e2e.test');
+    viewerToken = await login('viewer@e2e.test');
   }, 60000);
 
   afterAll(async () => {
@@ -159,6 +162,33 @@ describe('Pricing suggestions (e2e)', () => {
         .expect(400);
     });
 
+    it('400 concorrente duplicado (§17.4)', async () => {
+      await post('/pricing/suggestion-rules')
+        .send({
+          name: 'dup',
+          minMargin: 10,
+          strategy: 'concorrencia',
+          competitorMode: 'cascade',
+          competitors: [{ competitor: 'DROGAL' }, { competitor: 'DROGAL' }],
+        })
+        .expect(400);
+    });
+
+    it('persiste flags de política (blockPbmInMargin, cascadeByPriority)', async () => {
+      const r = await post('/pricing/suggestion-rules')
+        .send({
+          name: 'flags',
+          minMargin: 30,
+          blockPbmInMargin: true,
+          cascadeByPriority: true,
+        })
+        .expect(201);
+      expect(r.body).toMatchObject({
+        blockPbmInMargin: true,
+        cascadeByPriority: true,
+      });
+    });
+
     it('400 clusterId malformado (não-UUID)', async () => {
       await post('/pricing/suggestion-rules')
         .send({ name: 'uuid ruim', minMargin: 10, clusterId: 'nao-é-uuid' })
@@ -199,6 +229,39 @@ describe('Pricing suggestions (e2e)', () => {
       await post('/pricing/suggestion-rules', operatorToken)
         .send({ name: 'op rule', minMargin: 20 })
         .expect(201);
+    });
+
+    it('viewer não lê regras nem clusters (403)', async () => {
+      await get('/pricing/suggestion-rules', viewerToken).expect(403);
+      await get('/pricing/clusters', viewerToken).expect(403);
+    });
+  });
+
+  describe('trilha de auditoria (§17.10)', () => {
+    it('registra create/update/delete da regra e expõe em GET /pricing/audit (admin)', async () => {
+      const created = await post('/pricing/suggestion-rules')
+        .send({ name: 'auditada', minMargin: 25 })
+        .expect(201);
+      await request(app.getHttpServer())
+        .patch(`/pricing/suggestion-rules/${created.body.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'auditada-v2', minMargin: 26 })
+        .expect(200);
+      await del(`/pricing/suggestion-rules/${created.body.id}`).expect(200);
+
+      const audit = await get(
+        `/pricing/audit?entity=suggestion_rule&entityId=${created.body.id}`,
+      ).expect(200);
+      const actions = (audit.body as Array<{ action: string }>).map(
+        (e) => e.action,
+      );
+      expect(actions).toEqual(
+        expect.arrayContaining(['create', 'update', 'delete']),
+      );
+    });
+
+    it('operator não acessa a trilha (admin-only, 403)', async () => {
+      await get('/pricing/audit', operatorToken).expect(403);
     });
   });
 
@@ -272,6 +335,31 @@ describe('Pricing suggestions (e2e)', () => {
       expect(row.result.kind).toBe('suggestion');
       expect(row.result.suggestion.basis).toBe('concorrencia');
       expect(row.result.suggestion.price).toBeCloseTo(12, 2); // segue DROGAL
+    });
+  });
+
+  describe('POST /pricing/suggestions/preview — dry-run de regra', () => {
+    it('calcula com a regra transitória e não a persiste', async () => {
+      const before = (await get('/pricing/suggestion-rules').expect(200)).body
+        .length;
+      const res = await post('/pricing/suggestions/preview')
+        .send({ name: 'Preview 50', minMargin: 50 })
+        .expect(200);
+      expect(res.body.activeRuleCount).toBe(1); // só a transitória
+      const row = res.body.rows.find(
+        (r: { product: { ean: string } }) => r.product.ean === EAN,
+      );
+      expect(row.result.kind).toBe('suggestion');
+      expect(row.result.suggestion.price).toBeCloseTo(12, 2); // 6 / 0.5
+      const after = (await get('/pricing/suggestion-rules').expect(200)).body
+        .length;
+      expect(after).toBe(before); // nada salvo
+    });
+
+    it('valida a regra do preview (concorrência sem concorrentes → 400)', async () => {
+      await post('/pricing/suggestions/preview')
+        .send({ name: 'ruim', minMargin: 10, strategy: 'concorrencia' })
+        .expect(400);
     });
   });
 });

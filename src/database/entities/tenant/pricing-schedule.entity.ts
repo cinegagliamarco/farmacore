@@ -36,4 +36,12 @@ export class PricingScheduleEntity extends BaseEntity {
 
   @Column({ name: 'fired_at', type: 'timestamptz', nullable: true })
   public firedAt!: Date | null;
+
+  // Recorrência: cron → re-arma para a próxima ocorrência ao disparar.
+  @Column({ name: 'cron_expr', type: 'text', nullable: true })
+  public cronExpr!: string | null;
+
+  // Ao disparar, recalcula o preço pelo motor em vez de usar o congelado.
+  @Column({ type: 'boolean', default: false })
+  public recalc!: boolean;
 }

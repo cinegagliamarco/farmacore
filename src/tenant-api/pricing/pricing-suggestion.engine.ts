@@ -48,6 +48,8 @@ export interface SuggestionRule {
   noCompetitorMargin: number | string | null;
   priceControlled: boolean;
   ignorePbm: boolean;
+  blockPbmInMargin: boolean;
+  cascadeByPriority: boolean;
   applyRounding: boolean;
   active: boolean;
   createdAt: string;
@@ -252,8 +254,13 @@ export function computeSuggestion(
 
   // Preço PBM do concorrente é subsidiado, não preço de gôndola — a estratégia
   // concorrência nunca segue. ignorePbm desconsidera o produto em QUALQUER
-  // estratégia (inclusive margem).
-  if (product.pbm && (rule.strategy === 'concorrencia' || rule.ignorePbm)) {
+  // estratégia; blockPbmInMargin bloqueia especificamente na margem (§17.5a).
+  if (
+    product.pbm &&
+    (rule.strategy === 'concorrencia' ||
+      rule.ignorePbm ||
+      (rule.strategy === 'margem' && rule.blockPbmInMargin))
+  ) {
     return { kind: 'none', reason: 'pbm', rule };
   }
 
@@ -268,7 +275,10 @@ export function computeSuggestion(
     let alvo: number | null = null;
 
     if (rule.competitorMode === 'cascade') {
-      // Ranking por prioridade: usa o primeiro da ordem que tiver preço.
+      // Cascata: usa o primeiro concorrente DA ORDEM DO ARRAY que tiver preço.
+      // A ordem é a do operador por padrão; quando a regra tem cascadeByPriority,
+      // o array já chega reordenado pela priority do tenant (applyCascadePriority,
+      // a montante) — o motor não reordena aqui (§17.6).
       for (const c of competitors) {
         const price = competitorPrice(product, c.competitor);
         if (price > 0) {
