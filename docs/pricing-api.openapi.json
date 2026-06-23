@@ -1,0 +1,2835 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Farmacore — Pricing API",
+    "version": "1.0.0",
+    "description": "API REST do módulo de precificação (multi-tenant por JWT). Sem prefixo global; o tenant vem do token (não há `:tenant` na URL nem header de tenant). Todas as rotas exigem JWT salvo as marcadas como públicas. RBAC por `x-roles` (admin/operator/viewer): role insuficiente → 403. ValidationPipe global (whitelist + forbidNonWhitelisted) → 400 para body/query inválido ou campo extra. `:id` é UUID (ParseUUIDPipe → 400 se malformado)."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Mesma origem da API (paths exatos dos @Controller)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Login / sessão"
+    },
+    {
+      "name": "suggestion-rules",
+      "description": "CRUD de regras de sugestão (operator/admin)"
+    },
+    {
+      "name": "clusters",
+      "description": "CRUD de clusters de produto (operator/admin)"
+    },
+    {
+      "name": "suggestions",
+      "description": "Motor de sugestão + dry-run (operator/admin)"
+    },
+    {
+      "name": "apply",
+      "description": "Aplicação de preço em massa, histórico, rollback, aprovação"
+    },
+    {
+      "name": "schedules",
+      "description": "Agendamentos (one-shot, recorrente, recálculo)"
+    },
+    {
+      "name": "audit",
+      "description": "Trilha de auditoria (admin)"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login (público)",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciais inválidas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Renova tokens (público)",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Refresh token inválido/expirado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sem conteúdo"
+          },
+          "401": {
+            "description": "Sem JWT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Identidade do token",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JwtPayload"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem JWT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/suggestion-rules": {
+      "get": {
+        "tags": [
+          "suggestion-rules"
+        ],
+        "summary": "Lista regras",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SuggestionRuleApi"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem JWT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "suggestion-rules"
+        ],
+        "summary": "Cria regra (auditado)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertSuggestionRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionRuleApi"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação (XOR classe/cluster, concorrente duplicado/inválido, peso, etc.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/suggestion-rules/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "suggestion-rules"
+        ],
+        "summary": "Atualiza regra (auditado)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertSuggestionRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionRuleApi"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Regra não encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "suggestion-rules"
+        ],
+        "summary": "Remove regra (soft-delete, auditado)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Regra não encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/clusters": {
+      "get": {
+        "tags": [
+          "clusters"
+        ],
+        "summary": "Lista clusters",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClusterApi"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "clusters"
+        ],
+        "summary": "Cria cluster (auditado)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertClusterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ">5000 EANs ou body inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/clusters/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "clusters"
+        ],
+        "summary": "Detalhe do cluster (com eans)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Cluster não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "clusters"
+        ],
+        "summary": "Atualiza cluster (rename e/ou substitui eans; auditado)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertClusterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Cluster não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "clusters"
+        ],
+        "summary": "Remove cluster (soft-delete, auditado)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Cluster não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cluster em uso por regra ativa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/suggestions": {
+      "get": {
+        "tags": [
+          "suggestions"
+        ],
+        "summary": "Gera sugestões (full-scan; Cache-Control private 30s)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "perPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filtro por nome (ILIKE)"
+          },
+          {
+            "name": "classification",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "books",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "CSV de cadernos: \"Caderno A,Caderno B\""
+          },
+          {
+            "name": "onlyWithSuggestion",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "todas",
+                "subir",
+                "abaixar"
+              ]
+            }
+          },
+          {
+            "name": "origem",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "todas",
+                "cluster",
+                "classificacao"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/suggestions/preview": {
+      "post": {
+        "tags": [
+          "suggestions"
+        ],
+        "summary": "Dry-run: calcula a base com UMA regra transitória (não persiste)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "perPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "onlyWithSuggestion",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertSuggestionRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Regra inválida (mesma validação do create)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/apply": {
+      "post": {
+        "tags": [
+          "apply"
+        ],
+        "summary": "Aplica preços em massa (assíncrono; enfileira dispatch ao ERP)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "description": "Idempotente por `idempotencyKey` (reenvio → `idempotent:true`). Circuit breaker: lote ≥10 com >50% rejeitado → 422. Se `PRICING_APPLY_REQUIRES_APPROVAL=1`, retorna `approvalStatus:\"pending\"` e NÃO despacha até `/approve`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyPricesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Run criado (ou idempotente)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Lote abortado pelo circuit breaker",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreakerError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "apply"
+        ],
+        "summary": "Histórico de runs (não-deletados, recentes primeiro)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "perPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApplyRunSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/apply/preview": {
+      "post": {
+        "tags": [
+          "apply"
+        ],
+        "summary": "Dry-run do apply: revalida os itens sem persistir",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewApplyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/apply/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "apply"
+        ],
+        "summary": "Relatório do run (polling enquanto pending/running)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "perPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/apply/{id}/rollback": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "apply"
+        ],
+        "summary": "Reaplica o preço anterior dos itens aplicados (auditado, idempotente)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "responses": {
+          "202": {
+            "description": "Run de rollback criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Run sem item aplicado reversível",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/apply/{id}/approve": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "apply"
+        ],
+        "summary": "Aprova run pendente e despacha (admin, auditado)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "admin"
+        ],
+        "responses": {
+          "202": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "approved": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "approved"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Não-admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Run não está aguardando aprovação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/apply/{id}/reject": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "apply"
+        ],
+        "summary": "Rejeita run pendente; itens viram failed (admin, auditado)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "rejected": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "rejected"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Não-admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Run não está aguardando aprovação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/schedules": {
+      "get": {
+        "tags": [
+          "schedules"
+        ],
+        "summary": "Lista agendamentos",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScheduleView"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "schedules"
+        ],
+        "summary": "Cria agendamento (one-shot, recorrente via cronExpr, recalc; auditado)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScheduleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body inválido ou cron inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/schedules/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "schedules"
+        ],
+        "summary": "Detalhe do agendamento",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agendamento não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "schedules"
+        ],
+        "summary": "Cancela agendamento pendente (auditado)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "operator",
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "cancelled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "cancelled"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já disparado (fired) — não cancelável",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing/audit": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Trilha de auditoria (admin)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "admin"
+        ],
+        "parameters": [
+          {
+            "name": "entity",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "suggestion_rule",
+                "cluster",
+                "apply_run",
+                "schedule"
+              ]
+            }
+          },
+          {
+            "name": "entityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "perPage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditView"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Não-admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "Envelope de erro padrão do NestJS",
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "CircuitBreakerError": {
+        "type": "object",
+        "description": "422 do circuit breaker (apply)",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "aborted": {
+            "type": "boolean",
+            "const": true
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplyRejection"
+            }
+          }
+        }
+      },
+      "LoginDto": {
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "tenantSlug"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "tenantSlug": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,31}$"
+          }
+        }
+      },
+      "RefreshDto": {
+        "type": "object",
+        "required": [
+          "refreshToken"
+        ],
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "expiresIn"
+        ],
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "description": "segundos"
+          }
+        }
+      },
+      "JwtPayload": {
+        "type": "object",
+        "properties": {
+          "sub": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "description": "slug do tenant"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "iat": {
+            "type": "integer"
+          },
+          "exp": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sub",
+          "tenantId",
+          "role"
+        ]
+      },
+      "UserRole": {
+        "type": "string",
+        "enum": [
+          "admin",
+          "operator",
+          "viewer"
+        ]
+      },
+      "CompetitorOrigin": {
+        "type": "string",
+        "enum": [
+          "DROGAL",
+          "DROGASIL",
+          "PAGUE_MENOS",
+          "IKESAKI",
+          "MICHELASSI",
+          "PACHECO",
+          "SAO_PAULO",
+          "VENANCIO",
+          "INDIANA"
+        ]
+      },
+      "SuggestionStrategy": {
+        "type": "string",
+        "enum": [
+          "margem",
+          "concorrencia"
+        ]
+      },
+      "CompetitorMode": {
+        "type": "string",
+        "enum": [
+          "weighted",
+          "cascade",
+          "lowest"
+        ]
+      },
+      "SuggestionTarget": {
+        "type": "string",
+        "enum": [
+          "precoVenda",
+          "precoOferta"
+        ]
+      },
+      "SuggestionBasis": {
+        "type": "string",
+        "enum": [
+          "concorrencia",
+          "margem_minima",
+          "margem_sem_concorrente"
+        ]
+      },
+      "NoSuggestionReason": {
+        "type": "string",
+        "enum": [
+          "sem_regra",
+          "sem_custo",
+          "margem_ok",
+          "sem_concorrente",
+          "pbm",
+          "acima_do_venda",
+          "ja_no_alvo"
+        ]
+      },
+      "ApplyRejectionReason": {
+        "type": "string",
+        "enum": [
+          "nao_encontrado",
+          "sem_custo",
+          "preco_invalido",
+          "abaixo_do_piso",
+          "variacao_excessiva",
+          "acima_do_venda",
+          "sem_caderno"
+        ]
+      },
+      "ApplyItemStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "applied",
+          "skipped",
+          "failed"
+        ]
+      },
+      "RunStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "running",
+          "done",
+          "failed"
+        ]
+      },
+      "ApprovalStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "approved",
+          "rejected"
+        ],
+        "nullable": true
+      },
+      "ScheduleStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "fired",
+          "cancelled"
+        ]
+      },
+      "RuleCompetitor": {
+        "type": "object",
+        "required": [
+          "competitor",
+          "weight"
+        ],
+        "properties": {
+          "competitor": {
+            "$ref": "#/components/schemas/CompetitorOrigin"
+          },
+          "weight": {
+            "type": "number",
+            "description": "% em weighted; 1 em cascade/lowest"
+          }
+        }
+      },
+      "RuleCompetitorInput": {
+        "type": "object",
+        "required": [
+          "competitor"
+        ],
+        "properties": {
+          "competitor": {
+            "$ref": "#/components/schemas/CompetitorOrigin"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "obrigatório/efetivo só em weighted"
+          }
+        }
+      },
+      "SuggestionRuleApi": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "classifications",
+          "clusterId",
+          "clusterName",
+          "excludeClusterIds",
+          "strategy",
+          "minMargin",
+          "competitorMode",
+          "competitors",
+          "variationPct",
+          "noCompetitorMargin",
+          "priceControlled",
+          "ignorePbm",
+          "blockPbmInMargin",
+          "cascadeByPriority",
+          "applyRounding",
+          "active",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "classifications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "clusterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "clusterName": {
+            "type": "string",
+            "nullable": true
+          },
+          "excludeClusterIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "strategy": {
+            "$ref": "#/components/schemas/SuggestionStrategy"
+          },
+          "minMargin": {
+            "type": "number"
+          },
+          "competitorMode": {
+            "$ref": "#/components/schemas/CompetitorMode"
+          },
+          "competitors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleCompetitor"
+            }
+          },
+          "variationPct": {
+            "type": "number"
+          },
+          "noCompetitorMargin": {
+            "type": "number",
+            "nullable": true
+          },
+          "priceControlled": {
+            "type": "boolean"
+          },
+          "ignorePbm": {
+            "type": "boolean"
+          },
+          "blockPbmInMargin": {
+            "type": "boolean",
+            "description": "Bloqueia PBM também na estratégia margem (default false)"
+          },
+          "cascadeByPriority": {
+            "type": "boolean",
+            "description": "Cascade segue a priority do tenant (default false)"
+          },
+          "applyRounding": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UpsertSuggestionRuleDto": {
+        "type": "object",
+        "required": [
+          "name",
+          "minMargin"
+        ],
+        "description": "Validações cruzadas no service: classificações XOR cluster; concorrência exige ≥1 concorrente; concorrente duplicado → 400.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "classifications": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "clusterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "excludeClusterIds": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "strategy": {
+            "$ref": "#/components/schemas/SuggestionStrategy"
+          },
+          "minMargin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 95
+          },
+          "competitorMode": {
+            "$ref": "#/components/schemas/CompetitorMode"
+          },
+          "competitors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleCompetitorInput"
+            }
+          },
+          "variationPct": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "noCompetitorMargin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 95,
+            "nullable": true
+          },
+          "priceControlled": {
+            "type": "boolean"
+          },
+          "ignorePbm": {
+            "type": "boolean"
+          },
+          "blockPbmInMargin": {
+            "type": "boolean"
+          },
+          "cascadeByPriority": {
+            "type": "boolean"
+          },
+          "applyRounding": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ClusterApi": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "memberCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "memberCount": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ClusterDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ClusterApi"
+          },
+          {
+            "type": "object",
+            "required": [
+              "eans"
+            ],
+            "properties": {
+              "eans": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "UpsertClusterDto": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "eans": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ausente = só renomeia; presente = substitui a membership (dedup, regex ^\\d{6,14}$, máx 5000)"
+          }
+        }
+      },
+      "CompetitorView": {
+        "type": "object",
+        "required": [
+          "origin",
+          "isPbm"
+        ],
+        "properties": {
+          "origin": {
+            "$ref": "#/components/schemas/CompetitorOrigin"
+          },
+          "price": {
+            "type": "number",
+            "nullable": true
+          },
+          "isPbm": {
+            "type": "boolean"
+          },
+          "van": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ResponseProduct": {
+        "type": "object",
+        "required": [
+          "ean",
+          "name",
+          "competitors"
+        ],
+        "properties": {
+          "ean": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "supplier": {
+            "type": "string",
+            "nullable": true
+          },
+          "classification": {
+            "type": "string",
+            "nullable": true
+          },
+          "book": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "nullable": true
+          },
+          "priceForSell": {
+            "type": "number",
+            "nullable": true
+          },
+          "priceForOffer": {
+            "type": "number",
+            "nullable": true
+          },
+          "margin": {
+            "type": "number",
+            "nullable": true
+          },
+          "averageVariation": {
+            "type": "number",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "competitors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompetitorView"
+            }
+          }
+        }
+      },
+      "PriceSuggestion": {
+        "type": "object",
+        "required": [
+          "price",
+          "margin",
+          "target",
+          "basis",
+          "lockApplied"
+        ],
+        "properties": {
+          "price": {
+            "type": "number"
+          },
+          "margin": {
+            "type": "number"
+          },
+          "target": {
+            "$ref": "#/components/schemas/SuggestionTarget"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/SuggestionBasis"
+          },
+          "lockApplied": {
+            "type": "boolean"
+          },
+          "priceComposition": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "competitor": {
+                  "type": "string"
+                },
+                "price": {
+                  "type": "number"
+                },
+                "weight": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "SuggestionResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "suggestion"
+            ],
+            "properties": {
+              "kind": {
+                "const": "suggestion"
+              },
+              "suggestion": {
+                "$ref": "#/components/schemas/PriceSuggestion"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "reason"
+            ],
+            "properties": {
+              "kind": {
+                "const": "none"
+              },
+              "reason": {
+                "$ref": "#/components/schemas/NoSuggestionReason"
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind"
+        }
+      },
+      "ClusterOrigin": {
+        "type": "object",
+        "required": [
+          "clusterId"
+        ],
+        "properties": {
+          "clusterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clusterName": {
+            "type": "string",
+            "nullable": true
+          },
+          "overrodeRuleName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ResponseRow": {
+        "type": "object",
+        "required": [
+          "product",
+          "result",
+          "origem"
+        ],
+        "properties": {
+          "product": {
+            "$ref": "#/components/schemas/ResponseProduct"
+          },
+          "result": {
+            "$ref": "#/components/schemas/SuggestionResult"
+          },
+          "origem": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClusterOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "SuggestionsResponse": {
+        "type": "object",
+        "required": [
+          "rows",
+          "count",
+          "suggestionCount",
+          "lockCount",
+          "activeRuleCount",
+          "availableBooks"
+        ],
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponseRow"
+            }
+          },
+          "count": {
+            "type": "integer"
+          },
+          "suggestionCount": {
+            "type": "integer"
+          },
+          "lockCount": {
+            "type": "integer"
+          },
+          "activeRuleCount": {
+            "type": "integer"
+          },
+          "availableBooks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ApplyItem": {
+        "type": "object",
+        "required": [
+          "ean",
+          "target",
+          "price"
+        ],
+        "properties": {
+          "ean": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/SuggestionTarget"
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0
+          },
+          "cadernoId": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "caderno do precoOferta; derivado do offer_book se ausente"
+          }
+        }
+      },
+      "ApplyPricesDto": {
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "items"
+        ],
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "agora"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5000,
+            "items": {
+              "$ref": "#/components/schemas/ApplyItem"
+            }
+          }
+        }
+      },
+      "PreviewApplyDto": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5000,
+            "items": {
+              "$ref": "#/components/schemas/ApplyItem"
+            }
+          }
+        }
+      },
+      "ApplyRejection": {
+        "type": "object",
+        "required": [
+          "ean",
+          "reason"
+        ],
+        "properties": {
+          "ean": {
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ApplyRejectionReason"
+          }
+        }
+      },
+      "ApplyResponse": {
+        "type": "object",
+        "required": [
+          "applyRunId",
+          "accepted",
+          "rejected"
+        ],
+        "properties": {
+          "applyRunId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accepted": {
+            "type": "integer"
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplyRejection"
+            }
+          },
+          "idempotent": {
+            "type": "boolean",
+            "description": "true quando o run já existia (mesma idempotencyKey)"
+          },
+          "approvalStatus": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ],
+            "description": "presente quando aprovação é exigida (não despachou)"
+          }
+        }
+      },
+      "ApplyPreview": {
+        "type": "object",
+        "required": [
+          "total",
+          "accepted",
+          "rejected",
+          "wouldAbort"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "accepted": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ean": {
+                  "type": "string"
+                },
+                "target": {
+                  "$ref": "#/components/schemas/SuggestionTarget"
+                },
+                "price": {
+                  "type": "number"
+                },
+                "basis": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplyRejection"
+            }
+          },
+          "wouldAbort": {
+            "type": "boolean",
+            "description": "true se o circuit breaker barraria o lote real"
+          }
+        }
+      },
+      "ApplyRunSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "mode",
+          "approvalStatus",
+          "total",
+          "applied",
+          "skipped",
+          "failed",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "approvalStatus": {
+            "$ref": "#/components/schemas/ApprovalStatus"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "applied": {
+            "type": "integer"
+          },
+          "skipped": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApplyReportItem": {
+        "type": "object",
+        "properties": {
+          "ean": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/SuggestionTarget"
+          },
+          "price": {
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApplyItemStatus"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "rejeição/skip: monitored, em_campanha, a7_nao_configurado, rejeitado, etc."
+          },
+          "basis": {
+            "type": "string",
+            "nullable": true
+          },
+          "priceOld": {
+            "type": "number",
+            "nullable": true
+          },
+          "cadernoId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "erpResult": {
+            "nullable": true
+          },
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ApplyReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "mode",
+          "approvalStatus",
+          "total",
+          "applied",
+          "skipped",
+          "failed",
+          "items"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "approvalStatus": {
+            "$ref": "#/components/schemas/ApprovalStatus"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "applied": {
+            "type": "integer"
+          },
+          "skipped": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplyReportItem"
+            },
+            "description": "paginado por page/perPage"
+          }
+        }
+      },
+      "CreateScheduleDto": {
+        "type": "object",
+        "required": [
+          "runAt",
+          "items"
+        ],
+        "properties": {
+          "runAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5000,
+            "items": {
+              "$ref": "#/components/schemas/ApplyItem"
+            }
+          },
+          "cronExpr": {
+            "type": "string",
+            "minLength": 9,
+            "maxLength": 100,
+            "description": "Recorrência (validado no backend). Granularidade efetiva: por minuto."
+          },
+          "recalc": {
+            "type": "boolean",
+            "description": "Recalcula o preço pelo motor no disparo, usando o alvo escolhido pelo motor (default false = congelado)"
+          }
+        }
+      },
+      "ScheduleView": {
+        "type": "object",
+        "required": [
+          "id",
+          "runAt",
+          "status",
+          "applyRunId",
+          "itemCount",
+          "cronExpr",
+          "recalc",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScheduleStatus"
+          },
+          "applyRunId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "itemCount": {
+            "type": "integer"
+          },
+          "cronExpr": {
+            "type": "string",
+            "nullable": true
+          },
+          "recalc": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuditView": {
+        "type": "object",
+        "required": [
+          "actor",
+          "action",
+          "entity",
+          "entityId",
+          "changes",
+          "createdAt"
+        ],
+        "properties": {
+          "actor": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "user.sub que executou"
+          },
+          "action": {
+            "type": "string",
+            "description": "create|update|delete|apply|apply_pending|approve|reject|rollback|schedule_create|schedule_cancel"
+          },
+          "entity": {
+            "type": "string",
+            "description": "suggestion_rule|cluster|apply_run|schedule"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "changes": {
+            "description": "payload/resultado da ação (jsonb)"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}
