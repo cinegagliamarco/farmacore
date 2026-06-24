@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { TenantService } from '../../tenant/tenant.service';
+import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { CompetitorOriginUpdate } from '../dto/update-competitor-origins.dto';
+
+export interface CompetitorOriginRow {
+  origin: CompetitorOrigin;
+  enabled: boolean;
+  priority: number;
+}
 
 @Injectable()
 export class CompetitorOriginAdminService {
@@ -9,6 +16,17 @@ export class CompetitorOriginAdminService {
     private readonly dataSource: DataSource,
     private readonly tenants: TenantService,
   ) {}
+
+  public async list(slug: string): Promise<CompetitorOriginRow[]> {
+    const tenant = await this.tenants.findActive(slug);
+    return this.dataSource.query(
+      `SELECT origin, enabled, priority
+         FROM core.tenant_competitor_origin
+        WHERE tenant_id = $1 AND deleted_at IS NULL
+        ORDER BY priority ASC, origin ASC`,
+      [tenant.id],
+    );
+  }
 
   public async bulkUpdate(
     slug: string,
