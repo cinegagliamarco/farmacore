@@ -76,6 +76,10 @@ export class ListProductsQueryDto {
   @IsString()
   public monitored?: string; // 'true' | 'false'
 
+  @IsOptional()
+  @IsString()
+  public active?: string; // 'true' | 'false' — ativo/inativo no ERP
+
   // Date filters arrive as ISO calendar dates; `@IsString` alone lets junk
   // (e.g. "abc") pass to Postgres and crash the cast with 500. `@Matches` rejects
   // anything that isn't strictly `YYYY-MM-DD`.
