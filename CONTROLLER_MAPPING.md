@@ -38,6 +38,7 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | PUT | `/admin/tenants/:slug/integration` | `src/admin/controllers/integration.controller.ts` |
 | POST | `/admin/tenants/:slug/integration/test` | `src/admin/controllers/integration.controller.ts` |
 | DELETE | `/admin/tenants/:slug/integration` | `src/admin/controllers/integration.controller.ts` |
+| GET | `/admin/integrations/health` | `src/admin/controllers/integration-health.controller.ts` |
 | PUT | `/admin/tenants/:slug/competitor-origins` | `src/admin/controllers/competitor-origins.controller.ts` |
 | POST | `/admin/tenants/:slug/pipeline/start` | `src/admin/controllers/pipeline.controller.ts` |
 | GET | `/admin/tenants/:slug/pipeline/steps` | `src/admin/controllers/pipeline.controller.ts` |
@@ -51,6 +52,7 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | PATCH | `/products/:ean` | `src/tenant-api/catalog/catalog.controller.ts` (tenant; operator/admin) |
 | POST | `/products/:ean/price` | `src/tenant-api/catalog/catalog.controller.ts` (tenant; operator/admin; → A7Pharma) |
 | DELETE | `/products/:ean` | `src/tenant-api/catalog/catalog.controller.ts` (tenant; admin; soft) |
+| GET | `/integration/health` | `src/tenant-api/integration/integration.controller.ts` (tenant; admin) |
 | POST | `/admin/catalog/products/:ean/import` | `src/products/products.controller.ts` (system admin) |
 | GET | `/admin/catalog/products/export` | `src/products/products.controller.ts` (system admin) |
 

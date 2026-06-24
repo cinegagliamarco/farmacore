@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { TenantIntegrationController } from './integration/integration.controller';
 import { CatalogController } from './catalog/catalog.controller';
 import { CatalogService } from './catalog/catalog.service';
 import { CatalogMutationService } from './catalog/catalog-mutation.service';
@@ -34,6 +35,7 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
  */
 @Module({
   controllers: [
+    TenantIntegrationController,
     CatalogController,
     SettingsController,
     ClassificationsController,
