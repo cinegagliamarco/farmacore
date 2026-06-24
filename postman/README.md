@@ -19,6 +19,8 @@ For each plan that touches `*.controller.ts`:
 | `tenantSlug`   | `acme`                   | Default tenant slug used in tenant-scoped routes. |
 | `accessToken`  | (set by login/refresh)   | JWT bearer; auto-populated by the login test.    |
 | `refreshToken` | (set by login/refresh)   | Refresh token; auto-populated by the login test. |
+| `applyRunId`   | (paste from an apply run)| Used by `/pricing/apply/:id*` routes.            |
+| `scheduleId`   | (paste from a schedule)  | Used by `/pricing/schedules/:id` routes.         |
 
 ## Local quickstart
 
@@ -58,6 +60,7 @@ Currently covers:
 - Admin DLQ (Plan 06): `GET /admin/dlq` (list queues), `GET /admin/dlq/:queue`, `POST /admin/dlq/:queue/replay`
 - **Trigger competitors (each)** — no per-origin route; to run one competitor, `Enable only <ORIGIN>` (competitor-origins PUT) then `Run import-competitor-products` (standalone step trigger). The folder bundles the 5 enable requests + the step run.
 - Products: `POST /products/:ean/import` (live-scrape every origin for one EAN → shared_catalog + merged view), `GET /products/export` (paginated export: product + primary image + latest stock)
+- **Tenant — Pricing (apply & schedule)** — bulk price changes and scheduling. `POST /pricing/apply` (+ `preview`, `:id/approve`, `:id/reject`, `:id/rollback`, list, report) applies `precoVenda` (change price) and/or `precoOferta` (change offer price) in massa; `POST /pricing/schedules` (+ list, get, cancel) agenda o mesmo apply em `runAt`, one-shot ou recorrente (`cronExpr`), disparado pelo `PricingScheduleCron`
 
 Pending plans that will add requests:
 

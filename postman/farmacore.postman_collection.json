@@ -33,6 +33,14 @@
   {
    "key": "ruleId",
    "value": ""
+  },
+  {
+   "key": "applyRunId",
+   "value": ""
+  },
+  {
+   "key": "scheduleId",
+   "value": ""
   }
  ],
  "auth": {
@@ -1521,6 +1529,293 @@
        ]
       },
       "description": "Delete a rule and its ranges (ADMIN, cascade)."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "Tenant — Pricing (apply & schedule)",
+   "description": "Aplicação de preço em massa e agendamento. `target: precoVenda` altera o preço de venda (change price); `target: precoOferta` altera o preço de oferta no caderno (change offer price). O agendamento (one-shot ou recorrente via `cronExpr`) dispara o mesmo apply em `runAt` através do `PricingScheduleCron`. Operator/admin; aprovação/reject exigem admin.",
+   "item": [
+    {
+     "name": "POST /pricing/apply",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"idempotencyKey\": \"apply-2026-06-23-001\",\n  \"mode\": \"agora\",\n  \"items\": [\n    {\n      \"ean\": \"{{ean}}\",\n      \"target\": \"precoVenda\",\n      \"price\": 29.9\n    },\n    {\n      \"ean\": \"7890987654321\",\n      \"target\": \"precoOferta\",\n      \"price\": 19.9,\n      \"cadernoId\": 100006091838\n    }\n  ]\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/pricing/apply",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "apply"
+       ]
+      },
+      "description": "Aplica preços aprovados em massa (precoVenda e/ou precoOferta) e empurra ao ERP A7Pharma. `idempotencyKey` torna o reenvio um no-op. 202. Se PRICING_APPLY_REQUIRES_APPROVAL=1, fica pendente até /approve."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /pricing/apply/preview",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"items\": [\n    {\n      \"ean\": \"{{ean}}\",\n      \"target\": \"precoVenda\",\n      \"price\": 29.9\n    },\n    {\n      \"ean\": \"7890987654321\",\n      \"target\": \"precoOferta\",\n      \"price\": 19.9,\n      \"cadernoId\": 100006091838\n    }\n  ]\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/pricing/apply/preview",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "apply",
+        "preview"
+       ]
+      },
+      "description": "Dry-run: valida os itens contra guarda-corpos e devolve o que seria aplicado. Nada é persistido nem enfileirado."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /pricing/apply",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/apply?page=1&perPage=50",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "apply"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "perPage",
+         "value": "50"
+        }
+       ]
+      },
+      "description": "Lista os runs de aplicação (paginado)."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /pricing/apply/:id",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/apply/{{applyRunId}}?page=1&perPage=50",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "apply",
+        "{{applyRunId}}"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "perPage",
+         "value": "50"
+        }
+       ]
+      },
+      "description": "Relatório de um run (itens aceitos/rejeitados, paginado)."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /pricing/apply/:id/approve",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/apply/{{applyRunId}}/approve",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "apply",
+        "{{applyRunId}}",
+        "approve"
+       ]
+      },
+      "description": "Aprova um run pendente e dispara o push ao ERP (admin). 202."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /pricing/apply/:id/reject",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/apply/{{applyRunId}}/reject",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "apply",
+        "{{applyRunId}}",
+        "reject"
+       ]
+      },
+      "description": "Rejeita um run pendente (admin)."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /pricing/apply/:id/rollback",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/apply/{{applyRunId}}/rollback",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "apply",
+        "{{applyRunId}}",
+        "rollback"
+       ]
+      },
+      "description": "Reverte um run aplicado, criando um novo run com os preços anteriores. 202."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /pricing/schedules",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"runAt\": \"2026-06-24T03:00:00.000Z\",\n  \"items\": [\n    {\n      \"ean\": \"{{ean}}\",\n      \"target\": \"precoVenda\",\n      \"price\": 29.9\n    },\n    {\n      \"ean\": \"7890987654321\",\n      \"target\": \"precoOferta\",\n      \"price\": 19.9,\n      \"cadernoId\": 100006091838\n    }\n  ],\n  \"cronExpr\": \"0 3 * * *\",\n  \"recalc\": false\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/pricing/schedules",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "schedules"
+       ]
+      },
+      "description": "Agenda uma aplicação. One-shot por padrão (preços congelados); `cronExpr` torna recorrente (re-arma após disparar); `recalc=true` recalcula pelo motor no disparo. O cron dispara em `runAt`."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /pricing/schedules",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/schedules",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "schedules"
+       ]
+      },
+      "description": "Lista os agendamentos do tenant."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /pricing/schedules/:id",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/schedules/{{scheduleId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "schedules",
+        "{{scheduleId}}"
+       ]
+      },
+      "description": "Detalhe de um agendamento."
+     },
+     "response": []
+    },
+    {
+     "name": "DELETE /pricing/schedules/:id",
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/schedules/{{scheduleId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "schedules",
+        "{{scheduleId}}"
+       ]
+      },
+      "description": "Cancela um agendamento pendente. 409 se já disparado/cancelado."
      },
      "response": []
     }
