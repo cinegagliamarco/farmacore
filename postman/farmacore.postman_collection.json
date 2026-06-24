@@ -458,8 +458,29 @@
   },
   {
    "name": "Admin — Competitor origins",
-   "description": "Plan 06 — `src/admin/controllers/competitor-origins.controller.ts`. Bulk update of `tenant_competitor_origin` rows in the tenant's schema.",
+   "description": "Plan 06 — `src/admin/controllers/competitor-origins.controller.ts`. List + bulk-update of `core.tenant_competitor_origin` rows (per-tenant competitor scrape config).",
    "item": [
+    {
+     "name": "GET /admin/tenants/:slug/competitor-origins",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "admin",
+        "tenants",
+        "{{tenantSlug}}",
+        "competitor-origins"
+       ]
+      },
+      "description": "Lists the tenant's competitor origins for the admin panel. Returns `[{ origin, enabled, priority }]` ordered by priority ASC, origin ASC. Soft-deleted rows excluded. System-admin only."
+     },
+     "response": []
+    },
     {
      "name": "PUT /admin/tenants/:slug/competitor-origins",
      "request": {
