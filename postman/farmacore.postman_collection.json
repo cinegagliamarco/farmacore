@@ -1601,7 +1601,7 @@
       "method": "GET",
       "header": [],
       "url": {
-       "raw": "{{baseUrl}}/pricing/apply",
+       "raw": "{{baseUrl}}/pricing/apply?page=1&perPage=50",
        "host": [
         "{{baseUrl}}"
        ],
@@ -1630,7 +1630,7 @@
       "method": "GET",
       "header": [],
       "url": {
-       "raw": "{{baseUrl}}/pricing/apply/{{applyRunId}}",
+       "raw": "{{baseUrl}}/pricing/apply/{{applyRunId}}?page=1&perPage=50",
        "host": [
         "{{baseUrl}}"
        ],
