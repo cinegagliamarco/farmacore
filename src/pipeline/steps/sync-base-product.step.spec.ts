@@ -48,11 +48,29 @@ describe('SyncBaseProductStep helpers', () => {
   });
 
   describe('isGenericClassification', () => {
-    it('matches known generic paths exactly', () => {
+    it('matches current ERP generic paths', () => {
+      expect(h.isGenericClassification('GENÉRICO > OTC')).toBe(true);
+      expect(h.isGenericClassification('GENÉRICO > PSICO GENÉRICO > A1')).toBe(
+        true,
+      );
+      expect(h.isGenericClassification('GENÉRICO > TARJADO')).toBe(true);
+    });
+
+    it('matches legacy generic paths', () => {
       expect(h.isGenericClassification('GENERICO > OTC')).toBe(true);
       expect(
         h.isGenericClassification('GENERICO > PSICOS GENERICO > A1-GEN'),
       ).toBe(true);
+    });
+
+    it('ignores accents and spaces when comparing', () => {
+      expect(h.isGenericClassification('generico > otc')).toBe(true);
+      expect(
+        h.isGenericClassification('GENERICO  >  PSICO GENERICO  >  A1'),
+      ).toBe(true);
+      expect(h.isGenericClassification('GENERICO>ANTICONCEPCIONAL')).toBe(
+        true,
+      );
     });
 
     it('does not match non-generic paths', () => {
