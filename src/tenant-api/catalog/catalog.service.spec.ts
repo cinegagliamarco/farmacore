@@ -15,6 +15,29 @@ const makeEm = (handlers: Array<[string, unknown]>): EntityManager =>
     }),
   }) as unknown as EntityManager;
 
+/** Recording em: returns [{count:'0'}] for any count query, [] otherwise,
+ *  while keeping every (sql, params) call on the jest.fn for inspection. */
+const recordingEm = (): {
+  em: EntityManager;
+  query: jest.Mock;
+} => {
+  const query = jest.fn((sql: string) =>
+    sql.includes('count(*)') ? [{ count: '0' }] : [],
+  );
+  return { em: { query } as unknown as EntityManager, query };
+};
+
+/** The (sql, params) of the paginated data query — matched by its `LIMIT $`
+ *  tail (a positive marker; negating `count(*)` would misfire on stockMetrics,
+ *  whose data query itself uses count(*) FILTER). */
+const dataCall = (query: jest.Mock): [string, unknown[]] => {
+  const call = query.mock.calls.find((c: [string, unknown[]]) =>
+    c[0].includes('LIMIT $'),
+  );
+  if (!call) throw new Error('no data query recorded');
+  return call as [string, unknown[]];
+};
+
 const base = {
   combate: { price: 10, cost: 5 },
   lowestCost: 5,
@@ -248,5 +271,292 @@ describe('CatalogService.exportCsv', () => {
     expect(row).toBe(
       '1,"Tylenol, 750mg","EMS ""best""",Analgésico,5,10,50,OK,9,,',
     );
+  });
+});
+
+describe('CatalogService.buildFilters (via .list/.crossed)', () => {
+  it('active=true → p.active = $N with boolean true in params', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ active: 'true' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.active = $1');
+    expect(params).toContain(true);
+    expect(params[0]).toBe(true);
+  });
+
+  it('active=false → boolean false in params', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ active: 'false' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.active = $1');
+    expect(params[0]).toBe(false);
+  });
+
+  it('receiptFrom → p.receipt_date >= $N with the date in params', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ receiptFrom: '2026-01-01' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.receipt_date >= $1');
+    expect(params[0]).toBe('2026-01-01');
+  });
+
+  it('receiptTo → p.receipt_date <= $N with the date in params', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ receiptTo: '2026-12-31' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.receipt_date <= $1');
+    expect(params[0]).toBe('2026-12-31');
+  });
+
+  it('receiptFrom + receiptTo → both clauses ANDed', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(
+      em,
+      q({ receiptFrom: '2026-01-01', receiptTo: '2026-12-31' }),
+    );
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain(
+      'WHERE p.receipt_date >= $1 AND p.receipt_date <= $2',
+    );
+    expect(params[0]).toBe('2026-01-01');
+    expect(params[1]).toBe('2026-12-31');
+  });
+
+  it('monitored=true → p.monitored = $N with boolean true', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ monitored: 'true' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.monitored = $1');
+    expect(params[0]).toBe(true);
+  });
+
+  it('monitored=false → boolean false', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ monitored: 'false' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.monitored = $1');
+    expect(params[0]).toBe(false);
+  });
+
+  it('status csv → p.status = ANY($N) with the split array', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ status: 'OK,ATENCAO' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.status = ANY($1)');
+    expect(params[0]).toEqual(['OK', 'ATENCAO']);
+  });
+
+  it('eans csv → p.ean = ANY($N::bigint[]) with the split array', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ eans: '111, 222' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.ean = ANY($1::bigint[])');
+    expect(params[0]).toEqual(['111', '222']);
+  });
+
+  it('name → p.name ILIKE with the percent-wrapped value', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ name: 'dipirona' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.name ILIKE $1');
+    expect(params[0]).toBe('%dipirona%');
+  });
+
+  it('supplier → p.supplier ILIKE with the percent-wrapped value', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ supplier: 'EMS' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.supplier ILIKE $1');
+    expect(params[0]).toBe('%EMS%');
+  });
+
+  it('classification → c.name ILIKE with the percent-wrapped value', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({ classification: 'Analgésico' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE c.name ILIKE $1');
+    expect(params[0]).toBe('%Analgésico%');
+  });
+
+  it('multiple filters keep buildFilters order and increment placeholders', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(
+      em,
+      q({ name: 'dipirona', active: 'true', receiptFrom: '2026-01-01' }),
+    );
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain(
+      'WHERE p.name ILIKE $1 AND p.active = $2 AND p.receipt_date >= $3',
+    );
+    expect(params.slice(0, 3)).toEqual(['%dipirona%', true, '2026-01-01']);
+  });
+
+  it('no filters → empty WHERE (params only carry paginate)', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().list(em, q({}));
+    const [sql, params] = dataCall(query);
+    expect(sql).not.toContain('WHERE');
+    // only LIMIT/OFFSET params
+    expect(params).toEqual([50, 0]);
+  });
+
+  it('filters reach .crossed() the same way', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().crossed(em, q({ active: 'false' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('WHERE p.active = $1');
+    expect(params[0]).toBe(false);
+  });
+});
+
+describe('CatalogService.paginate (via .list)', () => {
+  it('clamps perPage above MAX_PER_PAGE to 200 (returned + LIMIT param)', async () => {
+    const { em, query } = recordingEm();
+    const out = await new CatalogService().list(em, q({ perPage: 500 }));
+    expect(out.perPage).toBe(200);
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain('LIMIT $1 OFFSET $2');
+    expect(params).toEqual([200, 0]);
+  });
+
+  it('defaults perPage to 50', async () => {
+    const { em, query } = recordingEm();
+    const out = await new CatalogService().list(em, q({}));
+    expect(out.perPage).toBe(50);
+    const [, params] = dataCall(query);
+    expect(params).toEqual([50, 0]);
+  });
+
+  it('offset = (page-1)*perPage is passed as the OFFSET param', async () => {
+    const { em, query } = recordingEm();
+    const out = await new CatalogService().list(em, q({ page: 3, perPage: 20 }));
+    expect(out.page).toBe(3);
+    const [, params] = dataCall(query);
+    expect(params).toEqual([20, 40]);
+  });
+});
+
+describe('CatalogService.crossed', () => {
+  it('selects the active flag and the competitor price columns', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().crossed(em, q({}));
+    const [sql] = dataCall(query);
+    expect(sql).toContain('p.active');
+    expect(sql).toContain(`dg.price AS "drogalPrice"`);
+    expect(sql).toContain(`ds.price AS "drogasilPrice"`);
+    expect(sql).toContain(`mi.price AS "michelassiPrice"`);
+  });
+
+  it('normalizes ean to string in the returned rows', async () => {
+    const em = makeEm([
+      ['count(*)::int AS count', [{ count: '1' }]],
+      [`dg.price AS "drogalPrice"`, [{ ean: 7891234567890, name: 'X' }]],
+    ]);
+    const out = await new CatalogService().crossed(em, q({}));
+    expect(out.rows[0].ean).toBe('7891234567890');
+  });
+});
+
+describe('CatalogService.strategicPrice', () => {
+  const STRATEGIC_COND =
+    `(dg.metadata->>'observation' IS NOT NULL` +
+    ` OR ds.metadata->>'observation' IS NOT NULL` +
+    ` OR (p.deals IS NOT NULL AND p.deals <> '{}'::jsonb))`;
+
+  it('with no filters starts the condition with WHERE', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().strategicPrice(em, q({}));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain(`WHERE ${STRATEGIC_COND}`);
+    expect(sql).not.toContain('AND (dg.metadata');
+    expect(params).toEqual([50, 0]);
+  });
+
+  it('with filters appends the condition with AND', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().strategicPrice(em, q({ active: 'true' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain(`WHERE p.active = $1 AND ${STRATEGIC_COND}`);
+    expect(params[0]).toBe(true);
+  });
+
+  it('returns rows normalized with the count from the count query', async () => {
+    const em = makeEm([
+      ['count(*)::int AS count', [{ count: '4' }]],
+      [`p.deals,`, [{ ean: 123, name: 'Y' }]],
+    ]);
+    const out = await new CatalogService().strategicPrice(em, q({}));
+    expect(out.count).toBe(4);
+    expect(out.rows[0].ean).toBe('123');
+  });
+});
+
+describe('CatalogService.genericMissing', () => {
+  it('appends the generic-missing predicate with WHERE when no filters', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().genericMissing(em, q({}));
+    const [sql] = dataCall(query);
+    expect(sql).toContain(
+      'WHERE p.generic IS TRUE AND p.active_ingredient IS NULL',
+    );
+  });
+
+  it('appends the predicate with AND when filters are present', async () => {
+    const { em, query } = recordingEm();
+    await new CatalogService().genericMissing(em, q({ supplier: 'EMS' }));
+    const [sql, params] = dataCall(query);
+    expect(sql).toContain(
+      'WHERE p.supplier ILIKE $1 AND p.generic IS TRUE AND p.active_ingredient IS NULL',
+    );
+    expect(params[0]).toBe('%EMS%');
+  });
+
+  it('returns the count and normalized rows', async () => {
+    const em = makeEm([
+      ['count(*)::int AS count', [{ count: '2' }]],
+      ['SELECT p.ean, p.name, p.supplier', [{ ean: 999, name: 'Z' }]],
+    ]);
+    const out = await new CatalogService().genericMissing(em, q({}));
+    expect(out.count).toBe(2);
+    expect(out.rows[0].ean).toBe('999');
+  });
+});
+
+describe('CatalogService.stockMetrics', () => {
+  it('coerces the single aggregated row to numbers', async () => {
+    const em = makeEm([
+      [
+        '"ownWithStock"',
+        [
+          {
+            total: '120',
+            ownWithStock: '80',
+            drogalWithStock: '40',
+            drogasilWithStock: '30',
+            michelassiWithStock: '10',
+          },
+        ],
+      ],
+    ]);
+    const out = await new CatalogService().stockMetrics(em, q({}));
+    expect(out).toEqual({
+      total: 120,
+      ownWithStock: 80,
+      drogalWithStock: 40,
+      drogasilWithStock: 30,
+      michelassiWithStock: 10,
+    });
+  });
+
+  it('defaults to zeros when no row comes back', async () => {
+    const em = makeEm([]);
+    const out = await new CatalogService().stockMetrics(em, q({}));
+    expect(out).toEqual({
+      total: 0,
+      ownWithStock: 0,
+      drogalWithStock: 0,
+      drogasilWithStock: 0,
+      michelassiWithStock: 0,
+    });
   });
 });
