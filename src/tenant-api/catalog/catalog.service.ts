@@ -160,7 +160,7 @@ export class CatalogService {
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
               p.cost, p.price, ob.target_price AS "targetPrice",
               p.margin, p.average_variation AS "averageVariation", p.status,
-              p.monitored, p.receipt_date AS "receiptDate",
+              p.active, p.monitored, p.receipt_date AS "receiptDate",
               dg.price AS "drogalPrice", dg.metadata->>'observation' AS "drogalObservation",
               (dg.metadata->>'isPbm') = 'true' AS "drogalIsPbm", dg.metadata->>'van' AS "drogalVan",
               ds.price AS "drogasilPrice", ds.metadata->>'observation' AS "drogasilObservation",
@@ -611,6 +611,8 @@ export class CatalogService {
     if (status.length) add('p.status = ANY($?)', status);
     if (q.monitored === 'true') add('p.monitored = $?', true);
     if (q.monitored === 'false') add('p.monitored = $?', false);
+    if (q.active === 'true') add('p.active = $?', true);
+    if (q.active === 'false') add('p.active = $?', false);
     if (q.receiptFrom) add('p.receipt_date >= $?', q.receiptFrom);
     if (q.receiptTo) add('p.receipt_date <= $?', q.receiptTo);
 
