@@ -1300,6 +1300,24 @@
      "response": []
     },
     {
+     "name": "GET /offer-campaigns",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-campaigns",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-campaigns"
+       ]
+      },
+      "description": "Active, in-window offer books for the authenticated tenant. Returns `[{ id, name }]` — `id` is idCadernoOferta for POST /products/:ean/offer (`cadernoId`). Requires a tenant JWT (not system admin). `src/tenant-api/offer-campaigns/offer-campaigns.controller.ts`."
+     },
+     "response": []
+    },
+    {
      "name": "POST /products/:ean/offer",
      "request": {
       "method": "POST",
