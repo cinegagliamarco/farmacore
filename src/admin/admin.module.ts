@@ -10,6 +10,7 @@ import { CompetitorOriginAdminService } from './services/competitor-origin-admin
 import { DlqService } from './services/dlq.service';
 import { TenantsController } from './controllers/tenants.controller';
 import { IntegrationController } from './controllers/integration.controller';
+import { IntegrationHealthController } from './controllers/integration-health.controller';
 import { CompetitorOriginsController } from './controllers/competitor-origins.controller';
 import { PipelineController } from './controllers/pipeline.controller';
 import { DlqController } from './controllers/dlq.controller';
@@ -23,6 +24,7 @@ import { DlqController } from './controllers/dlq.controller';
   controllers: [
     TenantsController,
     IntegrationController,
+    IntegrationHealthController,
     CompetitorOriginsController,
     PipelineController,
     DlqController,
