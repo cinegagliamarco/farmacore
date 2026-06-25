@@ -157,7 +157,7 @@ Além do preview ad-hoc, a regra agora pode ser **salva** e tem **histórico de 
 
 | Método | Rota | Papel | O quê |
 |---|---|---|---|
-| `POST` | `/offer-book-rules` | OPERATOR/ADMIN | cria regra salva (mesmo corpo do preview + `name`, `description?`, `enabled?`) → devolve o detalhe |
+| `POST` | `/offer-book-rules` | OPERATOR/ADMIN | cria regra salva (mesmo corpo do preview + `name`, `description?`, `enabled?`, `cadernoId?`) → devolve o detalhe |
 | `GET` | `/offer-book-rules` | qualquer | lista regras `{rows, count}`; filtros `page,perPage,name,enabled` |
 | `GET` | `/offer-book-rules/:id` | qualquer | detalhe da regra + `pricingRules` + `priceLocks` |
 | `PATCH` | `/offer-book-rules/:id` | OPERATOR/ADMIN | atualiza; arrays substituem por completo |
@@ -169,12 +169,13 @@ Além do preview ad-hoc, a regra agora pode ser **salva** e tem **histórico de 
 | `GET` | `/offer-book-rules/execution-reports` | qualquer | lista relatórios `{rows, count}`; filtros `ruleId,executionType,outcome,startDate,endDate,page,perPage` |
 | `GET` | `/offer-book-rules/execution-reports/:id` | qualquer | um relatório + `items: {rows, count, page, perPage}` (filtro `name` nos itens) |
 | `GET` | `/offer-book-rules/:id/execution-reports` | qualquer | histórico de execuções da regra |
+| `POST` | `/offer-book-rules/:id/execute` | OPERATOR/ADMIN | **aplica** os preços no ERP (oferta no caderno) + grava o relatório |
 
-**Contrato do `RuleDetail`** (resposta de create/get/update): `{ id, name, description, calculationBaseType, priceBaseSources, eans, classifications, applyPriceRounding, enabled, pricingRules[], priceLocks[], createdAt, updatedAt }`. O alvo vem em **`eans` OU `classifications`** (o outro é `null`).
+**Contrato do `RuleDetail`** (resposta de create/get/update): `{ id, name, description, calculationBaseType, priceBaseSources, eans, classifications, applyPriceRounding, enabled, cadernoId, pricingRules[], priceLocks[], createdAt, updatedAt }`. O alvo vem em **`eans` OU `classifications`** (o outro é `null`). `cadernoId` (string|null) é o caderno do ERP onde o `execute` escreve as ofertas.
 
 **Relatório (header)**: `{ id, ruleId, executionType, calculationBaseType, startedAt, finishedAt, totalProducts, productsUpdated, productsSkipped, outcome, errorMessage }`. Os **itens** carregam o snapshot completo do preview por produto + `wasUpdated`.
 
-> **Ainda não existe (Fase 3):** `POST /offer-book-rules/:id/execute` — aplica os preços calculados como **preço de oferta no caderno do ERP** (A7Pharma), em lote, e grava o relatório. Tem efeito colateral irreversível, então sai num passe dedicado. Sem ele, os relatórios existem mas só são populados manualmente/quando o execute chegar.
+**`POST /:id/execute`** → `{ ruleId, executionReportId, totalProducts, productsUpdated, productsSkipped, outcome, startedAt }`. Aplica o `finalPrice` de cada produto como **preço de oferta** no caderno `cadernoId` da regra (A7Pharma), em lotes, espelha em `offer_book`, e grava o relatório + itens. **Irreversível.** `400` se a regra não tem `cadernoId`; `409` se o tenant não tem A7Pharma configurado. Falha de lote no ERP **não** derruba a request — vira `outcome: FAILURE` no relatório. Botão "Executar" deve confirmar (ação irreversível) e mostrar o resultado/relatório.
 
 ## 9. Checklist do FE
 

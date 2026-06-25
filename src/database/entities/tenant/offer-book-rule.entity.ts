@@ -43,4 +43,8 @@ export class OfferBookRuleEntity extends BaseEntity {
 
   @Column({ type: 'boolean', default: true })
   public enabled!: boolean;
+
+  /** A7Pharma idCadernoOferta the execute step pushes the offer prices into. */
+  @Column({ name: 'caderno_id', type: 'bigint', nullable: true })
+  public cadernoId?: string | null;
 }

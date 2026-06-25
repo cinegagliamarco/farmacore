@@ -11,11 +11,12 @@ import { IntegrationConnectionService } from '../src/integration/integration-con
 
 /**
  * E2E for the saved offer-book-rules surface (CRUD + saved preview + products +
- * CSV + execution reports). Boots the real AppModule against the local DB so it
- * exercises the rebuild-offer-book-rules migration, the tenant search_path, the
- * role guards, and the real SQL of every endpoint. The price engine itself is
- * unit-tested; here we prove persistence + wiring. (execute / ERP write-back is
- * a separate pass and not covered.)
+ * CSV + execution reports + execute). Boots the real AppModule against the local
+ * DB so it exercises the rebuild-offer-book-rules migration, the tenant
+ * search_path, the role guards, and the real SQL of every endpoint. The price
+ * engine itself is unit-tested; here we prove persistence + wiring. The ERP
+ * (A7Pharma) is mocked, so execute proves the batches/report/mirror — not the
+ * live ERP call.
  */
 const SLUG = 'e2eobr';
 const SCHEMA = 'tenant_e2eobr';
@@ -266,6 +267,79 @@ describe('Offer Book Rules (e2e)', () => {
       `/offer-book-rules/execution-reports/${reportId}?name=500mg`,
     ).expect(200);
     expect(filtered.body.items.count).toBe(1);
+  });
+
+  it('executes a rule: pushes offer prices to the ERP + records a report', async () => {
+    const created = await post('/offer-book-rules', operatorToken)
+      .send({
+        name: 'Exec genéricos',
+        calculationBaseType: 'SALE_PRICE',
+        eans: [EAN_A, EAN_B],
+        cadernoId: 777,
+        pricingRules: [{ actionType: 'DISCOUNT', percentageValue: 10 }],
+        priceLocks: [],
+      })
+      .expect(201);
+    const execRuleId = created.body.id as string;
+    expect(created.body.cadernoId).toBe('777');
+
+    const res = await post(
+      `/offer-book-rules/${execRuleId}/execute`,
+      operatorToken,
+    ).expect(201);
+    expect(res.body.outcome).toBe('SUCCESS');
+    expect(res.body.totalProducts).toBe(2);
+    expect(res.body.productsUpdated).toBe(2);
+    expect(res.body.productsSkipped).toBe(0);
+
+    // pushed the computed offer prices to the ERP caderno
+    expect(a7.upsertOffer).toHaveBeenCalledWith(
+      credentials,
+      777,
+      expect.arrayContaining([
+        { idEmbalagem: 5001, precoOferta: 9 }, // 10.00 - 10%
+        { idEmbalagem: 5002, precoOferta: 7.2 }, // 8.00 - 10%
+      ]),
+    );
+
+    // mirrored to offer_book
+    const [offer]: Array<{ targetPrice: string; externalId: string }> =
+      await ds.query(
+        `SELECT target_price AS "targetPrice", external_id AS "externalId"
+           FROM ${SCHEMA}.offer_book WHERE ean = ${EAN_A}`,
+      );
+    expect(Number(offer.targetPrice)).toBe(9);
+    expect(Number(offer.externalId)).toBe(777);
+
+    // the report is queryable with both items marked updated
+    const report = await get(
+      `/offer-book-rules/execution-reports/${res.body.executionReportId}`,
+    ).expect(200);
+    expect(report.body.productsUpdated).toBe(2);
+    expect(report.body.items.count).toBe(2);
+    expect(
+      report.body.items.rows.every(
+        (i: { wasUpdated: boolean }) => i.wasUpdated,
+      ),
+    ).toBe(true);
+
+    await del(`/offer-book-rules/${execRuleId}`, adminToken).expect(200);
+  });
+
+  it('400s executing a rule with no target caderno; 403 for a viewer', async () => {
+    const created = await post('/offer-book-rules', operatorToken)
+      .send({
+        name: 'Sem caderno',
+        calculationBaseType: 'SALE_PRICE',
+        eans: [EAN_A],
+        pricingRules: [],
+        priceLocks: [],
+      })
+      .expect(201);
+    const id = created.body.id as string;
+    await post(`/offer-book-rules/${id}/execute`, operatorToken).expect(400);
+    await post(`/offer-book-rules/${id}/execute`, viewerToken).expect(403);
+    await del(`/offer-book-rules/${id}`, adminToken).expect(200);
   });
 
   it('forbids an operator from deleting, allows admin (cascade)', async () => {

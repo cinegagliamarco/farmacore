@@ -31,6 +31,7 @@ export class RebuildOfferBookRules1700000000010 implements MigrationInterface {
         target_classifications text[],
         apply_price_rounding boolean NOT NULL DEFAULT false,
         enabled boolean NOT NULL DEFAULT true,
+        caderno_id bigint,
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now(),
         deleted_at timestamptz,

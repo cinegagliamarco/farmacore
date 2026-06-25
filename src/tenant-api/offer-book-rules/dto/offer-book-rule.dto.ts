@@ -75,6 +75,12 @@ export class CreateOfferBookRuleDto {
   @IsOptional()
   @IsBoolean()
   public enabled?: boolean;
+
+  /** A7Pharma idCadernoOferta the execute step writes the offer prices into. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  public cadernoId?: number;
 }
 
 /** Update a saved rule. Every field optional; arrays replace wholesale. */
@@ -132,6 +138,12 @@ export class UpdateOfferBookRuleDto {
   @IsOptional()
   @IsBoolean()
   public enabled?: boolean;
+
+  /** A7Pharma idCadernoOferta the execute step writes the offer prices into. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  public cadernoId?: number;
 }
 
 export class ListOfferBookRulesQueryDto {

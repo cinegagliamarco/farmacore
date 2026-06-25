@@ -1720,7 +1720,7 @@
       },
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"name\": \"Desconto genéricos\",\n  \"calculationBaseType\": \"SALE_PRICE\",\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 10\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"minMargin\": 20\n    }\n  ],\n  \"applyPriceRounding\": false,\n  \"enabled\": true\n}"
+       "raw": "{\n  \"name\": \"Desconto genéricos\",\n  \"calculationBaseType\": \"SALE_PRICE\",\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 10\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"minMargin\": 20\n    }\n  ],\n  \"applyPriceRounding\": false,\n  \"enabled\": true,\n  \"cadernoId\": 777\n}"
       },
       "description": "Cria uma regra salva. Alvo por classifications XOR eans. OPERATOR/ADMIN. Salva o id em {{ruleId}}."
      },
@@ -1998,6 +1998,26 @@
        ]
       },
       "description": "Histórico de execuções de uma regra (paginado)."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /offer-book-rules/:id/execute (aplica preços no ERP)",
+     "request": {
+      "method": "POST",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/execute",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{ruleId}}",
+        "execute"
+       ]
+      },
+      "description": "Aplica os preços calculados como PREÇO DE OFERTA no caderno (cadernoId) da regra, no ERP (A7Pharma), em lote, e grava um relatório de execução. Irreversível. OPERATOR/ADMIN. 400 se a regra não tem cadernoId; 409 se o tenant não tem A7Pharma configurado. A regra precisa ter sido criada com cadernoId."
      },
      "response": []
     },

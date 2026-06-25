@@ -117,17 +117,26 @@ Entregue e verificada com Postgres local (docker) ponta-a-ponta:
 - **`OfferBookRulesManagementService`** + `dto/offer-book-rule.dto.ts`: `create/list/get/update/
   delete`, `:id/preview` e `:id/products` (reusam o motor), CSV ad-hoc e salvo, e os 3 endpoints
   de `execution-reports`.
-- **Controller** com todas as rotas (exceto execute); **e2e** `test/offer-book-rules.e2e-spec.ts`
-  (12 casos) bootando o AppModule contra DB real — migration, search_path, guards de papel e
+- **Controller** com todas as rotas; **e2e** `test/offer-book-rules.e2e-spec.ts`
+  (14 casos) bootando o AppModule contra DB real — migration, search_path, guards de papel e
   cascade FK.
 
-### Fase 3 — execução (`POST /offer-book-rules/:id/execute`) — pendente
+### Fase 3 — execução (`POST /offer-book-rules/:id/execute`) — IMPLEMENTADA
 
-Único endpoint que falta. Aplica os preços calculados como **preço de oferta no caderno do ERP**
-(A7Pharma `upsertOffer`), em lote, e grava `execution_report(+items)` com contadores/outcome.
-Efeito colateral **irreversível** (escreve preço real), então sai num passe dedicado com sua
-própria verificação (mock do A7Pharma no e2e + validação manual contra ERP). Sem agendamento
-(dropado do app); execução é **manual**.
+O 13º (último) endpoint. `OfferBookRulesExecutionService` aplica o `finalPrice` de cada produto
+como **preço de oferta no caderno** da regra (`offer_book_rule.caderno_id` → A7Pharma
+`upsertOffer`), em lotes de 80, espelha em `offer_book`, e grava `execution_report(+items)` com
+contadores/outcome (`SUCCESS`/`FAILURE`/`NO_CHANGES`). Efeito colateral **irreversível**:
+
+- **Nunca lança em falha de lote do ERP** — o erro vira `outcome: FAILURE` no relatório e a
+  request retorna, então o relatório e os preços já aplicados commitam (sem rollback). Só o
+  pré-voo lança (regra inexistente → 404, sem `cadernoId` → 400, sem credencial A7Pharma → 409).
+- A regra ganhou a coluna **`caderno_id`** (idCadernoOferta), opcional, setável em create/update.
+- e2e cobre o caminho feliz (push com os items certos, espelho, relatório com itens `wasUpdated`),
+  o 400 sem caderno e o 403 de viewer. A7Pharma mockado.
+- **Hardening deixado para depois** (anotado no service): execução assíncrona via fila (hoje é
+  síncrona dentro da transação da request), o delay de 5s entre lotes do legado, e lock de
+  concorrência (status `RUNNING`). Sem agendamento (dropado do app); execução é **manual**.
 
 ## 6. Checklist
 
@@ -136,8 +145,8 @@ própria verificação (mock do A7Pharma no e2e + validação manual contra ERP)
 - [x] DTOs do preview + da regra salva.
 - [x] Motor + orquestração `preview`.
 - [x] Fase 2: entidades + migration + CRUD + relatórios + CSV.
-- [x] Controller + wiring no módulo.
-- [x] Testes verdes (`npm test` 278 unit) + e2e (12 casos, docker Postgres).
+- [x] Fase 3: `POST /:id/execute` (write-back de preço no ERP).
+- [x] Controller + wiring no módulo (14 dos 14 endpoints do legado).
+- [x] Testes verdes (`npm test` 278 unit) + e2e (14 casos, docker Postgres).
 - [x] `lint` + `build` limpos.
 - [x] PR aberta contra `main`.
-- [ ] Fase 3: `POST /:id/execute` (write-back de preço no ERP).

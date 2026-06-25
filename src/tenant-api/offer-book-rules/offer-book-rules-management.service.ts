@@ -33,6 +33,7 @@ export interface OfferBookRuleDetail {
   classifications: string[] | null;
   applyPriceRounding: boolean;
   enabled: boolean;
+  cadernoId: string | null;
   pricingRules: CreatePricingRuleDto[];
   priceLocks: CreatePriceLockDto[];
   createdAt: Date;
@@ -72,8 +73,8 @@ export class OfferBookRulesManagementService {
     const [{ id }]: Array<{ id: string }> = await em.query(
       `INSERT INTO offer_book_rule
          (name, description, calculation_base_type, price_base_sources,
-          target_classifications, apply_price_rounding, enabled)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+          target_classifications, apply_price_rounding, enabled, caderno_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
       [
         dto.name,
         dto.description ?? null,
@@ -82,6 +83,7 @@ export class OfferBookRulesManagementService {
         dto.classifications?.length ? dto.classifications : null,
         dto.applyPriceRounding ?? false,
         dto.enabled ?? true,
+        dto.cadernoId ?? null,
       ],
     );
     await this.insertChildren(em, id, pricingRules, priceLocks, dto.eans);
@@ -114,6 +116,7 @@ export class OfferBookRulesManagementService {
               price_base_sources AS "priceBaseSources",
               target_classifications AS "classifications",
               apply_price_rounding AS "applyPriceRounding", enabled,
+              caderno_id AS "cadernoId",
               created_at AS "createdAt", updated_at AS "updatedAt"
          FROM offer_book_rule ${whereSql}
         ORDER BY created_at DESC
@@ -133,6 +136,7 @@ export class OfferBookRulesManagementService {
               price_base_sources AS "priceBaseSources",
               target_classifications AS "classifications",
               apply_price_rounding AS "applyPriceRounding", enabled,
+              caderno_id AS "cadernoId",
               created_at AS "createdAt", updated_at AS "updatedAt"
          FROM offer_book_rule WHERE id = $1 AND deleted_at IS NULL`,
       [id],
@@ -178,6 +182,7 @@ export class OfferBookRulesManagementService {
       classifications: (r.classifications as string[] | null) ?? null,
       applyPriceRounding: r.applyPriceRounding as boolean,
       enabled: r.enabled as boolean,
+      cadernoId: (r.cadernoId as string | null) ?? null,
       pricingRules,
       priceLocks,
       createdAt: r.createdAt as Date,
@@ -233,6 +238,7 @@ export class OfferBookRulesManagementService {
     if (dto.applyPriceRounding !== undefined)
       set('apply_price_rounding', dto.applyPriceRounding);
     if (dto.enabled !== undefined) set('enabled', dto.enabled);
+    if (dto.cadernoId !== undefined) set('caderno_id', dto.cadernoId);
     if (dto.classifications !== undefined || dto.eans !== undefined)
       set(
         'target_classifications',

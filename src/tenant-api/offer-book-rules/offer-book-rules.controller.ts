@@ -29,6 +29,10 @@ import {
   PreviewOfferBookRulesDto,
 } from './dto/preview-offer-book-rules.dto';
 import {
+  ExecuteResult,
+  OfferBookRulesExecutionService,
+} from './offer-book-rules-execution.service';
+import {
   OfferBookRuleDetail,
   OfferBookRulesManagementService,
 } from './offer-book-rules-management.service';
@@ -39,6 +43,7 @@ export class OfferBookRulesController {
   constructor(
     private readonly rules: OfferBookRulesService,
     private readonly mgmt: OfferBookRulesManagementService,
+    private readonly execution: OfferBookRulesExecutionService,
   ) {}
 
   // ----- collection -----
@@ -151,6 +156,18 @@ export class OfferBookRulesController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<string> {
     return this.mgmt.downloadPreviewSaved(em, user.tenantId, id);
+  }
+
+  /** Applies the rule's prices to the ERP (offer prices in its caderno) and
+   *  records an execution report. Irreversible write-back. */
+  @Post(':id/execute')
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  public execute(
+    @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ExecuteResult> {
+    return this.execution.execute(em, user.tenantId, id);
   }
 
   @Get(':id/execution-reports')
