@@ -151,7 +151,32 @@ curl -sX POST "$BASE/offer-book-rules/preview" \
   }'
 ```
 
-## 8. Checklist do FE
+## 8. Endpoints de regra salva + relatórios (Fase 2 — já no backend)
+
+Além do preview ad-hoc, a regra agora pode ser **salva** e tem **histórico de execução**. Todos sob `/offer-book-rules`, tenant-scoped por JWT.
+
+| Método | Rota | Papel | O quê |
+|---|---|---|---|
+| `POST` | `/offer-book-rules` | OPERATOR/ADMIN | cria regra salva (mesmo corpo do preview + `name`, `description?`, `enabled?`) → devolve o detalhe |
+| `GET` | `/offer-book-rules` | qualquer | lista regras `{rows, count}`; filtros `page,pageSize,name,enabled` |
+| `GET` | `/offer-book-rules/:id` | qualquer | detalhe da regra + `pricingRules` + `priceLocks` |
+| `PATCH` | `/offer-book-rules/:id` | OPERATOR/ADMIN | atualiza; arrays substituem por completo |
+| `DELETE` | `/offer-book-rules/:id` | ADMIN | apaga (cascade nos filhos + relatórios) |
+| `GET` | `/offer-book-rules/:id/preview` | qualquer | preview da regra salva (mesma `PreviewResponse`); `page,pageSize` |
+| `GET` | `/offer-book-rules/:id/products` | qualquer | produtos que a regra mira (preço/margem/custo atuais, sem aplicar) |
+| `GET` | `/offer-book-rules/:id/preview-download` | qualquer | CSV (`text/csv`) do preview salvo |
+| `POST` | `/offer-book-rules/preview-download` | OPERATOR/ADMIN | CSV de uma config não salva |
+| `GET` | `/offer-book-rules/execution-reports` | qualquer | lista relatórios `{rows, count}`; filtros `ruleId,executionType,outcome,startDate,endDate,page,pageSize` |
+| `GET` | `/offer-book-rules/execution-reports/:id` | qualquer | um relatório + `items: {rows, count, page, pageSize}` (filtro `name` nos itens) |
+| `GET` | `/offer-book-rules/:id/execution-reports` | qualquer | histórico de execuções da regra |
+
+**Contrato do `RuleDetail`** (resposta de create/get/update): `{ id, name, description, calculationBaseType, priceBaseSources, eans, classifications, applyPriceRounding, enabled, pricingRules[], priceLocks[], createdAt, updatedAt }`. O alvo vem em **`eans` OU `classifications`** (o outro é `null`).
+
+**Relatório (header)**: `{ id, ruleId, executionType, calculationBaseType, startedAt, finishedAt, totalProducts, productsUpdated, productsSkipped, outcome, errorMessage }`. Os **itens** carregam o snapshot completo do preview por produto + `wasUpdated`.
+
+> **Ainda não existe (Fase 3):** `POST /offer-book-rules/:id/execute` — aplica os preços calculados como **preço de oferta no caderno do ERP** (A7Pharma), em lote, e grava o relatório. Tem efeito colateral irreversível, então sai num passe dedicado. Sem ele, os relatórios existem mas só são populados manualmente/quando o execute chegar.
+
+## 9. Checklist do FE
 
 - [ ] Tela de simulação (alvo → base → regras → locks → arredondar → Simular).
 - [ ] Multi-select de `priceBaseSources` condicional ao `COMPETITIVE_PRICE`.
@@ -159,3 +184,5 @@ curl -sX POST "$BASE/offer-book-rules/preview" \
 - [ ] Paginação por `total`/`totalPages`.
 - [ ] Validação cliente de exclusividade (eans XOR classifications) e dos ranges; tratar os `400`/`403`.
 - [ ] Esconder a ação para papel `VIEWER`.
+- [ ] CRUD de regras salvas (lista + form de criar/editar reusando o simulador) + view de detalhe com preview salvo.
+- [ ] Tela de histórico (relatórios) com drill-down nos itens; export CSV.

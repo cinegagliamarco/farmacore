@@ -102,26 +102,42 @@ A **rotina** (o que o usuário pediu), exposta como endpoint de **preview**, sem
 
 **Verificação local:** `npm run lint`, `npm run build`, `npm test` (specs novos sem DB).
 
-### Fases futuras — documentadas, fora desta PR
+### Fase 2 — persistência/CRUD + relatórios + CSV (IMPLEMENTADA)
 
-Dependem de **alterar o schema do tenant** (expandir os stubs + migration) e de DB/seed para
-verificação ponta-a-ponta, então ficam para PRs seguintes:
+Entregue e verificada com Postgres local (docker) ponta-a-ponta:
 
-- **Fase 2 — persistência/CRUD das regras**: realinhar as entidades stub ao modelo do
-  legado (`classifications`, `actionType`, `percentageValue`, faixas, `minMargin`, status,
-  agendamento, `applyPriceRounding`), migration tenant, repositório, CRUD
-  (`create/update/delete/get/list`) e `GET /offer-book-rules/:id/products`.
-- **Fase 3 — execução + relatório de auditoria**: `execute` (aplica e persiste preços),
-  `OfferBookRuleExecutionReport(+Item)` com contadores/flags, agendamento (cron/worker).
-- **Fase 4 — export CSV** do preview/relatório (`csv-generator` do legado).
+- **Entidades realinhadas** (6) ao modelo do legado, adaptadas ao app novo: a regra é
+  **standalone e nomeada** (não 1:1 com `offer_book_info` como no legado — o `offer_book_info`
+  novo tem outro shape); alvo por **EAN (`offer_book_rule_product`) XOR classificação
+  (`target_classifications`)**; `pricing_rule`/`price_lock` com `classifications`, faixas,
+  `action_type`, `percentage_value`, `min_margin`, `active`; report + item com auditoria
+  completa. Sem `scheduling` (foi dropado do app — migration `drop-scheduling`).
+- **Migration** `migrations/tenant/1700000000010-rebuild-offer-book-rules.ts` (drop dos stubs +
+  recria com enums via `text + CHECK`). Validada rodando a cadeia inteira num tenant temporário.
+- **`OfferBookRulesManagementService`** + `dto/offer-book-rule.dto.ts`: `create/list/get/update/
+  delete`, `:id/preview` e `:id/products` (reusam o motor), CSV ad-hoc e salvo, e os 3 endpoints
+  de `execution-reports`.
+- **Controller** com todas as rotas (exceto execute); **e2e** `test/offer-book-rules.e2e-spec.ts`
+  (12 casos) bootando o AppModule contra DB real — migration, search_path, guards de papel e
+  cascade FK.
+
+### Fase 3 — execução (`POST /offer-book-rules/:id/execute`) — pendente
+
+Único endpoint que falta. Aplica os preços calculados como **preço de oferta no caderno do ERP**
+(A7Pharma `upsertOffer`), em lote, e grava `execution_report(+items)` com contadores/outcome.
+Efeito colateral **irreversível** (escreve preço real), então sai num passe dedicado com sua
+própria verificação (mock do A7Pharma no e2e + validação manual contra ERP). Sem agendamento
+(dropado do app); execução é **manual**.
 
 ## 6. Checklist
 
-- [ ] Doc do plano (este arquivo) — **mantido** no repo para histórico.
-- [ ] Enums de cálculo portados.
-- [ ] DTOs do preview.
-- [ ] Motor + orquestração `preview`.
-- [ ] Controller + wiring no módulo.
-- [ ] Testes unitários verdes (`npm test`).
-- [ ] `lint` + `build` limpos.
-- [ ] PR aberta contra `main`.
+- [x] Doc do plano (este arquivo) — **mantido** no repo para histórico.
+- [x] Enums de cálculo portados.
+- [x] DTOs do preview + da regra salva.
+- [x] Motor + orquestração `preview`.
+- [x] Fase 2: entidades + migration + CRUD + relatórios + CSV.
+- [x] Controller + wiring no módulo.
+- [x] Testes verdes (`npm test` 278 unit) + e2e (12 casos, docker Postgres).
+- [x] `lint` + `build` limpos.
+- [x] PR aberta contra `main`.
+- [ ] Fase 3: `POST /:id/execute` (write-back de preço no ERP).

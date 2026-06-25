@@ -33,6 +33,10 @@
   {
    "key": "ruleId",
    "value": ""
+  },
+  {
+   "key": "reportId",
+   "value": ""
   }
  ],
  "auth": {
@@ -1692,6 +1696,327 @@
        ]
       },
       "description": "Exemplo de erro de validação: mandar `eans` e `classifications` ao mesmo tempo retorna 400. Mande exatamente um dos dois."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /offer-book-rules (criar regra)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Desconto genéricos\",\n  \"calculationBaseType\": \"SALE_PRICE\",\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 10\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"minMargin\": 20\n    }\n  ],\n  \"applyPriceRounding\": false,\n  \"enabled\": true\n}"
+      },
+      "description": "Cria uma regra salva. Alvo por classifications XOR eans. OPERATOR/ADMIN. Salva o id em {{ruleId}}."
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "if (pm.response.code === 201) {",
+         "  pm.collectionVariables.set('ruleId', pm.response.json().id);",
+         "}"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "GET /offer-book-rules (listar)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules?page=1&pageSize=20",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "pageSize",
+         "value": "20"
+        }
+       ]
+      },
+      "description": "Lista regras (paginado). Filtros: name (ILIKE), enabled."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/:id",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{ruleId}}"
+       ]
+      },
+      "description": "Detalhe da regra + suas pricingRules e priceLocks."
+     },
+     "response": []
+    },
+    {
+     "name": "PATCH /offer-book-rules/:id (atualizar)",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{ruleId}}"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 25\n    }\n  ]\n}"
+      },
+      "description": "Atualiza a regra. Arrays (pricingRules/priceLocks/eans) substituem por completo. OPERATOR/ADMIN."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/:id/preview (regra salva)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/preview?page=1&pageSize=50",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{ruleId}}",
+        "preview"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "pageSize",
+         "value": "50"
+        }
+       ]
+      },
+      "description": "Roda o motor sobre os produtos-alvo da regra salva (mesma resposta paginada do preview ad-hoc)."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/:id/products",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/products?page=1&pageSize=50",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{ruleId}}",
+        "products"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "pageSize",
+         "value": "50"
+        }
+       ]
+      },
+      "description": "Lista os produtos que a regra mira (preço/margem/custo atuais, sem aplicar a regra)."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/:id/preview-download (CSV)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/preview-download",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{ruleId}}",
+        "preview-download"
+       ]
+      },
+      "description": "CSV do preview da regra salva."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /offer-book-rules/preview-download (CSV ad-hoc)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/preview-download",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "preview-download"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"calculationBaseType\": \"SALE_PRICE\",\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 5\n    }\n  ],\n  \"priceLocks\": []\n}"
+      },
+      "description": "CSV do preview de uma config não salva. OPERATOR/ADMIN."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/execution-reports (todos)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/execution-reports?page=1&pageSize=20",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "execution-reports"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "pageSize",
+         "value": "20"
+        }
+       ]
+      },
+      "description": "Lista relatórios de execução. Filtros: ruleId, executionType (MANUAL/SCHEDULED), outcome (SUCCESS/FAILURE/NO_CHANGES), startDate, endDate."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/execution-reports/:id",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/execution-reports/{{reportId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "execution-reports",
+        "{{reportId}}"
+       ]
+      },
+      "description": "Um relatório + seus itens paginados (filtro name nos itens). Setar {{reportId}}."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/:id/execution-reports (por regra)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/execution-reports?page=1&pageSize=20",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{ruleId}}",
+        "execution-reports"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "pageSize",
+         "value": "20"
+        }
+       ]
+      },
+      "description": "Histórico de execuções de uma regra (paginado)."
+     },
+     "response": []
+    },
+    {
+     "name": "DELETE /offer-book-rules/:id",
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{ruleId}}"
+       ]
+      },
+      "description": "Apaga a regra (cascade nos filhos + relatórios). ADMIN."
      },
      "response": []
     }
