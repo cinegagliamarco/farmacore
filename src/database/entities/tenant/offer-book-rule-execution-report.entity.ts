@@ -3,7 +3,11 @@ import { CalculationBaseType } from '../../enums/calculation-base-type.enum';
 import { BaseEntity } from '../base.entity';
 
 export type ExecutionType = 'MANUAL' | 'SCHEDULED';
-export type ExecutionOutcome = 'SUCCESS' | 'FAILURE' | 'NO_CHANGES';
+export type ExecutionOutcome =
+  | 'SUCCESS'
+  | 'PARTIALLY_SUCCEEDED'
+  | 'FAILURE'
+  | 'NO_CHANGES';
 
 /** Audit header for one execution of an offer_book_rule (one per run). */
 @Entity({ name: 'offer_book_rule_execution_report' })

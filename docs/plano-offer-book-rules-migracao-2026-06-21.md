@@ -126,7 +126,7 @@ Entregue e verificada com Postgres local (docker) ponta-a-ponta:
 O 13º (último) endpoint. `OfferBookRulesExecutionService` aplica o `finalPrice` de cada produto
 como **preço de oferta no caderno** da regra (`offer_book_rule.caderno_id` → A7Pharma
 `upsertOffer`), em lotes de 80, espelha em `offer_book`, e grava `execution_report(+items)` com
-contadores/outcome (`SUCCESS`/`FAILURE`/`NO_CHANGES`). Efeito colateral **irreversível**:
+contadores/outcome (`SUCCESS`/`PARTIALLY_SUCCEEDED`/`FAILURE`/`NO_CHANGES`). Efeito colateral **irreversível**:
 
 - **Nunca lança em falha de lote do ERP** — o erro vira `outcome: FAILURE` no relatório e a
   request retorna, então o relatório e os preços já aplicados commitam (sem rollback). Só o

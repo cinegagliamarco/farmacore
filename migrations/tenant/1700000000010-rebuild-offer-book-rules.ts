@@ -105,7 +105,8 @@ export class RebuildOfferBookRules1700000000010 implements MigrationInterface {
         deleted_at timestamptz,
         CONSTRAINT chk_obrer_exec_type CHECK (execution_type IN ('MANUAL','SCHEDULED')),
         CONSTRAINT chk_obrer_outcome CHECK (
-          outcome IS NULL OR outcome IN ('SUCCESS','FAILURE','NO_CHANGES')
+          outcome IS NULL OR
+          outcome IN ('SUCCESS','PARTIALLY_SUCCEEDED','FAILURE','NO_CHANGES')
         )
       );
       CREATE INDEX "IX_REPORT_RULE_STARTED" ON offer_book_rule_execution_report(rule_id, started_at);

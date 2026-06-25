@@ -175,7 +175,7 @@ Além do preview ad-hoc, a regra agora pode ser **salva** e tem **histórico de 
 
 **Relatório (header)**: `{ id, ruleId, executionType, calculationBaseType, startedAt, finishedAt, totalProducts, productsUpdated, productsSkipped, outcome, errorMessage }`. Os **itens** carregam o snapshot completo do preview por produto + `wasUpdated`.
 
-**`POST /:id/execute`** → `{ ruleId, executionReportId, totalProducts, productsUpdated, productsSkipped, outcome, startedAt }`. Aplica o `finalPrice` de cada produto como **preço de oferta** no caderno `cadernoId` da regra (A7Pharma), em lotes, espelha em `offer_book`, e grava o relatório + itens. **Irreversível.** `400` se a regra não tem `cadernoId`; `409` se o tenant não tem A7Pharma configurado. Falha de lote no ERP **não** derruba a request — vira `outcome: FAILURE` no relatório. Botão "Executar" deve confirmar (ação irreversível) e mostrar o resultado/relatório.
+**`POST /:id/execute`** → `{ ruleId, executionReportId, totalProducts, productsUpdated, productsSkipped, outcome, startedAt }`. Aplica o `finalPrice` de cada produto como **preço de oferta** no caderno `cadernoId` da regra (A7Pharma), em lotes, espelha em `offer_book`, e grava o relatório + itens. **Irreversível.** `400` se a regra não tem `cadernoId`; `409` se o tenant não tem A7Pharma configurado. Falha de lote no ERP **não** derruba a request — o `outcome` vira `PARTIALLY_SUCCEEDED` (alguns lotes aplicaram) ou `FAILURE` (nenhum), com `errorMessage` preenchido; `outcome ∈ SUCCESS | PARTIALLY_SUCCEEDED | FAILURE | NO_CHANGES`. Botão "Executar" deve confirmar (ação irreversível) e mostrar o resultado/relatório.
 
 ## 9. Checklist do FE
 

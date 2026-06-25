@@ -230,6 +230,23 @@ describe('Offer Book Rules (e2e)', () => {
     expect(a.finalPrice).toBe(7.5);
   });
 
+  it('switches a rule target from classifications to eans (clears the other side)', async () => {
+    const res = await patch(`/offer-book-rules/${ruleId}`, operatorToken)
+      .send({ eans: [EAN_A] })
+      .expect(200);
+    expect(res.body.eans).toEqual([EAN_A]);
+    expect(res.body.classifications).toBeNull(); // XOR invariant: old target cleared
+    const [{ count }]: Array<{ count: number }> = await ds.query(
+      `SELECT count(*)::int AS count FROM ${SCHEMA}.offer_book_rule_product WHERE rule_id = $1`,
+      [ruleId],
+    );
+    expect(count).toBe(1);
+    const preview = await get(`/offer-book-rules/${ruleId}/preview`).expect(
+      200,
+    );
+    expect(preview.body.count).toBe(1); // now only EAN_A
+  });
+
   it('serves execution reports (list / by-rule / single with items)', async () => {
     const reportId = '55555555-5555-5555-5555-555555555551';
     await ds.query(

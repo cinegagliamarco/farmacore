@@ -9,7 +9,11 @@ import { IntegrationConnectionService } from '../../integration/integration-conn
 import { PreviewProductResult } from './dto/preview-offer-book-rules.dto';
 import { OfferBookRulesManagementService } from './offer-book-rules-management.service';
 
-export type ExecutionOutcome = 'SUCCESS' | 'FAILURE' | 'NO_CHANGES';
+export type ExecutionOutcome =
+  | 'SUCCESS'
+  | 'PARTIALLY_SUCCEEDED'
+  | 'FAILURE'
+  | 'NO_CHANGES';
 
 export interface ExecuteResult {
   ruleId: string;
@@ -30,10 +34,14 @@ const PER_PAGE = 1000;
  * recording a full execution report. Manual trigger only — the legacy
  * scheduled run was dropped with the scheduling table.
  *
- * Never throws on an ERP batch failure: the error is recorded on the report and
- * the request returns so the report (and the prices already applied) commit.
- * Only pre-flight problems (unknown rule / no caderno / no ERP credentials)
- * throw, before anything is written.
+ * Never throws on an ERP batch failure: the error is recorded on the report,
+ * the outcome reflects partial/total failure, and the request returns. Pre-flight
+ * problems (unknown rule / no caderno / no ERP credentials) throw before anything
+ * is written.
+ *
+ * Caveat (until the async refactor): the whole thing runs in the request
+ * transaction, so a *DB* error after a successful ERP push (rare) rolls back the
+ * report too, leaving the applied prices unrecorded.
  *
  * v1 runs synchronously inside the request transaction. The legacy 5s
  * inter-batch delay and the RUNNING-status concurrency lock are deferred — see
@@ -70,7 +78,8 @@ export class OfferBookRulesExecutionService {
         !r.skippedNoCompetitorPrice &&
         !r.skippedPriceExceedsLimit &&
         r.externalId != null &&
-        r.finalPrice > 0,
+        r.finalPrice > 0 &&
+        r.finalPrice !== r.currentPrice, // skip no-op rewrites (legacy parity)
     );
     const skipped = rows.filter((r) => !updatable.includes(r));
 
@@ -112,7 +121,9 @@ export class OfferBookRulesExecutionService {
         ? 'NO_CHANGES'
         : errors.length === 0
           ? 'SUCCESS'
-          : 'FAILURE';
+          : updated > 0
+            ? 'PARTIALLY_SUCCEEDED'
+            : 'FAILURE';
     await em.query(
       `UPDATE offer_book_rule_execution_report
           SET finished_at = now(), products_updated = $1, outcome = $2,

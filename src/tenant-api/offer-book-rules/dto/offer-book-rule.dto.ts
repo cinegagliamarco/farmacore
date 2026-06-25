@@ -80,6 +80,7 @@ export class CreateOfferBookRuleDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
   public cadernoId?: number;
 }
 
@@ -143,6 +144,7 @@ export class UpdateOfferBookRuleDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
   public cadernoId?: number;
 }
 
@@ -197,8 +199,8 @@ export class ListExecutionReportsQueryDto {
   public executionType?: 'MANUAL' | 'SCHEDULED';
 
   @IsOptional()
-  @IsEnum(['SUCCESS', 'FAILURE', 'NO_CHANGES'] as const)
-  public outcome?: 'SUCCESS' | 'FAILURE' | 'NO_CHANGES';
+  @IsEnum(['SUCCESS', 'PARTIALLY_SUCCEEDED', 'FAILURE', 'NO_CHANGES'] as const)
+  public outcome?: 'SUCCESS' | 'PARTIALLY_SUCCEEDED' | 'FAILURE' | 'NO_CHANGES';
 
   @IsOptional()
   @IsString()
