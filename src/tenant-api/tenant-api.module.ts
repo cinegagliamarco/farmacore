@@ -23,6 +23,8 @@ import { PricingRetentionCron } from './pricing/pricing-retention.cron';
 import { PricingScheduleController } from './pricing/pricing-schedule.controller';
 import { PricingScheduleService } from './pricing/pricing-schedule.service';
 import { PricingScheduleCron } from './pricing/pricing-schedule.cron';
+import { CompetitorOriginsController } from './pricing/competitor-origins.controller';
+import { CompetitorOriginsService } from './pricing/competitor-origins.service';
 import { PricingSuggestionsController } from './pricing/pricing-suggestions.controller';
 import { PricingSuggestionsService } from './pricing/pricing-suggestions.service';
 import { SuggestionRulesController } from './pricing/suggestion-rules.controller';
@@ -44,6 +46,7 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
     OfferBookRulesController,
     SuggestionRulesController,
     ClustersController,
+    CompetitorOriginsController,
     PricingSuggestionsController,
     PricingApplyController,
     PricingScheduleController,
@@ -59,6 +62,7 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
     OfferBookRulesService,
     SuggestionRulesService,
     ClustersService,
+    CompetitorOriginsService,
     PricingSuggestionsService,
     PricingApplyService,
     PricingScheduleService,

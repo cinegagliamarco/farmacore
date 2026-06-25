@@ -57,9 +57,10 @@ export class CatalogController {
   @Get('strategic-price')
   public strategicPrice(
     @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
   ): Promise<Paginated<Record<string, unknown>>> {
-    return this.catalog.strategicPrice(em, query);
+    return this.catalog.strategicPrice(em, user.tenantId, query);
   }
 
   @Get('subsidiaries')
@@ -82,17 +83,19 @@ export class CatalogController {
   @Get('active-ingredients/crossed')
   public activeIngredientsCrossed(
     @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
   ): Promise<Paginated<IngredientGroup>> {
-    return this.catalog.activeIngredientsCrossed(em, query);
+    return this.catalog.activeIngredientsCrossed(em, user.tenantId, query);
   }
 
   @Get('active-ingredients/decision-counts')
   public decisionCounts(
     @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
   ): Promise<Record<string, number>> {
-    return this.catalog.decisionCounts(em, query);
+    return this.catalog.decisionCounts(em, user.tenantId, query);
   }
 
   @Get('generic-missing-active-ingredients')
@@ -107,25 +110,28 @@ export class CatalogController {
   @Header('Content-Type', 'text/csv')
   public export(
     @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
   ): Promise<string> {
-    return this.catalog.exportCsv(em, query);
+    return this.catalog.exportCsv(em, user.tenantId, query);
   }
 
   @Get('stock')
   public stock(
     @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
   ): Promise<Paginated<Record<string, unknown>>> {
-    return this.catalog.stock(em, query);
+    return this.catalog.stock(em, user.tenantId, query);
   }
 
   @Get('stock-metrics')
   public stockMetrics(
     @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
   ): Promise<Record<string, number>> {
-    return this.catalog.stockMetrics(em, query);
+    return this.catalog.stockMetrics(em, user.tenantId, query);
   }
 
   @Patch(':ean')

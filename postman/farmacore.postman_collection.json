@@ -1075,7 +1075,7 @@
         }
        ]
       },
-      "description": "Aggregate stock coverage over the filtered set: total, ownWithStock, {drogal,drogasil,michelassi}WithStock."
+      "description": "Aggregate stock coverage over the filtered set: total, ownWithStock, competitorsWithStock[] ({ origin, withStock }) for each enabled origin."
      },
      "response": []
     },

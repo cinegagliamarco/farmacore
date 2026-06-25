@@ -65,10 +65,12 @@ describe('Admin competitor origins (e2e)', () => {
     for (const row of res.body) {
       expect(Object.keys(row).sort()).toEqual([
         'enabled',
+        'label',
         'origin',
         'priority',
       ]);
       expect(row).not.toHaveProperty('config');
+      expect(typeof row.label).toBe('string');
       expect(typeof row.priority).toBe('number');
       expect(row.enabled).toBe(false);
     }
