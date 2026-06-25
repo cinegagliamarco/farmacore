@@ -5,6 +5,8 @@ export interface OfferBookUpsertInput {
   ean: string;
   description?: string | null;
   targetPrice?: string | null;
+  /** A7 caderno id (idCadernoOferta) — links offer_book to tenant_offer_campaign. */
+  externalId?: string | null;
 }
 
 /**

@@ -158,6 +158,7 @@ const INGREDIENT_ROWS = [
     stockInSubsidiary: 3,
     competitorOrigin: 'DROGAL',
     competitorPrice: '12',
+    priceOffer: '9.50',
   },
   {
     ai: 'DIPIRONA',
@@ -171,6 +172,7 @@ const INGREDIENT_ROWS = [
     stockInSubsidiary: 5,
     competitorOrigin: null,
     competitorPrice: null,
+    priceOffer: '7.25',
   },
 ];
 
@@ -193,6 +195,7 @@ describe('CatalogService.activeIngredientsCrossed', () => {
     expect(g.lowestCost).toEqual({ ean: '1', cost: 5 });
     expect(g.competitorCombate).toEqual({ origin: 'DROGAL', price: 12 });
     expect(g.targetPrice).toBe(8);
+    expect(g.priceOffer).toBe(7.25); // combate (ean 2) offer_book price
     expect(g.decision).toBe('subir'); // combate 8 < competitor 12, tolerance 0
   });
 
@@ -448,6 +451,8 @@ describe('CatalogService.crossed', () => {
     expect(sql).toContain(`dg.price AS "drogalPrice"`);
     expect(sql).toContain(`ds.price AS "drogasilPrice"`);
     expect(sql).toContain(`mi.price AS "michelassiPrice"`);
+    expect(sql).toContain('tenant_offer_campaign toc');
+    expect(sql).toContain(`AS "priceOffer"`);
     // dynamic per-tenant competitors, filtered by enabled origins
     expect(sql).toContain('AS competitors');
     expect(sql).toContain('core.tenant_competitor_origin');
