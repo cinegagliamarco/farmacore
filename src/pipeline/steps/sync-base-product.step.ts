@@ -279,44 +279,13 @@ export class SyncBaseProductStep {
     return num.toString();
   }
 
-  private static readonly GENERIC_CLASSIFICATIONS = new Set(
-    [
-      'GENÉRICO',
-      'GENÉRICO > ANTICONCEPCIONAL',
-      'GENÉRICO > OTC',
-      'GENÉRICO > PSICO GENÉRICO',
-      'GENÉRICO > PSICO GENÉRICO > A1',
-      'GENÉRICO > PSICO GENÉRICO > A2',
-      'GENÉRICO > PSICO GENÉRICO > A3',
-      'GENÉRICO > PSICO GENÉRICO > AGLP1',
-      'GENÉRICO > PSICO GENÉRICO > ANTIBIÓTICO',
-      'GENÉRICO > PSICO GENÉRICO > B1',
-      'GENÉRICO > PSICO GENÉRICO > B2',
-      'GENÉRICO > PSICO GENÉRICO > C1',
-      'GENÉRICO > PSICO GENÉRICO > C2',
-      'GENÉRICO > PSICO GENÉRICO > C4',
-      'GENÉRICO > PSICO GENÉRICO > C5',
-      'GENÉRICO > PSICO GENÉRICO > D1',
-      'GENÉRICO > TARJADO',
-      // Legacy ERP paths (pre-normalization naming).
-      'GENERICO > GENERICO 01',
-      'GENERICO > PSICOS GENERICO > A1-GEN',
-      'GENERICO > PSICOS GENERICO > A2-GEN',
-      'GENERICO > PSICOS GENERICO > A3-GEN',
-      'GENERICO > PSICOS GENERICO > B1-GEN',
-      'GENERICO > PSICOS GENERICO > B2-GEN',
-      'GENERICO > PSICOS GENERICO > C1-GEN',
-      'GENERICO > PSICOS GENERICO > C2-GEN',
-      'GENERICO > PSICOS GENERICO > C5-GEN',
-      'GENERICO > PSICOS GENERICO > GENÉRICO ANTIBIOTICO',
-      'GENERICO > TARJADOS',
-    ].map((path) => SyncBaseProductStep.normalizeClassificationKey(path)),
-  );
+  private static readonly GENERIC_CLASSIFICATION_PREFIX =
+    SyncBaseProductStep.normalizeClassificationKey('GENERICO');
 
   private isGenericClassification(classification?: string): boolean {
     if (!classification) return false;
-    return SyncBaseProductStep.GENERIC_CLASSIFICATIONS.has(
-      SyncBaseProductStep.normalizeClassificationKey(classification),
+    return SyncBaseProductStep.normalizeClassificationKey(classification).startsWith(
+      SyncBaseProductStep.GENERIC_CLASSIFICATION_PREFIX,
     );
   }
 
