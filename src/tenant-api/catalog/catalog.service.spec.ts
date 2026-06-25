@@ -1,7 +1,16 @@
 import { BadRequestException } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
+import type { CompetitorOriginsService } from '../pricing/competitor-origins.service';
 import { CatalogService, deriveDecision } from './catalog.service';
 import type { ListProductsQueryDto } from './dto/list-products.query';
+
+const SLUG = 'test-tenant';
+const DEFAULT_ORIGINS = ['DROGAL', 'DROGASIL', 'MICHELASSI'];
+
+const catalog = (origins: string[] = DEFAULT_ORIGINS) =>
+  new CatalogService({
+    enabledOrigins: jest.fn().mockResolvedValue(origins),
+  } as unknown as CompetitorOriginsService);
 
 const q = (extra: Partial<ListProductsQueryDto>): ListProductsQueryDto => extra;
 
@@ -151,8 +160,8 @@ const INGREDIENT_ROWS = [
     price: '10',
     cost: '5',
     margin: '50',
-    drogalPrice: null,
-    drogasilPrice: null,
+    'DROGAL__price': '12',
+    'DROGASIL__price': null,
     stockInSubsidiary: 3,
     competitorOrigin: 'DROGAL',
     competitorPrice: '12',
@@ -164,8 +173,8 @@ const INGREDIENT_ROWS = [
     price: '8',
     cost: '5',
     margin: '40',
-    drogalPrice: null,
-    drogasilPrice: null,
+    'DROGAL__price': null,
+    'DROGASIL__price': null,
     stockInSubsidiary: 5,
     competitorOrigin: null,
     competitorPrice: null,
@@ -175,8 +184,9 @@ const INGREDIENT_ROWS = [
 describe('CatalogService.activeIngredientsCrossed', () => {
   it('builds the group: cheapest in-stock combate, lowest cost, competitor, decision', async () => {
     const em = makeEm([['p.active_ingredient AS ai', INGREDIENT_ROWS]]);
-    const out = await new CatalogService().activeIngredientsCrossed(
+    const out = await catalog().activeIngredientsCrossed(
       em,
+      SLUG,
       q({ subsidiary: '1', tolerance: 0 }),
     );
     expect(out.count).toBe(1);
@@ -196,7 +206,7 @@ describe('CatalogService.activeIngredientsCrossed', () => {
 
   it('requires a numeric subsidiary', async () => {
     await expect(
-      new CatalogService().activeIngredientsCrossed(makeEm([]), q({})),
+      catalog().activeIngredientsCrossed(makeEm([]), SLUG, q({})),
     ).rejects.toThrow(BadRequestException);
   });
 });
@@ -204,8 +214,9 @@ describe('CatalogService.activeIngredientsCrossed', () => {
 describe('CatalogService.decisionCounts', () => {
   it('tallies the groups by decision with a total', async () => {
     const em = makeEm([['p.active_ingredient AS ai', INGREDIENT_ROWS]]);
-    const counts = await new CatalogService().decisionCounts(
+    const counts = await catalog().decisionCounts(
       em,
+      SLUG,
       q({ subsidiary: '1' }),
     );
     expect(counts).toEqual({
@@ -226,13 +237,13 @@ describe('CatalogService.stock', () => {
       [
         '"ownStock"',
         [
-          { ean: 1, name: 'A', ownStock: 0, drogalStock: 5, drogasilStock: 3 },
-          { ean: 2, name: 'B', ownStock: 0, drogalStock: 5, drogasilStock: 0 },
-          { ean: 3, name: 'C', ownStock: 10, drogalStock: 0, drogasilStock: 0 },
+          { ean: 1, name: 'A', ownStock: 0, 'DROGAL__stock': 5, 'DROGASIL__stock': 3 },
+          { ean: 2, name: 'B', ownStock: 0, 'DROGAL__stock': 5, 'DROGASIL__stock': 0 },
+          { ean: 3, name: 'C', ownStock: 10, 'DROGAL__stock': 0, 'DROGASIL__stock': 0 },
         ],
       ],
     ]);
-    const out = await new CatalogService().stock(em, q({}));
+    const out = await catalog().stock(em, SLUG, q({}));
     expect(out.rows.map((r) => r.stockStatus)).toEqual([
       'ANALYZE_INCLUSION', // own 0, 2 competitors
       'POTENTIAL', // own 0, 1 competitor
@@ -245,7 +256,7 @@ describe('CatalogService.exportCsv', () => {
   it('emits a header and escapes commas and quotes', async () => {
     const em = makeEm([
       [
-        'AS drogal,',
+        '"DROGAL__price"',
         [
           {
             ean: 1,
@@ -256,14 +267,14 @@ describe('CatalogService.exportCsv', () => {
             price: '10',
             margin: '50',
             status: 'OK',
-            drogal: '9',
-            drogasil: null,
-            michelassi: null,
+            'DROGAL__price': '9',
+            'DROGASIL__price': null,
+            'MICHELASSI__price': null,
           },
         ],
       ],
     ]);
-    const csv = await new CatalogService().exportCsv(em, q({}));
+    const csv = await catalog().exportCsv(em, SLUG, q({}));
     const [header, row] = csv.split('\n');
     expect(header).toBe(
       'ean,name,supplier,classification,cost,price,margin,status,drogal,drogasil,michelassi',
@@ -277,7 +288,7 @@ describe('CatalogService.exportCsv', () => {
 describe('CatalogService.buildFilters (via .list/.crossed)', () => {
   it('active=true → p.active = $N with boolean true in params', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ active: 'true' }));
+    await catalog().list(em, q({ active: 'true' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.active = $1');
     expect(params).toContain(true);
@@ -286,7 +297,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('active=false → boolean false in params', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ active: 'false' }));
+    await catalog().list(em, q({ active: 'false' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.active = $1');
     expect(params[0]).toBe(false);
@@ -294,7 +305,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('receiptFrom → p.receipt_date >= $N with the date in params', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ receiptFrom: '2026-01-01' }));
+    await catalog().list(em, q({ receiptFrom: '2026-01-01' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.receipt_date >= $1');
     expect(params[0]).toBe('2026-01-01');
@@ -302,7 +313,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('receiptTo → p.receipt_date <= $N with the date in params', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ receiptTo: '2026-12-31' }));
+    await catalog().list(em, q({ receiptTo: '2026-12-31' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.receipt_date <= $1');
     expect(params[0]).toBe('2026-12-31');
@@ -310,7 +321,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('receiptFrom + receiptTo → both clauses ANDed', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(
+    await catalog().list(
       em,
       q({ receiptFrom: '2026-01-01', receiptTo: '2026-12-31' }),
     );
@@ -324,7 +335,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('monitored=true → p.monitored = $N with boolean true', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ monitored: 'true' }));
+    await catalog().list(em, q({ monitored: 'true' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.monitored = $1');
     expect(params[0]).toBe(true);
@@ -332,7 +343,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('monitored=false → boolean false', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ monitored: 'false' }));
+    await catalog().list(em, q({ monitored: 'false' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.monitored = $1');
     expect(params[0]).toBe(false);
@@ -340,7 +351,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('status csv → p.status = ANY($N) with the split array', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ status: 'OK,ATENCAO' }));
+    await catalog().list(em, q({ status: 'OK,ATENCAO' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.status = ANY($1)');
     expect(params[0]).toEqual(['OK', 'ATENCAO']);
@@ -348,7 +359,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('eans csv → p.ean = ANY($N::bigint[]) with the split array', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ eans: '111, 222' }));
+    await catalog().list(em, q({ eans: '111, 222' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.ean = ANY($1::bigint[])');
     expect(params[0]).toEqual(['111', '222']);
@@ -356,7 +367,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('name → p.name ILIKE with the percent-wrapped value', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ name: 'dipirona' }));
+    await catalog().list(em, q({ name: 'dipirona' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.name ILIKE $1');
     expect(params[0]).toBe('%dipirona%');
@@ -364,7 +375,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('supplier → p.supplier ILIKE with the percent-wrapped value', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ supplier: 'EMS' }));
+    await catalog().list(em, q({ supplier: 'EMS' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.supplier ILIKE $1');
     expect(params[0]).toBe('%EMS%');
@@ -372,7 +383,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('classification → c.name ILIKE with the percent-wrapped value', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({ classification: 'Analgésico' }));
+    await catalog().list(em, q({ classification: 'Analgésico' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE c.name ILIKE $1');
     expect(params[0]).toBe('%Analgésico%');
@@ -380,7 +391,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('multiple filters keep buildFilters order and increment placeholders', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(
+    await catalog().list(
       em,
       q({ name: 'dipirona', active: 'true', receiptFrom: '2026-01-01' }),
     );
@@ -393,7 +404,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('no filters → empty WHERE (params only carry paginate)', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().list(em, q({}));
+    await catalog().list(em, q({}));
     const [sql, params] = dataCall(query);
     expect(sql).not.toContain('WHERE');
     // only LIMIT/OFFSET params
@@ -402,7 +413,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('filters reach .crossed() the same way', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().crossed(em, q({ active: 'false' }));
+    await catalog().crossed(em, SLUG, q({ active: 'false' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.active = $1');
     expect(params[0]).toBe(false);
@@ -412,7 +423,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 describe('CatalogService.paginate (via .list)', () => {
   it('clamps perPage above MAX_PER_PAGE to 200 (returned + LIMIT param)', async () => {
     const { em, query } = recordingEm();
-    const out = await new CatalogService().list(em, q({ perPage: 500 }));
+    const out = await catalog().list(em, q({ perPage: 500 }));
     expect(out.perPage).toBe(200);
     const [sql, params] = dataCall(query);
     expect(sql).toContain('LIMIT $1 OFFSET $2');
@@ -421,7 +432,7 @@ describe('CatalogService.paginate (via .list)', () => {
 
   it('defaults perPage to 50', async () => {
     const { em, query } = recordingEm();
-    const out = await new CatalogService().list(em, q({}));
+    const out = await catalog().list(em, q({}));
     expect(out.perPage).toBe(50);
     const [, params] = dataCall(query);
     expect(params).toEqual([50, 0]);
@@ -429,7 +440,7 @@ describe('CatalogService.paginate (via .list)', () => {
 
   it('offset = (page-1)*perPage is passed as the OFFSET param', async () => {
     const { em, query } = recordingEm();
-    const out = await new CatalogService().list(em, q({ page: 3, perPage: 20 }));
+    const out = await catalog().list(em, q({ page: 3, perPage: 20 }));
     expect(out.page).toBe(3);
     const [, params] = dataCall(query);
     expect(params).toEqual([20, 40]);
@@ -437,44 +448,92 @@ describe('CatalogService.paginate (via .list)', () => {
 });
 
 describe('CatalogService.crossed', () => {
-  it('selects the active flag and the competitor price columns', async () => {
+  it('selects the active flag and dynamic competitor price columns', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().crossed(em, q({}));
+    await catalog().crossed(em, SLUG, q({}));
     const [sql] = dataCall(query);
     expect(sql).toContain('p.active');
-    expect(sql).toContain(`dg.price AS "drogalPrice"`);
-    expect(sql).toContain(`ds.price AS "drogasilPrice"`);
-    expect(sql).toContain(`mi.price AS "michelassiPrice"`);
+    expect(sql).toContain(`"DROGAL__price"`);
+    expect(sql).toContain(`"DROGASIL__price"`);
+    expect(sql).toContain(`"MICHELASSI__price"`);
   });
 
   it('normalizes ean to string in the returned rows', async () => {
     const em = makeEm([
       ['count(*)::int AS count', [{ count: '1' }]],
-      [`dg.price AS "drogalPrice"`, [{ ean: 7891234567890, name: 'X' }]],
+      [`"DROGAL__price"`, [{ ean: 7891234567890, name: 'X' }]],
     ]);
-    const out = await new CatalogService().crossed(em, q({}));
+    const out = await catalog().crossed(em, SLUG, q({}));
     expect(out.rows[0].ean).toBe('7891234567890');
+  });
+
+  it('does not leak ORIGIN__* SQL aliases in the response', async () => {
+    const em = makeEm([
+      ['count(*)::int AS count', [{ count: '1' }]],
+      [
+        `"DROGAL__price"`,
+        [
+          {
+            ean: 1,
+            name: 'X',
+            'DROGAL__price': '9',
+            'DROGAL__observation': 'deal',
+            'DROGAL__isPbm': false,
+            'DROGAL__van': null,
+            'DROGASIL__price': null,
+            'DROGASIL__observation': null,
+          },
+        ],
+      ],
+    ]);
+    const out = await catalog().crossed(em, SLUG, q({}));
+    const row = out.rows[0];
+    expect(row).not.toHaveProperty('DROGAL__price');
+    expect(row).not.toHaveProperty('DROGASIL__price');
+    expect(row.competitors).toEqual([
+      {
+        origin: 'DROGAL',
+        price: 9,
+        observation: 'deal',
+        isPbm: false,
+        van: null,
+      },
+      {
+        origin: 'DROGASIL',
+        price: null,
+        observation: null,
+        isPbm: false,
+        van: null,
+      },
+      {
+        origin: 'MICHELASSI',
+        price: null,
+        observation: null,
+        isPbm: false,
+        van: null,
+      },
+    ]);
   });
 });
 
 describe('CatalogService.strategicPrice', () => {
   const STRATEGIC_COND =
-    `(dg.metadata->>'observation' IS NOT NULL` +
-    ` OR ds.metadata->>'observation' IS NOT NULL` +
+    `(o_0.metadata->>'observation' IS NOT NULL` +
+    ` OR o_1.metadata->>'observation' IS NOT NULL` +
+    ` OR o_2.metadata->>'observation' IS NOT NULL` +
     ` OR (p.deals IS NOT NULL AND p.deals <> '{}'::jsonb))`;
 
   it('with no filters starts the condition with WHERE', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().strategicPrice(em, q({}));
+    await catalog().strategicPrice(em, SLUG, q({}));
     const [sql, params] = dataCall(query);
     expect(sql).toContain(`WHERE ${STRATEGIC_COND}`);
-    expect(sql).not.toContain('AND (dg.metadata');
     expect(params).toEqual([50, 0]);
   });
 
   it('with filters appends the condition with AND', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().strategicPrice(em, q({ active: 'true' }));
+    await catalog().strategicPrice(em, SLUG, q({ active: 'true' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain(`WHERE p.active = $1 AND ${STRATEGIC_COND}`);
     expect(params[0]).toBe(true);
@@ -485,7 +544,7 @@ describe('CatalogService.strategicPrice', () => {
       ['count(*)::int AS count', [{ count: '4' }]],
       [`p.deals,`, [{ ean: 123, name: 'Y' }]],
     ]);
-    const out = await new CatalogService().strategicPrice(em, q({}));
+    const out = await catalog().strategicPrice(em, SLUG, q({}));
     expect(out.count).toBe(4);
     expect(out.rows[0].ean).toBe('123');
   });
@@ -494,7 +553,7 @@ describe('CatalogService.strategicPrice', () => {
 describe('CatalogService.genericMissing', () => {
   it('appends the generic-missing predicate with WHERE when no filters', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().genericMissing(em, q({}));
+    await catalog().genericMissing(em, q({}));
     const [sql] = dataCall(query);
     expect(sql).toContain(
       'WHERE p.generic IS TRUE AND p.active_ingredient IS NULL',
@@ -503,7 +562,7 @@ describe('CatalogService.genericMissing', () => {
 
   it('appends the predicate with AND when filters are present', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().genericMissing(em, q({ supplier: 'EMS' }));
+    await catalog().genericMissing(em, q({ supplier: 'EMS' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain(
       'WHERE p.supplier ILIKE $1 AND p.generic IS TRUE AND p.active_ingredient IS NULL',
@@ -516,7 +575,7 @@ describe('CatalogService.genericMissing', () => {
       ['count(*)::int AS count', [{ count: '2' }]],
       ['SELECT p.ean, p.name, p.supplier', [{ ean: 999, name: 'Z' }]],
     ]);
-    const out = await new CatalogService().genericMissing(em, q({}));
+    const out = await catalog().genericMissing(em, q({}));
     expect(out.count).toBe(2);
     expect(out.rows[0].ean).toBe('999');
   });
@@ -531,32 +590,36 @@ describe('CatalogService.stockMetrics', () => {
           {
             total: '120',
             ownWithStock: '80',
-            drogalWithStock: '40',
-            drogasilWithStock: '30',
-            michelassiWithStock: '10',
+            'DROGAL__withStock': '40',
+            'DROGASIL__withStock': '30',
+            'MICHELASSI__withStock': '10',
           },
         ],
       ],
     ]);
-    const out = await new CatalogService().stockMetrics(em, q({}));
+    const out = await catalog().stockMetrics(em, SLUG, q({}));
     expect(out).toEqual({
       total: 120,
       ownWithStock: 80,
-      drogalWithStock: 40,
-      drogasilWithStock: 30,
-      michelassiWithStock: 10,
+      competitorsWithStock: [
+        { origin: 'DROGAL', withStock: 40 },
+        { origin: 'DROGASIL', withStock: 30 },
+        { origin: 'MICHELASSI', withStock: 10 },
+      ],
     });
   });
 
   it('defaults to zeros when no row comes back', async () => {
     const em = makeEm([]);
-    const out = await new CatalogService().stockMetrics(em, q({}));
+    const out = await catalog().stockMetrics(em, SLUG, q({}));
     expect(out).toEqual({
       total: 0,
       ownWithStock: 0,
-      drogalWithStock: 0,
-      drogasilWithStock: 0,
-      michelassiWithStock: 0,
+      competitorsWithStock: [
+        { origin: 'DROGAL', withStock: 0 },
+        { origin: 'DROGASIL', withStock: 0 },
+        { origin: 'MICHELASSI', withStock: 0 },
+      ],
     });
   });
 });

@@ -1,7 +1,15 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
+import {
+  buildCompetitorCrossJoins,
+  buildCompetitorStockLaterals,
+  mapCompetitorsFromRow,
+  safeOrigins,
+  stripCompetitorRowKeys,
+} from '../../common/competitor-origin-sql';
 import { buildMultiSortClause } from '../../common/multi-sort';
 import { resolveTenantId } from '../../tenant/tenant-lookup';
+import { CompetitorOriginsService } from '../pricing/competitor-origins.service';
 import {
   ListProductsQueryDto,
   SortableColumn,
@@ -12,6 +20,12 @@ export interface Paginated<T> {
   count: number;
   page: number;
   perPage: number;
+}
+
+export interface StockMetrics {
+  total: number;
+  ownWithStock: number;
+  competitorsWithStock: Array<{ origin: string; withStock: number }>;
 }
 
 const DEFAULT_PER_PAGE = 50;
@@ -69,11 +83,10 @@ interface VariantRow {
   price: string | null;
   cost: string | null;
   margin: string | null;
-  drogalPrice: string | null;
-  drogasilPrice: string | null;
   stockInSubsidiary: number;
   competitorOrigin: string | null;
   competitorPrice: string | null;
+  [key: string]: unknown;
 }
 
 export interface IngredientGroup {
@@ -121,6 +134,8 @@ interface Filters {
  */
 @Injectable()
 export class CatalogService {
+  constructor(private readonly competitorOrigins: CompetitorOriginsService) {}
+
   /** Plain tenant catalog list (no competitor cross). */
   public async list(
     em: EntityManager,
@@ -149,57 +164,74 @@ export class CatalogService {
   /** Tenant products crossed with competitor prices/observations. */
   public async crossed(
     em: EntityManager,
+    slug: string,
     q: ListProductsQueryDto,
   ): Promise<Paginated<Record<string, unknown>>> {
+    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const { page, perPage, offset } = this.paginate(q);
     const f = this.buildFilters(q);
     const order = this.orderBy(q);
+    const { joins, selects } = buildCompetitorCrossJoins(origins);
 
     const count = await this.count(em, f);
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
               p.cost, p.price, ob.target_price AS "targetPrice",
               p.margin, p.average_variation AS "averageVariation", p.status,
-              p.active, p.monitored, p.receipt_date AS "receiptDate",
-              dg.price AS "drogalPrice", dg.metadata->>'observation' AS "drogalObservation",
-              (dg.metadata->>'isPbm') = 'true' AS "drogalIsPbm", dg.metadata->>'van' AS "drogalVan",
-              ds.price AS "drogasilPrice", ds.metadata->>'observation' AS "drogasilObservation",
-              (ds.metadata->>'isPbm') = 'true' AS "drogasilIsPbm",
-              mi.price AS "michelassiPrice"
+              p.active, p.monitored, p.receipt_date AS "receiptDate"
+              ${selects ? `,\n              ${selects}` : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          LEFT JOIN offer_book ob ON ob.ean = p.ean
-         LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
-         LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
-         LEFT JOIN shared_catalog.product mi ON mi.ean = p.ean AND mi.origin = 'MICHELASSI'
+         ${joins}
         ${f.where}
         ORDER BY ${order}
         LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
       [...f.params, perPage, offset],
     );
-    return { rows: rows.map((r) => this.normalize(r)), count, page, perPage };
+    return {
+      rows: rows.map((r) =>
+        this.normalize({
+          ...stripCompetitorRowKeys(r, origins),
+          competitors: mapCompetitorsFromRow(r, origins, {
+            price: true,
+            observation: true,
+            isPbm: true,
+            van: true,
+          }),
+        }),
+      ),
+      count,
+      page,
+      perPage,
+    };
   }
 
   /** Crossed products that are "strategic" — have a competitor deal
-   *  (metadata.observation on DROGAL/DROGASIL) OR a tenant deal
+   *  (metadata.observation on any enabled origin) OR a tenant deal
    *  (product.deals). Surfaces the deals + the competitor deal text. */
   public async strategicPrice(
     em: EntityManager,
+    slug: string,
     q: ListProductsQueryDto,
   ): Promise<Paginated<Record<string, unknown>>> {
+    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const { page, perPage, offset } = this.paginate(q);
     const f = this.buildFilters(q);
     const order = this.orderBy(q);
+    const { joins, selects } = buildCompetitorCrossJoins(origins);
+    const observationChecks = safeOrigins(origins).map(
+      (origin, i) => `o_${i}.metadata->>'observation' IS NOT NULL`,
+    );
     const cond =
-      `(dg.metadata->>'observation' IS NOT NULL` +
-      ` OR ds.metadata->>'observation' IS NOT NULL` +
-      ` OR (p.deals IS NOT NULL AND p.deals <> '{}'::jsonb))`;
+      observationChecks.length > 0
+        ? `(${observationChecks.join(' OR ')} OR (p.deals IS NOT NULL AND p.deals <> '{}'::jsonb))`
+        : `(p.deals IS NOT NULL AND p.deals <> '{}'::jsonb)`;
     const where = f.where ? `${f.where} AND ${cond}` : `WHERE ${cond}`;
     const fromJoins = `FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          LEFT JOIN offer_book ob ON ob.ean = p.ean
-         LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
-         LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'`;
+         ${joins}`;
     const countRows: Array<{ count: string }> = await em.query(
       `SELECT count(*)::int AS count ${fromJoins} ${where}`,
       f.params,
@@ -207,16 +239,23 @@ export class CatalogService {
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
               p.cost, p.price, ob.target_price AS "targetPrice", p.deals,
-              p.margin, p.average_variation AS "averageVariation", p.status,
-              dg.price AS "drogalPrice", dg.metadata->>'observation' AS "drogalDeal",
-              ds.price AS "drogasilPrice", ds.metadata->>'observation' AS "drogasilDeal"
+              p.margin, p.average_variation AS "averageVariation", p.status
+              ${selects ? `,\n              ${selects}` : ''}
          ${fromJoins} ${where}
         ORDER BY ${order}
         LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
       [...f.params, perPage, offset],
     );
     return {
-      rows: rows.map((r) => this.normalize(r)),
+      rows: rows.map((r) =>
+        this.normalize({
+          ...stripCompetitorRowKeys(r, origins),
+          competitors: mapCompetitorsFromRow(r, origins, {
+            price: true,
+            observation: true,
+          }),
+        }),
+      ),
       count: Number(countRows[0]?.count ?? 0),
       page,
       perPage,
@@ -257,10 +296,11 @@ export class CatalogService {
    *  `decision` filters the groups server-side; targetPrice/variants kept. */
   public async activeIngredientsCrossed(
     em: EntityManager,
+    slug: string,
     q: ListProductsQueryDto,
   ): Promise<Paginated<IngredientGroup>> {
     const { page, perPage, offset } = this.paginate(q);
-    const groups = await this.loadIngredientGroups(em, q);
+    const groups = await this.loadIngredientGroups(em, slug, q);
     const filtered = q.decision
       ? groups.filter((g) => g.decision === q.decision)
       : groups;
@@ -276,9 +316,10 @@ export class CatalogService {
    *  chips. Honors `activeIngredient` when present. */
   public async decisionCounts(
     em: EntityManager,
+    slug: string,
     q: ListProductsQueryDto,
   ): Promise<Record<Decision | 'total', number>> {
-    const groups = await this.loadIngredientGroups(em, q);
+    const groups = await this.loadIngredientGroups(em, slug, q);
     const counts = Object.fromEntries(DECISIONS.map((d) => [d, 0])) as Record<
       Decision | 'total',
       number
@@ -293,22 +334,24 @@ export class CatalogService {
    *  crossed list (filter + paginate) and the decision counts. */
   private async loadIngredientGroups(
     em: EntityManager,
+    slug: string,
     q: ListProductsQueryDto,
   ): Promise<IngredientGroup[]> {
+    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const subsidiary = this.requireSubsidiary(q);
     const tolerance = q.tolerance ?? 0;
     const params: unknown[] = [subsidiary];
     const aiFilter = q.activeIngredient
       ? `AND p.active_ingredient ILIKE $${params.push(`%${q.activeIngredient}%`)}`
       : '';
+    const { joins, selects } = buildCompetitorCrossJoins(origins);
     const rows: VariantRow[] = await em.query(
       `SELECT p.active_ingredient AS ai, p.ean, p.name, p.price, p.cost, p.margin,
-              dg.price AS "drogalPrice", ds.price AS "drogasilPrice",
               COALESCE(ps.quantity, 0) AS "stockInSubsidiary",
               cc.origin AS "competitorOrigin", cc.price AS "competitorPrice"
+              ${selects ? `,\n              ${selects}` : ''}
          FROM product p
-         LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
-         LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
+         ${joins}
          LEFT JOIN product_stock ps
            ON ps.ean = p.ean AND ps.subsidiary_external_id = $1::bigint
          LEFT JOIN LATERAL (
@@ -332,13 +375,16 @@ export class CatalogService {
       list.push(r);
       byIng.set(r.ai, list);
     }
-    return [...byIng].map(([ai, vs]) => this.buildGroup(ai, vs, tolerance));
+    return [...byIng].map(([ai, vs]) =>
+      this.buildGroup(ai, vs, tolerance, origins),
+    );
   }
 
   private buildGroup(
     ai: string,
     vs: VariantRow[],
     tolerance: number,
+    origins: string[],
   ): IngredientGroup {
     let combate: VariantRow | null = null;
     let lowestCost: VariantRow | null = null;
@@ -392,10 +438,9 @@ export class CatalogService {
         price: num(v.price),
         cost: num(v.cost),
         margin: num(v.margin),
-        drogalPrice: num(v.drogalPrice),
-        drogasilPrice: num(v.drogasilPrice),
         stockInSubsidiary: Number(v.stockInSubsidiary) || 0,
         isCombate: combate?.ean === v.ean,
+        competitors: mapCompetitorsFromRow(v, origins, { price: true }),
       })),
     };
   }
@@ -442,18 +487,19 @@ export class CatalogService {
   /** Crossed catalog as CSV (capped). */
   public async exportCsv(
     em: EntityManager,
+    slug: string,
     q: ListProductsQueryDto,
   ): Promise<string> {
+    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const f = this.buildFilters(q);
+    const { joins, selects } = buildCompetitorCrossJoins(origins);
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
-              p.cost, p.price, p.margin, p.status,
-              dg.price AS drogal, ds.price AS drogasil, mi.price AS michelassi
+              p.cost, p.price, p.margin, p.status
+              ${selects ? `,\n              ${selects}` : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
-         LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
-         LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
-         LEFT JOIN shared_catalog.product mi ON mi.ean = p.ean AND mi.origin = 'MICHELASSI'
+         ${joins}
         ${f.where}
         ORDER BY p.ean LIMIT 50000`,
       f.params,
@@ -467,9 +513,7 @@ export class CatalogService {
       'price',
       'margin',
       'status',
-      'drogal',
-      'drogasil',
-      'michelassi',
+      ...safeOrigins(origins).map((o) => o.toLowerCase()),
     ];
     const esc = (v: unknown): string => {
       if (v == null) return '';
@@ -482,7 +526,12 @@ export class CatalogService {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [cols.join(',')];
-    for (const r of rows) lines.push(cols.map((k) => esc(r[k])).join(','));
+    for (const r of rows) {
+      const mapped = mapCompetitorsFromRow(r, origins, { price: true });
+      const row: Record<string, unknown> = { ...r };
+      for (const c of mapped) row[c.origin.toLowerCase()] = c.price;
+      lines.push(cols.map((k) => esc(row[k])).join(','));
+    }
     return lines.join('\n');
   }
 
@@ -490,17 +539,23 @@ export class CatalogService {
    *  competitor's latest stock snapshot, with a derived stock status. */
   public async stock(
     em: EntityManager,
+    slug: string,
     q: ListProductsQueryDto,
   ): Promise<Paginated<Record<string, unknown>>> {
+    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const { page, perPage, offset } = this.paginate(q);
     const f = this.buildFilters(q);
     const order = this.orderBy(q);
     const count = await this.count(em, f);
+    const { joins } = buildCompetitorStockLaterals(origins);
+    const stockSelects = safeOrigins(origins)
+      .map((origin, i) => `o_${i}.q AS "${origin}__stock"`)
+      .join(', ');
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, c.name AS classification,
               COALESCE(own.total, 0) AS "ownStock",
-              own.by_sub AS "ownBySubsidiary",
-              dg.q AS "drogalStock", ds.q AS "drogasilStock", mi.q AS "michelassiStock"
+              own.by_sub AS "ownBySubsidiary"
+              ${stockSelects ? `,\n              ${stockSelects}` : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          LEFT JOIN LATERAL (
@@ -508,7 +563,7 @@ export class CatalogService {
                   jsonb_object_agg(subsidiary_external_id, quantity) AS by_sub
              FROM product_stock ps WHERE ps.ean = p.ean
          ) own ON true
-         ${this.competitorStockLateral()}
+         ${joins}
         ${f.where}
         ORDER BY ${order}
         LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
@@ -517,8 +572,9 @@ export class CatalogService {
     return {
       rows: rows.map((r) => {
         const own = Number(r.ownStock) || 0;
-        const comp = [r.drogalStock, r.drogasilStock, r.michelassiStock].filter(
-          (v) => Number(v) > 0,
+        const competitors = mapCompetitorsFromRow(r, origins, { stock: true });
+        const comp = competitors.filter(
+          (c) => (c.stock ?? 0) > 0,
         ).length;
         const stockStatus =
           own === 0 && comp >= 2
@@ -526,7 +582,11 @@ export class CatalogService {
             : own === 0 && comp >= 1
               ? 'POTENTIAL'
               : 'OK';
-        return { ...this.normalize(r), stockStatus };
+        return {
+          ...this.normalize(stripCompetitorRowKeys(r, origins)),
+          competitors,
+          stockStatus,
+        };
       }),
       count,
       page,
@@ -537,21 +597,22 @@ export class CatalogService {
   /** Aggregate stock coverage over the filtered set. */
   public async stockMetrics(
     em: EntityManager,
+    slug: string,
     q: ListProductsQueryDto,
-  ): Promise<Record<string, number>> {
+  ): Promise<StockMetrics> {
+    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const f = this.buildFilters(q);
+    const { joins, countFilters } = buildCompetitorStockLaterals(origins);
     const rows: Array<Record<string, string>> = await em.query(
       `SELECT count(*)::int AS total,
-              count(*) FILTER (WHERE COALESCE(own.total,0) > 0)::int AS "ownWithStock",
-              count(*) FILTER (WHERE dg.q > 0)::int AS "drogalWithStock",
-              count(*) FILTER (WHERE ds.q > 0)::int AS "drogasilWithStock",
-              count(*) FILTER (WHERE mi.q > 0)::int AS "michelassiWithStock"
+              count(*) FILTER (WHERE COALESCE(own.total,0) > 0)::int AS "ownWithStock"
+              ${countFilters.length ? `,\n              ${countFilters.join(',\n              ')}` : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          LEFT JOIN LATERAL (
            SELECT SUM(quantity)::int AS total FROM product_stock ps WHERE ps.ean = p.ean
          ) own ON true
-         ${this.competitorStockLateral()}
+         ${joins}
         ${f.where}`,
       f.params,
     );
@@ -559,28 +620,11 @@ export class CatalogService {
     return {
       total: Number(r.total ?? 0),
       ownWithStock: Number(r.ownWithStock ?? 0),
-      drogalWithStock: Number(r.drogalWithStock ?? 0),
-      drogasilWithStock: Number(r.drogasilWithStock ?? 0),
-      michelassiWithStock: Number(r.michelassiWithStock ?? 0),
+      competitorsWithStock: safeOrigins(origins).map((origin) => ({
+        origin,
+        withStock: Number(r[`${origin}__withStock`] ?? 0),
+      })),
     };
-  }
-
-  /** LATERAL joins for each competitor's latest stock snapshot (aliases
-   *  dg/ds/mi each exposing `q`). */
-  private competitorStockLateral(): string {
-    const one = (alias: string, origin: string): string =>
-      `LEFT JOIN LATERAL (
-         SELECT st.quantity AS q
-           FROM shared_catalog.product sp
-           JOIN shared_catalog.product_stock st ON st.product_id = sp.id
-          WHERE sp.ean = p.ean AND sp.origin = '${origin}'
-          ORDER BY st.captured_at DESC LIMIT 1
-       ) ${alias} ON true`;
-    return [
-      one('dg', 'DROGAL'),
-      one('ds', 'DROGASIL'),
-      one('mi', 'MICHELASSI'),
-    ].join('\n         ');
   }
 
   private async count(em: EntityManager, f: Filters): Promise<number> {

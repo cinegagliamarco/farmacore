@@ -113,6 +113,20 @@ describe('Catalog filters (e2e)', () => {
       `DELETE FROM shared_catalog.product WHERE ean IN (${ALL_EANS})`,
     );
 
+    const tenantRows: Array<{ id: string }> = await ds.query(
+      `SELECT id FROM core.tenant WHERE slug = $1`,
+      [SLUG],
+    );
+    const tenantId = tenantRows[0].id;
+    await ds.query(
+      `INSERT INTO core.tenant_competitor_origin (tenant_id, origin, enabled, priority)
+       VALUES ($1, 'DROGAL', true, 10),
+              ($1, 'DROGASIL', true, 20)
+       ON CONFLICT (tenant_id, origin) DO UPDATE
+         SET enabled = EXCLUDED.enabled, priority = EXCLUDED.priority`,
+      [tenantId],
+    );
+
     const login = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: 'admin@e2e.test', password: 'secret123', tenantSlug: SLUG })
@@ -125,6 +139,17 @@ describe('Catalog filters (e2e)', () => {
     // cleanup still runs fully even if beforeAll aborted partway — no leaked
     // schema/rows.
     if (ds?.isInitialized) {
+      const tenantRows: Array<{ id: string }> = await ds.query(
+        `SELECT id FROM core.tenant WHERE slug = $1`,
+        [SLUG],
+      );
+      const tenantId = tenantRows[0]?.id;
+      if (tenantId) {
+        await ds.query(
+          `DELETE FROM core.tenant_competitor_origin WHERE tenant_id = $1`,
+          [tenantId],
+        );
+      }
       await ds.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
       await ds.query(`DELETE FROM core."user" WHERE tenant_id = $1`, [SLUG]);
       await ds.query(`DELETE FROM core.tenant WHERE slug = $1`, [SLUG]);
@@ -180,15 +205,31 @@ describe('Catalog filters (e2e)', () => {
   });
 
   describe('GET /products/crossed', () => {
-    it('carries the active flag and competitor price keys (null, no competitors)', async () => {
+    it('carries the active flag and competitors[] with null prices (no shared_catalog rows)', async () => {
       const res = await get(`/products/crossed?eans=${EAN_ACTIVE}`).expect(200);
       expect(res.body.count).toBe(1);
       const row = res.body.rows[0] as Record<string, unknown>;
       expect(row.ean).toBe(EAN_ACTIVE);
       expect(typeof row.active).toBe('boolean');
       expect(row.active).toBe(true);
-      expect(row).toHaveProperty('drogalPrice', null);
-      expect(row).toHaveProperty('drogasilPrice', null);
+      expect(row.competitors).toEqual([
+        {
+          origin: 'DROGAL',
+          price: null,
+          observation: null,
+          isPbm: false,
+          van: null,
+        },
+        {
+          origin: 'DROGASIL',
+          price: null,
+          observation: null,
+          isPbm: false,
+          van: null,
+        },
+      ]);
+      expect(row).not.toHaveProperty('DROGAL__price');
+      expect(row).not.toHaveProperty('DROGASIL__price');
     });
   });
 
@@ -229,9 +270,10 @@ describe('Catalog filters (e2e)', () => {
       expect(res.body).toEqual({
         total: 1,
         ownWithStock: 1,
-        drogalWithStock: 0,
-        drogasilWithStock: 0,
-        michelassiWithStock: 0,
+        competitorsWithStock: [
+          { origin: 'DROGAL', withStock: 0 },
+          { origin: 'DROGASIL', withStock: 0 },
+        ],
       });
     });
   });
