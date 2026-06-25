@@ -9,6 +9,7 @@ export interface SaoPauloCommertialOffer {
 export interface SaoPauloItem {
   images?: Array<{ imageUrl?: string }>;
   sellers?: Array<{ commertialOffer?: SaoPauloCommertialOffer }>;
+  referenceId?: Array<{ Key?: string; Value?: string }>;
 }
 
 export interface SaoPauloProduct {
