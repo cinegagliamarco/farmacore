@@ -451,14 +451,14 @@ describe('CatalogService.paginate (via .list)', () => {
 });
 
 describe('CatalogService.crossed', () => {
-  it('selects active flag, priceOffer, legacy columns and dynamic competitor columns', async () => {
+  it('selects active flag, priceOffer and dynamic competitor columns', async () => {
     const { em, query } = recordingEm();
     await catalog().crossed(em, SLUG, q({}));
     const [sql] = dataCall(query);
     expect(sql).toContain('p.active');
     expect(sql).toContain(`AS "priceOffer"`);
     expect(sql).toContain('tenant_offer_campaign toc');
-    expect(sql).toContain(`dg.price AS "drogalPrice"`);
+    expect(sql).not.toContain(`dg.price AS "drogalPrice"`);
     expect(sql).toContain(`"DROGAL__price"`);
     expect(sql).toContain(`"DROGASIL__price"`);
     expect(sql).toContain(`"MICHELASSI__price"`);

@@ -230,8 +230,8 @@ describe('Catalog filters (e2e)', () => {
       ]);
       expect(row).not.toHaveProperty('DROGAL__price');
       expect(row).not.toHaveProperty('DROGASIL__price');
-      expect(row).toHaveProperty('drogalPrice', null);
-      expect(row).toHaveProperty('drogasilPrice', null);
+      expect(row).not.toHaveProperty('drogalPrice');
+      expect(row).not.toHaveProperty('drogasilPrice');
       expect(row).toHaveProperty('priceOffer', null);
       expect(res.body.origins).toEqual(['DROGAL', 'DROGASIL']);
     });

@@ -184,10 +184,7 @@ export class CatalogService {
    *  with one entry per origin the tenant has ENABLED in
    *  core.tenant_competitor_origin (ordered by priority), and the response's
    *  `origins` lists those enabled origins so the client can render a stable
-   *  column per origin. The legacy drogal/drogasil/michelassi columns are kept
-   *  for backward compat during the front migration (they ignore the enabled
-   *  flag, preserving today's behaviour for old clients) and can be dropped
-   *  once no client reads them. */
+   *  column per origin. */
   public async crossed(
     em: EntityManager,
     slug: string,
@@ -204,19 +201,11 @@ export class CatalogService {
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
               p.cost, p.price, ${PRICE_OFFER_EXPR} AS "priceOffer",
               p.margin, p.average_variation AS "averageVariation", p.status,
-              p.active, p.monitored, p.receipt_date AS "receiptDate",
-              dg.price AS "drogalPrice", dg.metadata->>'observation' AS "drogalObservation",
-              (dg.metadata->>'isPbm') = 'true' AS "drogalIsPbm", dg.metadata->>'van' AS "drogalVan",
-              ds.price AS "drogasilPrice", ds.metadata->>'observation' AS "drogasilObservation",
-              (ds.metadata->>'isPbm') = 'true' AS "drogasilIsPbm",
-              mi.price AS "michelassiPrice"
+              p.active, p.monitored, p.receipt_date AS "receiptDate"
               ${selects ? `,\n              ${selects}` : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          ${OFFER_BOOK_JOINS}
-         LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
-         LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
-         LEFT JOIN shared_catalog.product mi ON mi.ean = p.ean AND mi.origin = 'MICHELASSI'
          ${joins}
         ${f.where}
         ORDER BY ${order}
