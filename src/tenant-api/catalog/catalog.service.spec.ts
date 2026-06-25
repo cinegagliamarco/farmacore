@@ -160,8 +160,8 @@ const INGREDIENT_ROWS = [
     price: '10',
     cost: '5',
     margin: '50',
-    'DROGAL__price': '12',
-    'DROGASIL__price': null,
+    DROGAL__price: '12',
+    DROGASIL__price: null,
     stockInSubsidiary: 3,
     competitorOrigin: 'DROGAL',
     competitorPrice: '12',
@@ -174,8 +174,8 @@ const INGREDIENT_ROWS = [
     price: '8',
     cost: '5',
     margin: '40',
-    'DROGAL__price': null,
-    'DROGASIL__price': null,
+    DROGAL__price: null,
+    DROGASIL__price: null,
     stockInSubsidiary: 5,
     competitorOrigin: null,
     competitorPrice: null,
@@ -240,9 +240,27 @@ describe('CatalogService.stock', () => {
       [
         '"ownStock"',
         [
-          { ean: 1, name: 'A', ownStock: 0, 'DROGAL__stock': 5, 'DROGASIL__stock': 3 },
-          { ean: 2, name: 'B', ownStock: 0, 'DROGAL__stock': 5, 'DROGASIL__stock': 0 },
-          { ean: 3, name: 'C', ownStock: 10, 'DROGAL__stock': 0, 'DROGASIL__stock': 0 },
+          {
+            ean: 1,
+            name: 'A',
+            ownStock: 0,
+            DROGAL__stock: 5,
+            DROGASIL__stock: 3,
+          },
+          {
+            ean: 2,
+            name: 'B',
+            ownStock: 0,
+            DROGAL__stock: 5,
+            DROGASIL__stock: 0,
+          },
+          {
+            ean: 3,
+            name: 'C',
+            ownStock: 10,
+            DROGAL__stock: 0,
+            DROGASIL__stock: 0,
+          },
         ],
       ],
     ]);
@@ -270,9 +288,9 @@ describe('CatalogService.exportCsv', () => {
             price: '10',
             margin: '50',
             status: 'OK',
-            'DROGAL__price': '9',
-            'DROGASIL__price': null,
-            'MICHELASSI__price': null,
+            DROGAL__price: '9',
+            DROGASIL__price: null,
+            MICHELASSI__price: null,
           },
         ],
       ],
@@ -465,7 +483,7 @@ describe('CatalogService.crossed', () => {
   });
 
   it('returns enabled origins in the response', async () => {
-    const { em, query } = recordingEm();
+    const { em } = recordingEm();
     const out = await catalog().crossed(em, SLUG, q({}));
     expect(out.origins).toEqual(DEFAULT_ORIGINS);
   });
@@ -488,12 +506,12 @@ describe('CatalogService.crossed', () => {
           {
             ean: 1,
             name: 'X',
-            'DROGAL__price': '9',
-            'DROGAL__observation': 'deal',
-            'DROGAL__isPbm': false,
-            'DROGAL__van': null,
-            'DROGASIL__price': null,
-            'DROGASIL__observation': null,
+            DROGAL__price: '9',
+            DROGAL__observation: 'deal',
+            DROGAL__isPbm: false,
+            DROGAL__van: null,
+            DROGASIL__price: null,
+            DROGASIL__observation: null,
           },
         ],
       ],
@@ -602,9 +620,9 @@ describe('CatalogService.stockMetrics', () => {
           {
             total: '120',
             ownWithStock: '80',
-            'DROGAL__withStock': '40',
-            'DROGASIL__withStock': '30',
-            'MICHELASSI__withStock': '10',
+            DROGAL__withStock: '40',
+            DROGASIL__withStock: '30',
+            MICHELASSI__withStock: '10',
           },
         ],
       ],
