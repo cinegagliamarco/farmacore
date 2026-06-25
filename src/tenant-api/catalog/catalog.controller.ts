@@ -16,7 +16,7 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import type { JwtPayload } from '../../auth/jwt-payload.type';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
-import { CatalogService, IngredientGroup, Paginated } from './catalog.service';
+import { CatalogService, IngredientGroup, Paginated, StockMetrics } from './catalog.service';
 import { CatalogMutationService } from './catalog-mutation.service';
 import { ListProductsQueryDto } from './dto/list-products.query';
 import {
@@ -130,7 +130,7 @@ export class CatalogController {
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
-  ): Promise<Record<string, number>> {
+  ): Promise<StockMetrics> {
     return this.catalog.stockMetrics(em, user.tenantId, query);
   }
 
