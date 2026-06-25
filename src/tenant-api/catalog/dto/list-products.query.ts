@@ -28,7 +28,7 @@ export const SORTABLE_COLUMNS = [
   'margin',
   'averageVariation',
   'status',
-  'targetPrice',
+  'priceOffer',
   'receiptDate',
 ] as const;
 export type SortableColumn = (typeof SORTABLE_COLUMNS)[number];

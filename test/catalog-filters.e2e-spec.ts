@@ -189,6 +189,7 @@ describe('Catalog filters (e2e)', () => {
       expect(row.active).toBe(true);
       expect(row).toHaveProperty('drogalPrice', null);
       expect(row).toHaveProperty('drogasilPrice', null);
+      expect(row).toHaveProperty('priceOffer', null);
     });
   });
 

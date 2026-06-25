@@ -170,6 +170,10 @@ export class SyncBaseProductStep {
           ean,
           description: offer.cadernooferta.nome ?? null,
           targetPrice: this.toNumericString(target),
+          externalId:
+            offer.cadernooferta.id != null
+              ? String(offer.cadernooferta.id)
+              : null,
         });
       }
     }

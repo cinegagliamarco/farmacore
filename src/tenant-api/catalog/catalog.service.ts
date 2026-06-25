@@ -74,12 +74,14 @@ interface VariantRow {
   stockInSubsidiary: number;
   competitorOrigin: string | null;
   competitorPrice: string | null;
+  priceOffer: string | null;
 }
 
 export interface IngredientGroup {
   activeIngredient: string;
   decision: Decision;
   targetPrice: number | null;
+  priceOffer: number | null;
   combate: {
     ean: string;
     name: string;
@@ -90,6 +92,21 @@ export interface IngredientGroup {
   competitorCombate: { origin: string; price: number } | null;
   variants: Record<string, unknown>[];
 }
+
+/** Joins required wherever `priceOffer` is selected (offer_book + vigente campaign). */
+const OFFER_BOOK_JOINS = `LEFT JOIN offer_book ob ON ob.ean = p.ean
+         LEFT JOIN tenant_offer_campaign toc ON toc.external_id = ob.external_id`;
+
+/** precoOferta from offer_book — null when absent, zero, or linked to an expired/inactive caderno. */
+const PRICE_OFFER_EXPR = `CASE
+          WHEN ob.target_price IS NULL OR ob.target_price <= 0 THEN NULL
+          WHEN ob.external_id IS NULL THEN ob.target_price
+          WHEN toc.active = true
+           AND (toc.start_date IS NULL OR toc.start_date <= now())
+           AND (toc.expiration_date IS NULL OR toc.expiration_date > now())
+          THEN ob.target_price
+          ELSE NULL
+        END`;
 
 // sortBy → SQL expression. Keys must match SORTABLE_COLUMNS no DTO
 // (TypeScript garante via Record<SortableColumn, string>).
@@ -103,7 +120,7 @@ const SORTABLE: Record<SortableColumn, string> = {
   margin: 'p.margin',
   averageVariation: 'p.average_variation',
   status: 'p.status',
-  targetPrice: 'ob.target_price',
+  priceOffer: PRICE_OFFER_EXPR,
   receiptDate: 'p.receipt_date',
 };
 
@@ -158,7 +175,7 @@ export class CatalogService {
     const count = await this.count(em, f);
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
-              p.cost, p.price, ob.target_price AS "targetPrice",
+              p.cost, p.price, ${PRICE_OFFER_EXPR} AS "priceOffer",
               p.margin, p.average_variation AS "averageVariation", p.status,
               p.active, p.monitored, p.receipt_date AS "receiptDate",
               dg.price AS "drogalPrice", dg.metadata->>'observation' AS "drogalObservation",
@@ -168,7 +185,7 @@ export class CatalogService {
               mi.price AS "michelassiPrice"
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
-         LEFT JOIN offer_book ob ON ob.ean = p.ean
+         ${OFFER_BOOK_JOINS}
          LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
          LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
          LEFT JOIN shared_catalog.product mi ON mi.ean = p.ean AND mi.origin = 'MICHELASSI'
@@ -197,7 +214,7 @@ export class CatalogService {
     const where = f.where ? `${f.where} AND ${cond}` : `WHERE ${cond}`;
     const fromJoins = `FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
-         LEFT JOIN offer_book ob ON ob.ean = p.ean
+         ${OFFER_BOOK_JOINS}
          LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
          LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'`;
     const countRows: Array<{ count: string }> = await em.query(
@@ -206,7 +223,7 @@ export class CatalogService {
     );
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
-              p.cost, p.price, ob.target_price AS "targetPrice", p.deals,
+              p.cost, p.price, ${PRICE_OFFER_EXPR} AS "priceOffer", p.deals,
               p.margin, p.average_variation AS "averageVariation", p.status,
               dg.price AS "drogalPrice", dg.metadata->>'observation' AS "drogalDeal",
               ds.price AS "drogasilPrice", ds.metadata->>'observation' AS "drogasilDeal"
@@ -254,7 +271,7 @@ export class CatalogService {
   /** Products grouped by active ingredient for a store, each with its combate
    *  (cheapest in-stock variant), lowest-cost variant, cheapest stocked
    *  competitor, and the derived decision (see deriveDecision). Optional
-   *  `decision` filters the groups server-side; targetPrice/variants kept. */
+   *  `decision` filters the groups server-side; targetPrice/priceOffer/variants kept. */
   public async activeIngredientsCrossed(
     em: EntityManager,
     q: ListProductsQueryDto,
@@ -305,10 +322,12 @@ export class CatalogService {
       `SELECT p.active_ingredient AS ai, p.ean, p.name, p.price, p.cost, p.margin,
               dg.price AS "drogalPrice", ds.price AS "drogasilPrice",
               COALESCE(ps.quantity, 0) AS "stockInSubsidiary",
-              cc.origin AS "competitorOrigin", cc.price AS "competitorPrice"
+              cc.origin AS "competitorOrigin", cc.price AS "competitorPrice",
+              ${PRICE_OFFER_EXPR} AS "priceOffer"
          FROM product p
          LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
          LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
+         ${OFFER_BOOK_JOINS}
          LEFT JOIN product_stock ps
            ON ps.ean = p.ean AND ps.subsidiary_external_id = $1::bigint
          LEFT JOIN LATERAL (
@@ -370,10 +389,13 @@ export class CatalogService {
     const prices = vs
       .map((v) => num(v.price))
       .filter((n): n is number => n !== null && n > 0);
+    const combateOffer = combate ? num(combate.priceOffer) : null;
     return {
       activeIngredient: ai,
       decision,
       targetPrice: prices.length ? Math.min(...prices) : null,
+      priceOffer:
+        combateOffer !== null && combateOffer > 0 ? combateOffer : null,
       combate: combate
         ? {
             ean: String(combate.ean),
@@ -394,6 +416,7 @@ export class CatalogService {
         margin: num(v.margin),
         drogalPrice: num(v.drogalPrice),
         drogasilPrice: num(v.drogasilPrice),
+        priceOffer: num(v.priceOffer),
         stockInSubsidiary: Number(v.stockInSubsidiary) || 0,
         isCombate: combate?.ean === v.ean,
       })),
