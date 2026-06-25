@@ -53,7 +53,7 @@ interface PreviewRequest {
   priceLocks: PriceLock[];                // pode ser []
   applyPriceRounding?: boolean;           // default false
   page?: number;                          // default 1
-  pageSize?: number;                      // default 1000, teto 1000
+  perPage?: number;                       // default 1000, teto 1000
 }
 ```
 
@@ -84,12 +84,12 @@ interface PreviewRow {
   priceRoundingApplied: boolean;
 }
 
+// envelope de paginação do app (igual ao /products): { rows, count, page, perPage }
 interface PreviewResponse {
   rows: PreviewRow[];
-  total: number;        // total que casou (antes da paginação)
+  count: number;        // total que casou (antes da paginação)
   page: number;
-  pageSize: number;
-  totalPages: number;
+  perPage: number;
 }
 ```
 
@@ -110,7 +110,7 @@ interface PreviewResponse {
 2. Escolhe a **base de cálculo**. Se `COMPETITIVE_PRICE`, mostra o multi-select de `priceBaseSources` (obrigatório ≥1).
 3. Monta N **regras** (faixa de preço/margem + desconto/acréscimo) e M **travas de margem**.
 4. (opcional) liga **arredondar preço final**.
-5. `POST /offer-book-rules/preview` → renderiza a tabela com `rows`, paginando por `total`/`totalPages`.
+5. `POST /offer-book-rules/preview` → renderiza a tabela com `rows`, paginando por `count`/`perPage` (`totalPages = Math.ceil(count/perPage)`).
 6. Cada linha mostra `currentPrice → finalPrice`, `currentMargin → newMargin`, e **badges** das flags (ver abaixo).
 
 ## 5. Como exibir as flags (cada linha)
@@ -147,7 +147,7 @@ curl -sX POST "$BASE/offer-book-rules/preview" \
     "pricingRules": [{ "actionType": "DISCOUNT", "percentageValue": 5 }],
     "priceLocks": [{ "minMargin": 20 }],
     "applyPriceRounding": true,
-    "page": 1, "pageSize": 50
+    "page": 1, "perPage": 50
   }'
 ```
 
@@ -158,16 +158,16 @@ Além do preview ad-hoc, a regra agora pode ser **salva** e tem **histórico de 
 | Método | Rota | Papel | O quê |
 |---|---|---|---|
 | `POST` | `/offer-book-rules` | OPERATOR/ADMIN | cria regra salva (mesmo corpo do preview + `name`, `description?`, `enabled?`) → devolve o detalhe |
-| `GET` | `/offer-book-rules` | qualquer | lista regras `{rows, count}`; filtros `page,pageSize,name,enabled` |
+| `GET` | `/offer-book-rules` | qualquer | lista regras `{rows, count}`; filtros `page,perPage,name,enabled` |
 | `GET` | `/offer-book-rules/:id` | qualquer | detalhe da regra + `pricingRules` + `priceLocks` |
 | `PATCH` | `/offer-book-rules/:id` | OPERATOR/ADMIN | atualiza; arrays substituem por completo |
 | `DELETE` | `/offer-book-rules/:id` | ADMIN | apaga (cascade nos filhos + relatórios) |
-| `GET` | `/offer-book-rules/:id/preview` | qualquer | preview da regra salva (mesma `PreviewResponse`); `page,pageSize` |
+| `GET` | `/offer-book-rules/:id/preview` | qualquer | preview da regra salva (mesma `PreviewResponse`); `page,perPage` |
 | `GET` | `/offer-book-rules/:id/products` | qualquer | produtos que a regra mira (preço/margem/custo atuais, sem aplicar) |
 | `GET` | `/offer-book-rules/:id/preview-download` | qualquer | CSV (`text/csv`) do preview salvo |
 | `POST` | `/offer-book-rules/preview-download` | OPERATOR/ADMIN | CSV de uma config não salva |
-| `GET` | `/offer-book-rules/execution-reports` | qualquer | lista relatórios `{rows, count}`; filtros `ruleId,executionType,outcome,startDate,endDate,page,pageSize` |
-| `GET` | `/offer-book-rules/execution-reports/:id` | qualquer | um relatório + `items: {rows, count, page, pageSize}` (filtro `name` nos itens) |
+| `GET` | `/offer-book-rules/execution-reports` | qualquer | lista relatórios `{rows, count}`; filtros `ruleId,executionType,outcome,startDate,endDate,page,perPage` |
+| `GET` | `/offer-book-rules/execution-reports/:id` | qualquer | um relatório + `items: {rows, count, page, perPage}` (filtro `name` nos itens) |
 | `GET` | `/offer-book-rules/:id/execution-reports` | qualquer | histórico de execuções da regra |
 
 **Contrato do `RuleDetail`** (resposta de create/get/update): `{ id, name, description, calculationBaseType, priceBaseSources, eans, classifications, applyPriceRounding, enabled, pricingRules[], priceLocks[], createdAt, updatedAt }`. O alvo vem em **`eans` OU `classifications`** (o outro é `null`).
@@ -181,7 +181,7 @@ Além do preview ad-hoc, a regra agora pode ser **salva** e tem **histórico de 
 - [ ] Tela de simulação (alvo → base → regras → locks → arredondar → Simular).
 - [ ] Multi-select de `priceBaseSources` condicional ao `COMPETITIVE_PRICE`.
 - [ ] Tabela de resultado com `currentPrice→finalPrice`, `currentMargin→newMargin` e badges das flags.
-- [ ] Paginação por `total`/`totalPages`.
+- [ ] Paginação por `count`/`perPage` (FE calcula `totalPages` se precisar).
 - [ ] Validação cliente de exclusividade (eans XOR classifications) e dos ranges; tratar os `400`/`403`.
 - [ ] Esconder a ação para papel `VIEWER`.
 - [ ] CRUD de regras salvas (lista + form de criar/editar reusando o simulador) + view de detalhe com preview salvo.

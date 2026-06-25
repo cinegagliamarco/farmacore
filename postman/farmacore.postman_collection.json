@@ -1560,7 +1560,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"calculationBaseType\": \"SALE_PRICE\",\n  \"eans\": [\n    \"{{ean}}\"\n  ],\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 10\n    }\n  ],\n  \"priceLocks\": [],\n  \"page\": 1,\n  \"pageSize\": 50\n}"
+       "raw": "{\n  \"calculationBaseType\": \"SALE_PRICE\",\n  \"eans\": [\n    \"{{ean}}\"\n  ],\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 10\n    }\n  ],\n  \"priceLocks\": [],\n  \"page\": 1,\n  \"perPage\": 50\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/offer-book-rules/preview",
@@ -1602,7 +1602,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"calculationBaseType\": \"OFFER_PRICE\",\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [\n    {\n      \"classifications\": [\n        \"GENERICO\"\n      ],\n      \"priceRangeMin\": 10,\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 8\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"minMargin\": 25\n    }\n  ],\n  \"applyPriceRounding\": true,\n  \"page\": 1,\n  \"pageSize\": 50\n}"
+       "raw": "{\n  \"calculationBaseType\": \"OFFER_PRICE\",\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [\n    {\n      \"classifications\": [\n        \"GENERICO\"\n      ],\n      \"priceRangeMin\": 10,\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 8\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"minMargin\": 25\n    }\n  ],\n  \"applyPriceRounding\": true,\n  \"page\": 1,\n  \"perPage\": 50\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/offer-book-rules/preview",
@@ -1644,7 +1644,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"calculationBaseType\": \"COMPETITIVE_PRICE\",\n  \"priceBaseSources\": [\n    \"OWN_PRICE\",\n    \"DROGAL\",\n    \"DROGASIL\"\n  ],\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 5\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"classifications\": [\n        \"GENERICO\"\n      ],\n      \"minMargin\": 20\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 50\n}"
+       "raw": "{\n  \"calculationBaseType\": \"COMPETITIVE_PRICE\",\n  \"priceBaseSources\": [\n    \"OWN_PRICE\",\n    \"DROGAL\",\n    \"DROGASIL\"\n  ],\n  \"classifications\": [\n    \"GENERICO\"\n  ],\n  \"pricingRules\": [\n    {\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 5\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"classifications\": [\n        \"GENERICO\"\n      ],\n      \"minMargin\": 20\n    }\n  ],\n  \"page\": 1,\n  \"perPage\": 50\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/offer-book-rules/preview",
@@ -1745,7 +1745,7 @@
       "method": "GET",
       "header": [],
       "url": {
-       "raw": "{{baseUrl}}/offer-book-rules?page=1&pageSize=20",
+       "raw": "{{baseUrl}}/offer-book-rules?page=1&perPage=20",
        "host": [
         "{{baseUrl}}"
        ],
@@ -1758,7 +1758,7 @@
          "value": "1"
         },
         {
-         "key": "pageSize",
+         "key": "perPage",
          "value": "20"
         }
        ]
@@ -1820,7 +1820,7 @@
       "method": "GET",
       "header": [],
       "url": {
-       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/preview?page=1&pageSize=50",
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/preview?page=1&perPage=50",
        "host": [
         "{{baseUrl}}"
        ],
@@ -1835,7 +1835,7 @@
          "value": "1"
         },
         {
-         "key": "pageSize",
+         "key": "perPage",
          "value": "50"
         }
        ]
@@ -1850,7 +1850,7 @@
       "method": "GET",
       "header": [],
       "url": {
-       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/products?page=1&pageSize=50",
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/products?page=1&perPage=50",
        "host": [
         "{{baseUrl}}"
        ],
@@ -1865,7 +1865,7 @@
          "value": "1"
         },
         {
-         "key": "pageSize",
+         "key": "perPage",
          "value": "50"
         }
        ]
@@ -1928,7 +1928,7 @@
       "method": "GET",
       "header": [],
       "url": {
-       "raw": "{{baseUrl}}/offer-book-rules/execution-reports?page=1&pageSize=20",
+       "raw": "{{baseUrl}}/offer-book-rules/execution-reports?page=1&perPage=20",
        "host": [
         "{{baseUrl}}"
        ],
@@ -1942,7 +1942,7 @@
          "value": "1"
         },
         {
-         "key": "pageSize",
+         "key": "perPage",
          "value": "20"
         }
        ]
@@ -1977,7 +1977,7 @@
       "method": "GET",
       "header": [],
       "url": {
-       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/execution-reports?page=1&pageSize=20",
+       "raw": "{{baseUrl}}/offer-book-rules/{{ruleId}}/execution-reports?page=1&perPage=20",
        "host": [
         "{{baseUrl}}"
        ],
@@ -1992,7 +1992,7 @@
          "value": "1"
         },
         {
-         "key": "pageSize",
+         "key": "perPage",
          "value": "20"
         }
        ]

@@ -90,7 +90,7 @@ export class OfferBookRulesService {
       );
 
     const page = dto.page ?? 1;
-    const pageSize = Math.min(dto.pageSize ?? MAX_PAGE_SIZE, MAX_PAGE_SIZE);
+    const perPage = Math.min(dto.perPage ?? MAX_PAGE_SIZE, MAX_PAGE_SIZE);
 
     const pricingRules = this.normalizePricingRules(dto.pricingRules);
     const priceLocks = this.normalizePriceLocks(dto.priceLocks);
@@ -101,10 +101,9 @@ export class OfferBookRulesService {
       em,
       dto,
       page,
-      pageSize,
+      perPage,
     );
-    if (total === 0)
-      return { rows: [], total: 0, page, pageSize, totalPages: 0 };
+    if (total === 0) return { rows: [], count: 0, page, perPage };
 
     if (dto.calculationBaseType === CalculationBaseType.COMPETITIVE_PRICE)
       await this.attachCompetitorPrices(em, products, dto.priceBaseSources!);
@@ -121,13 +120,7 @@ export class OfferBookRulesService {
       priceRoundingRules,
     });
 
-    return {
-      rows,
-      total,
-      page,
-      pageSize,
-      totalPages: Math.ceil(total / pageSize),
-    };
+    return { rows, count: total, page, perPage };
   }
 
   public normalizePricingRules(
@@ -601,7 +594,7 @@ export class OfferBookRulesService {
     em: EntityManager,
     dto: PreviewOfferBookRulesDto,
     page: number,
-    pageSize: number,
+    perPage: number,
   ): Promise<{ total: number; products: PreviewProductInput[] }> {
     const joins = `FROM product p
        LEFT JOIN cls ON cls.id = p.classification_id
@@ -643,7 +636,7 @@ export class OfferBookRulesService {
        ${joins} ${where}
        ORDER BY p.name ASC, p.ean ASC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, pageSize, (page - 1) * pageSize],
+      [...params, perPage, (page - 1) * perPage],
     );
 
     return { total, products: rows.map(toPreviewProduct) };

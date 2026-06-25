@@ -16,6 +16,7 @@ import {
 import {
   CreatePriceLockDto,
   CreatePricingRuleDto,
+  Paginated,
   PaginatedPreviewResult,
   PreviewOfferBookRulesDto,
   PreviewProductResult,
@@ -90,8 +91,8 @@ export class OfferBookRulesManagementService {
   public async list(
     em: EntityManager,
     q: ListOfferBookRulesQueryDto,
-  ): Promise<{ rows: Array<Record<string, unknown>>; count: number }> {
-    const { pageSize, offset } = this.paginate(q.page, q.pageSize, 20);
+  ): Promise<Paginated<Record<string, unknown>>> {
+    const { page, perPage, offset } = this.paginate(q.page, q.perPage, 20);
     const where: string[] = ['deleted_at IS NULL'];
     const params: unknown[] = [];
     if (q.name) {
@@ -117,9 +118,9 @@ export class OfferBookRulesManagementService {
          FROM offer_book_rule ${whereSql}
         ORDER BY created_at DESC
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, pageSize, offset],
+      [...params, perPage, offset],
     );
-    return { rows, count };
+    return { rows, count, page, perPage };
   }
 
   public async getById(
@@ -288,13 +289,13 @@ export class OfferBookRulesManagementService {
     slug: string,
     id: string,
     page?: number,
-    pageSize?: number,
+    perPage?: number,
   ): Promise<PaginatedPreviewResult> {
     const rule = await this.getById(em, id);
     return this.engine.preview(
       em,
       slug,
-      this.toPreviewDto(rule, page, pageSize),
+      this.toPreviewDto(rule, page, perPage),
     );
   }
 
@@ -303,9 +304,9 @@ export class OfferBookRulesManagementService {
     slug: string,
     id: string,
     page?: number,
-    pageSize?: number,
-  ): Promise<{
-    rows: Array<
+    perPage?: number,
+  ): Promise<
+    Paginated<
       Pick<
         PreviewProductResult,
         | 'ean'
@@ -316,15 +317,11 @@ export class OfferBookRulesManagementService {
         | 'currentMargin'
         | 'cost'
       >
-    >;
-    total: number;
-    page: number;
-    pageSize: number;
-    totalPages: number;
-  }> {
+    >
+  > {
     const rule = await this.getById(em, id);
     // No rules/locks → finalPrice == currentPrice; we just want the target set.
-    const dto = this.toPreviewDto(rule, page, pageSize);
+    const dto = this.toPreviewDto(rule, page, perPage);
     dto.pricingRules = [];
     dto.priceLocks = [];
     dto.applyPriceRounding = false;
@@ -351,7 +348,7 @@ export class OfferBookRulesManagementService {
     const res = await this.engine.preview(em, slug, {
       ...dto,
       page: 1,
-      pageSize: MAX_PAGE_SIZE,
+      perPage: MAX_PAGE_SIZE,
     });
     return toCsv(res.rows);
   }
@@ -370,8 +367,8 @@ export class OfferBookRulesManagementService {
   public async listReports(
     em: EntityManager,
     q: ListExecutionReportsQueryDto,
-  ): Promise<{ rows: Array<Record<string, unknown>>; count: number }> {
-    const { pageSize, offset } = this.paginate(q.page, q.pageSize, 20);
+  ): Promise<Paginated<Record<string, unknown>>> {
+    const { page, perPage, offset } = this.paginate(q.page, q.perPage, 20);
     const where: string[] = ['deleted_at IS NULL'];
     const params: unknown[] = [];
     const add = (cond: string, val: unknown): void => {
@@ -392,25 +389,25 @@ export class OfferBookRulesManagementService {
       `${REPORT_HEADER_SELECT} ${whereSql}
         ORDER BY started_at DESC
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, pageSize, offset],
+      [...params, perPage, offset],
     );
-    return { rows, count };
+    return { rows, count, page, perPage };
   }
 
   public async listReportsByRule(
     em: EntityManager,
     ruleId: string,
     page?: number,
-    pageSize?: number,
-  ): Promise<{ rows: Array<Record<string, unknown>>; count: number }> {
-    return this.listReports(em, { ruleId, page, pageSize });
+    perPage?: number,
+  ): Promise<Paginated<Record<string, unknown>>> {
+    return this.listReports(em, { ruleId, page, perPage });
   }
 
   public async getReport(
     em: EntityManager,
     id: string,
     page?: number,
-    pageSize?: number,
+    perPage?: number,
     name?: string,
   ): Promise<Record<string, unknown>> {
     const headers: Array<Record<string, unknown>> = await em.query(
@@ -420,7 +417,7 @@ export class OfferBookRulesManagementService {
     if (!headers.length)
       throw new NotFoundException(`execution report ${id} not found`);
 
-    const p = this.paginate(page, pageSize, 50);
+    const p = this.paginate(page, perPage, 50);
     const itemWhere: string[] = ['report_id = $1', 'deleted_at IS NULL'];
     const itemParams: unknown[] = [id];
     if (name) {
@@ -436,11 +433,11 @@ export class OfferBookRulesManagementService {
       `${REPORT_ITEM_SELECT} ${itemWhereSql}
         ORDER BY ean ASC
         LIMIT $${itemParams.length + 1} OFFSET $${itemParams.length + 2}`,
-      [...itemParams, p.pageSize, p.offset],
+      [...itemParams, p.perPage, p.offset],
     );
     return {
       ...headers[0],
-      items: { rows: items, count, page: p.page, pageSize: p.pageSize },
+      items: { rows: items, count, page: p.page, perPage: p.perPage },
     };
   }
 
@@ -449,7 +446,7 @@ export class OfferBookRulesManagementService {
   private toPreviewDto(
     rule: OfferBookRuleDetail,
     page?: number,
-    pageSize?: number,
+    perPage?: number,
   ): PreviewOfferBookRulesDto {
     return {
       calculationBaseType: rule.calculationBaseType,
@@ -462,7 +459,7 @@ export class OfferBookRulesManagementService {
       priceLocks: rule.priceLocks,
       applyPriceRounding: rule.applyPriceRounding,
       page,
-      pageSize,
+      perPage,
     };
   }
 
@@ -561,15 +558,15 @@ export class OfferBookRulesManagementService {
 
   private paginate(
     page: number | undefined,
-    pageSize: number | undefined,
+    perPage: number | undefined,
     defaultSize: number,
-  ): { page: number; pageSize: number; offset: number } {
+  ): { page: number; perPage: number; offset: number } {
     const p = page && page > 0 ? page : 1;
     const size = Math.min(
-      pageSize && pageSize > 0 ? pageSize : defaultSize,
+      perPage && perPage > 0 ? perPage : defaultSize,
       MAX_PAGE_SIZE,
     );
-    return { page: p, pageSize: size, offset: (p - 1) * size };
+    return { page: p, perPage: size, offset: (p - 1) * size };
   }
 }
 

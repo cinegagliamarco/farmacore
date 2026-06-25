@@ -172,7 +172,7 @@ export class PreviewOfferBookRulesDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  public pageSize?: number;
+  public perPage?: number;
 }
 
 export interface PreviewProductResult {
@@ -197,10 +197,12 @@ export interface PreviewProductResult {
   priceRoundingApplied: boolean;
 }
 
-export interface PaginatedPreviewResult {
-  rows: PreviewProductResult[];
-  total: number;
+/** App-wide pagination envelope — mirrors catalog's `Paginated<T>`. */
+export interface Paginated<T> {
+  rows: T[];
+  count: number;
   page: number;
-  pageSize: number;
-  totalPages: number;
+  perPage: number;
 }
+
+export type PaginatedPreviewResult = Paginated<PreviewProductResult>;

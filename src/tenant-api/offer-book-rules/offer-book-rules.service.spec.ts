@@ -514,8 +514,7 @@ describe('OfferBookRulesService.preview', () => {
       ],
       priceLocks: [],
     });
-    expect(result.total).toBe(1);
-    expect(result.totalPages).toBe(1);
+    expect(result.count).toBe(1);
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0].finalPrice).toBe(90);
     expect(roundingList).not.toHaveBeenCalled();
@@ -613,7 +612,7 @@ describe('OfferBookRulesService.preview', () => {
       pricingRules: [],
       priceLocks: [],
       page: 2,
-      pageSize: 10,
+      perPage: 10,
     });
     expect(result.rows).toHaveLength(1);
     const pageCall = query.mock.calls.find(([sql]: [string]) =>
@@ -621,7 +620,7 @@ describe('OfferBookRulesService.preview', () => {
     );
     expect(pageCall[0]).toContain("starts_with(cls.path, $1 || ' > ')");
     expect(pageCall[0]).toContain("starts_with(cls.path, $2 || ' > ')");
-    // 2 classification params, then LIMIT pageSize=10, OFFSET (2-1)*10=10
+    // 2 classification params, then LIMIT perPage=10, OFFSET (2-1)*10=10
     expect(pageCall[1]).toEqual(['A > B', 'C', 10, 10]);
   });
 
@@ -636,10 +635,9 @@ describe('OfferBookRulesService.preview', () => {
     });
     expect(result).toEqual({
       rows: [],
-      total: 0,
+      count: 0,
       page: 1,
-      pageSize: 1000,
-      totalPages: 0,
+      perPage: 1000,
     });
   });
 });

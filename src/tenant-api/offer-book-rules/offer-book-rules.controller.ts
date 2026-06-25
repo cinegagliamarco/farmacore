@@ -24,6 +24,7 @@ import {
   UpdateOfferBookRuleDto,
 } from './dto/offer-book-rule.dto';
 import {
+  Paginated,
   PaginatedPreviewResult,
   PreviewOfferBookRulesDto,
 } from './dto/preview-offer-book-rules.dto';
@@ -46,7 +47,7 @@ export class OfferBookRulesController {
   public list(
     @TenantEm() em: EntityManager,
     @Query() query: ListOfferBookRulesQueryDto,
-  ): Promise<{ rows: Array<Record<string, unknown>>; count: number }> {
+  ): Promise<Paginated<Record<string, unknown>>> {
     return this.mgmt.list(em, query);
   }
 
@@ -91,7 +92,7 @@ export class OfferBookRulesController {
   public listExecutionReports(
     @TenantEm() em: EntityManager,
     @Query() query: ListExecutionReportsQueryDto,
-  ): Promise<{ rows: Array<Record<string, unknown>>; count: number }> {
+  ): Promise<Paginated<Record<string, unknown>>> {
     return this.mgmt.listReports(em, query);
   }
 
@@ -101,7 +102,7 @@ export class OfferBookRulesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: PaginatedQueryDto,
   ): Promise<Record<string, unknown>> {
-    return this.mgmt.getReport(em, id, query.page, query.pageSize, query.name);
+    return this.mgmt.getReport(em, id, query.page, query.perPage, query.name);
   }
 
   // ----- saved-rule sub-resources -----
@@ -118,7 +119,7 @@ export class OfferBookRulesController {
       user.tenantId,
       id,
       query.page,
-      query.pageSize,
+      query.perPage,
     );
   }
 
@@ -134,7 +135,7 @@ export class OfferBookRulesController {
       user.tenantId,
       id,
       query.page,
-      query.pageSize,
+      query.perPage,
     );
   }
 
@@ -157,8 +158,8 @@ export class OfferBookRulesController {
     @TenantEm() em: EntityManager,
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: PaginatedQueryDto,
-  ): Promise<{ rows: Array<Record<string, unknown>>; count: number }> {
-    return this.mgmt.listReportsByRule(em, id, query.page, query.pageSize);
+  ): Promise<Paginated<Record<string, unknown>>> {
+    return this.mgmt.listReportsByRule(em, id, query.page, query.perPage);
   }
 
   // ----- item routes -----

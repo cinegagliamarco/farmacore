@@ -181,7 +181,7 @@ describe('Offer Book Rules (e2e)', () => {
 
   it('previews a saved rule (engine runs over the targeted products)', async () => {
     const res = await get(`/offer-book-rules/${ruleId}/preview`).expect(200);
-    expect(res.body.total).toBe(2);
+    expect(res.body.count).toBe(2);
     const a = res.body.rows.find((r: { ean: string }) => r.ean === EAN_A);
     expect(a.currentPrice).toBe(10);
     expect(a.finalPrice).toBe(9); // 10% discount, margin 50% stays above the 20% lock
@@ -189,7 +189,7 @@ describe('Offer Book Rules (e2e)', () => {
 
   it('lists the products a saved rule targets', async () => {
     const res = await get(`/offer-book-rules/${ruleId}/products`).expect(200);
-    expect(res.body.total).toBe(2);
+    expect(res.body.count).toBe(2);
     expect(res.body.rows[0]).toHaveProperty('currentPrice');
     expect(res.body.rows[0]).not.toHaveProperty('finalPrice');
   });

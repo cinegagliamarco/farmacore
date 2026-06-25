@@ -146,7 +146,7 @@ export class ListOfferBookRulesQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  public pageSize?: number;
+  public perPage?: number;
 
   @IsOptional()
   @IsString()
@@ -174,7 +174,7 @@ export class ListExecutionReportsQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  public pageSize?: number;
+  public perPage?: number;
 
   @IsOptional()
   @IsString()
@@ -210,7 +210,7 @@ export class PaginatedQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  public pageSize?: number;
+  public perPage?: number;
 
   @IsOptional()
   @IsString()
