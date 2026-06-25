@@ -61,7 +61,12 @@ export function mapProduct(ean: string, p: PachecoProduct): ScrapedProduct {
     found: true,
     name: p.productName ?? null,
     brand: p.brand ?? null,
-    sku: p.productReferenceCode ?? null,
+    // VTEX da DPSP às vezes devolve productReferenceCode null; o SKU
+    // continua disponível no RefId do item.
+    sku:
+      p.productReferenceCode ??
+      p.items?.[0]?.referenceId?.find((r) => r.Key === 'RefId')?.Value ??
+      null,
     price: toNumericString(offer.Price),
     metadata: {
       description: stripHtml(p.description),

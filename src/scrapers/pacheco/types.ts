@@ -9,6 +9,7 @@ export interface PachecoCommertialOffer {
 export interface PachecoItem {
   images?: Array<{ imageUrl?: string }>;
   sellers?: Array<{ commertialOffer?: PachecoCommertialOffer }>;
+  referenceId?: Array<{ Key?: string; Value?: string }>;
 }
 
 export interface PachecoProduct {
