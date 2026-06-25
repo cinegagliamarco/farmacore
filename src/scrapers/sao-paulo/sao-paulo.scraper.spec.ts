@@ -62,6 +62,45 @@ describe('mapProduct (São Paulo)', () => {
     expect(out.metadata?.description).toBeUndefined();
   });
 
+  it('falls back to the RefId entry (by key, not position) when productReferenceCode is absent', () => {
+    const out = mapProduct('7891', {
+      ...fullProduct,
+      productReferenceCode: undefined,
+      items: [
+        {
+          ...fullProduct.items![0],
+          referenceId: [
+            { Key: 'SellerId', Value: 'ignore-me' },
+            { Key: 'RefId', Value: '374598' },
+          ],
+        },
+      ],
+    });
+    expect(out.sku).toBe('374598');
+  });
+
+  it('prefers productReferenceCode over the item RefId when both are present', () => {
+    const out = mapProduct('7891', {
+      ...fullProduct,
+      items: [
+        {
+          ...fullProduct.items![0],
+          referenceId: [{ Key: 'RefId', Value: '374598' }],
+        },
+      ],
+    });
+    expect(out.sku).toBe('99887');
+  });
+
+  it('returns null sku when neither productReferenceCode nor a RefId entry exists', () => {
+    const out = mapProduct('7891', {
+      ...fullProduct,
+      productReferenceCode: undefined,
+      items: [{ ...fullProduct.items![0], referenceId: [{ Key: 'SellerId', Value: 'x' }] }],
+    });
+    expect(out.sku).toBeNull();
+  });
+
   it('returns null price when Price is missing or non-finite', () => {
     const out = mapProduct('7891', {
       items: [{ sellers: [{ commertialOffer: {} }] }],
