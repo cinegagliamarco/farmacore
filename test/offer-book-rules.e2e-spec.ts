@@ -178,7 +178,8 @@ describe('Offer book rules preview (e2e)', () => {
     const body = res.body as PreviewBody;
     expect(body.total).toBe(2);
     expect(body.rows.map((r) => r.ean).sort()).toEqual([EAN_A, EAN_B]);
-    for (const row of body.rows) expect(row.finalPrice).toBeLessThan(row.currentPrice);
+    for (const row of body.rows)
+      expect(row.finalPrice).toBeLessThan(row.currentPrice);
   });
 
   it('400s when both eans and classifications are sent (service guard)', async () => {

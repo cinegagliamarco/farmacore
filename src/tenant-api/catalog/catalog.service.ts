@@ -603,9 +603,7 @@ export class CatalogService {
       rows: rows.map((r) => {
         const own = Number(r.ownStock) || 0;
         const competitors = mapCompetitorsFromRow(r, origins, { stock: true });
-        const comp = competitors.filter(
-          (c) => (c.stock ?? 0) > 0,
-        ).length;
+        const comp = competitors.filter((c) => (c.stock ?? 0) > 0).length;
         const stockStatus =
           own === 0 && comp >= 2
             ? 'ANALYZE_INCLUSION'

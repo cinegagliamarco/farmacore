@@ -42,7 +42,9 @@ export class CompetitorOriginsService {
         enabled: row?.enabled ?? false,
         priority: Number(row?.priority ?? 100),
       };
-    }).sort((a, b) => a.priority - b.priority || a.origin.localeCompare(b.origin));
+    }).sort(
+      (a, b) => a.priority - b.priority || a.origin.localeCompare(b.origin),
+    );
   }
 
   /** Enabled origins for the tenant, ordered by priority ASC then origin ASC. */

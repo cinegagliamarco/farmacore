@@ -288,9 +288,9 @@ export class SyncBaseProductStep {
 
   private isGenericClassification(classification?: string): boolean {
     if (!classification) return false;
-    return SyncBaseProductStep.normalizeClassificationKey(classification).startsWith(
-      SyncBaseProductStep.GENERIC_CLASSIFICATION_PREFIX,
-    );
+    return SyncBaseProductStep.normalizeClassificationKey(
+      classification,
+    ).startsWith(SyncBaseProductStep.GENERIC_CLASSIFICATION_PREFIX);
   }
 
   private static normalizeClassificationKey(classification: string): string {

@@ -15,7 +15,9 @@ function alias(i: number): string {
 }
 
 /** Dynamic LEFT JOINs for competitor prices/metadata per tenant EAN. */
-export function buildCompetitorCrossJoins(origins: string[]): CompetitorJoinSql {
+export function buildCompetitorCrossJoins(
+  origins: string[],
+): CompetitorJoinSql {
   const safe = safeOrigins(origins);
   const joins: string[] = [];
   const selects: string[] = [];
@@ -56,7 +58,9 @@ export function buildCompetitorStockLaterals(origins: string[]): {
           ORDER BY st.captured_at DESC LIMIT 1
        ) ${a} ON true`,
     );
-    countFilters.push(`count(*) FILTER (WHERE ${a}.q > 0)::int AS "${origin}__withStock"`);
+    countFilters.push(
+      `count(*) FILTER (WHERE ${a}.q > 0)::int AS "${origin}__withStock"`,
+    );
   });
   return { joins: joins.join('\n         '), countFilters };
 }

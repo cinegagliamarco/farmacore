@@ -96,7 +96,12 @@ describe('mapProduct (São Paulo)', () => {
     const out = mapProduct('7891', {
       ...fullProduct,
       productReferenceCode: undefined,
-      items: [{ ...fullProduct.items![0], referenceId: [{ Key: 'SellerId', Value: 'x' }] }],
+      items: [
+        {
+          ...fullProduct.items![0],
+          referenceId: [{ Key: 'SellerId', Value: 'x' }],
+        },
+      ],
     });
     expect(out.sku).toBeNull();
   });

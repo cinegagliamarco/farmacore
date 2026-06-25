@@ -129,7 +129,11 @@ describe('Catalog filters (e2e)', () => {
 
     const login = await request(app.getHttpServer())
       .post('/auth/login')
-      .send({ email: 'admin@e2e.test', password: 'secret123', tenantSlug: SLUG })
+      .send({
+        email: 'admin@e2e.test',
+        password: 'secret123',
+        tenantSlug: SLUG,
+      })
       .expect(200);
     token = (login.body as { accessToken: string }).accessToken;
   }, 60000);

@@ -68,9 +68,7 @@ describe('SyncBaseProductStep helpers', () => {
       expect(
         h.isGenericClassification('GENERICO  >  PSICO GENERICO  >  A1'),
       ).toBe(true);
-      expect(h.isGenericClassification('GENERICO>ANTICONCEPCIONAL')).toBe(
-        true,
-      );
+      expect(h.isGenericClassification('GENERICO>ANTICONCEPCIONAL')).toBe(true);
     });
 
     it('does not match non-generic paths', () => {
