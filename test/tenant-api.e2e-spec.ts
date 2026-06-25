@@ -108,6 +108,10 @@ describe('Tenant API (e2e)', () => {
       `INSERT INTO ${SCHEMA}.product_stock (ean, subsidiary_external_id, quantity) VALUES
         (${EAN_A}, 1, 3), (${EAN_B}, 1, 5)`,
     );
+    await ds.query(
+      `INSERT INTO ${SCHEMA}.offer_book (ean, target_price, external_id) VALUES
+        (${EAN_B}, 7.25, 501)`,
+    );
     // One in-window, one expired, one inactive — only the first is "vigente",
     // so GET /offer-campaigns proves the active + date-window filter (not just
     // that an empty table returns []).
@@ -201,6 +205,7 @@ describe('Tenant API (e2e)', () => {
       expect(g.combate.ean).toBe(EAN_B); // 8.00 < 10.00, both in stock
       expect(g.combate.price).toBe(8);
       expect(g.targetPrice).toBe(8);
+      expect(g.priceOffer).toBe(7.25);
       expect(g.decision).toBe('ok'); // no competitor in shared_catalog
     });
 

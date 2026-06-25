@@ -165,6 +165,7 @@ const INGREDIENT_ROWS = [
     stockInSubsidiary: 3,
     competitorOrigin: 'DROGAL',
     competitorPrice: '12',
+    priceOffer: '9.50',
   },
   {
     ai: 'DIPIRONA',
@@ -178,6 +179,7 @@ const INGREDIENT_ROWS = [
     stockInSubsidiary: 5,
     competitorOrigin: null,
     competitorPrice: null,
+    priceOffer: '7.25',
   },
 ];
 
@@ -201,6 +203,7 @@ describe('CatalogService.activeIngredientsCrossed', () => {
     expect(g.lowestCost).toEqual({ ean: '1', cost: 5 });
     expect(g.competitorCombate).toEqual({ origin: 'DROGAL', price: 12 });
     expect(g.targetPrice).toBe(8);
+    expect(g.priceOffer).toBe(7.25); // combate (ean 2) offer_book price
     expect(g.decision).toBe('subir'); // combate 8 < competitor 12, tolerance 0
   });
 
@@ -448,14 +451,23 @@ describe('CatalogService.paginate (via .list)', () => {
 });
 
 describe('CatalogService.crossed', () => {
-  it('selects the active flag and dynamic competitor price columns', async () => {
+  it('selects active flag, priceOffer, legacy columns and dynamic competitor columns', async () => {
     const { em, query } = recordingEm();
     await catalog().crossed(em, SLUG, q({}));
     const [sql] = dataCall(query);
     expect(sql).toContain('p.active');
+    expect(sql).toContain(`AS "priceOffer"`);
+    expect(sql).toContain('tenant_offer_campaign toc');
+    expect(sql).toContain(`dg.price AS "drogalPrice"`);
     expect(sql).toContain(`"DROGAL__price"`);
     expect(sql).toContain(`"DROGASIL__price"`);
     expect(sql).toContain(`"MICHELASSI__price"`);
+  });
+
+  it('returns enabled origins in the response', async () => {
+    const { em, query } = recordingEm();
+    const out = await catalog().crossed(em, SLUG, q({}));
+    expect(out.origins).toEqual(DEFAULT_ORIGINS);
   });
 
   it('normalizes ean to string in the returned rows', async () => {

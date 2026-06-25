@@ -50,7 +50,7 @@ export class CatalogController {
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
-  ): Promise<Paginated<Record<string, unknown>>> {
+  ): Promise<Paginated<Record<string, unknown>> & { origins: string[] }> {
     return this.catalog.crossed(em, user.tenantId, query);
   }
 

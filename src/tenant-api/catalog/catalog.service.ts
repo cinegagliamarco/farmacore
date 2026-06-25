@@ -86,6 +86,7 @@ interface VariantRow {
   stockInSubsidiary: number;
   competitorOrigin: string | null;
   competitorPrice: string | null;
+  priceOffer: string | null;
   [key: string]: unknown;
 }
 
@@ -93,6 +94,7 @@ export interface IngredientGroup {
   activeIngredient: string;
   decision: Decision;
   targetPrice: number | null;
+  priceOffer: number | null;
   combate: {
     ean: string;
     name: string;
@@ -103,6 +105,21 @@ export interface IngredientGroup {
   competitorCombate: { origin: string; price: number } | null;
   variants: Record<string, unknown>[];
 }
+
+/** Joins required wherever `priceOffer` is selected (offer_book + vigente campaign). */
+const OFFER_BOOK_JOINS = `LEFT JOIN offer_book ob ON ob.ean = p.ean
+         LEFT JOIN tenant_offer_campaign toc ON toc.external_id = ob.external_id`;
+
+/** precoOferta from offer_book — null when absent, zero, or linked to an expired/inactive caderno. */
+const PRICE_OFFER_EXPR = `CASE
+          WHEN ob.target_price IS NULL OR ob.target_price <= 0 THEN NULL
+          WHEN ob.external_id IS NULL THEN ob.target_price
+          WHEN toc.active = true
+           AND (toc.start_date IS NULL OR toc.start_date <= now())
+           AND (toc.expiration_date IS NULL OR toc.expiration_date > now())
+          THEN ob.target_price
+          ELSE NULL
+        END`;
 
 // sortBy → SQL expression. Keys must match SORTABLE_COLUMNS no DTO
 // (TypeScript garante via Record<SortableColumn, string>).
@@ -116,7 +133,7 @@ const SORTABLE: Record<SortableColumn, string> = {
   margin: 'p.margin',
   averageVariation: 'p.average_variation',
   status: 'p.status',
-  targetPrice: 'ob.target_price',
+  priceOffer: PRICE_OFFER_EXPR,
   receiptDate: 'p.receipt_date',
 };
 
@@ -161,12 +178,21 @@ export class CatalogService {
     return { rows: rows.map((r) => this.normalize(r)), count, page, perPage };
   }
 
-  /** Tenant products crossed with competitor prices/observations. */
+  /** Tenant products crossed with competitor prices/observations.
+   *
+   *  Competitors are DYNAMIC per tenant: each row carries a `competitors` array
+   *  with one entry per origin the tenant has ENABLED in
+   *  core.tenant_competitor_origin (ordered by priority), and the response's
+   *  `origins` lists those enabled origins so the client can render a stable
+   *  column per origin. The legacy drogal/drogasil/michelassi columns are kept
+   *  for backward compat during the front migration (they ignore the enabled
+   *  flag, preserving today's behaviour for old clients) and can be dropped
+   *  once no client reads them. */
   public async crossed(
     em: EntityManager,
     slug: string,
     q: ListProductsQueryDto,
-  ): Promise<Paginated<Record<string, unknown>>> {
+  ): Promise<Paginated<Record<string, unknown>> & { origins: string[] }> {
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const { page, perPage, offset } = this.paginate(q);
     const f = this.buildFilters(q);
@@ -176,13 +202,21 @@ export class CatalogService {
     const count = await this.count(em, f);
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
-              p.cost, p.price, ob.target_price AS "targetPrice",
+              p.cost, p.price, ${PRICE_OFFER_EXPR} AS "priceOffer",
               p.margin, p.average_variation AS "averageVariation", p.status,
-              p.active, p.monitored, p.receipt_date AS "receiptDate"
+              p.active, p.monitored, p.receipt_date AS "receiptDate",
+              dg.price AS "drogalPrice", dg.metadata->>'observation' AS "drogalObservation",
+              (dg.metadata->>'isPbm') = 'true' AS "drogalIsPbm", dg.metadata->>'van' AS "drogalVan",
+              ds.price AS "drogasilPrice", ds.metadata->>'observation' AS "drogasilObservation",
+              (ds.metadata->>'isPbm') = 'true' AS "drogasilIsPbm",
+              mi.price AS "michelassiPrice"
               ${selects ? `,\n              ${selects}` : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
-         LEFT JOIN offer_book ob ON ob.ean = p.ean
+         ${OFFER_BOOK_JOINS}
+         LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
+         LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
+         LEFT JOIN shared_catalog.product mi ON mi.ean = p.ean AND mi.origin = 'MICHELASSI'
          ${joins}
         ${f.where}
         ORDER BY ${order}
@@ -204,6 +238,7 @@ export class CatalogService {
       count,
       page,
       perPage,
+      origins,
     };
   }
 
@@ -230,7 +265,7 @@ export class CatalogService {
     const where = f.where ? `${f.where} AND ${cond}` : `WHERE ${cond}`;
     const fromJoins = `FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
-         LEFT JOIN offer_book ob ON ob.ean = p.ean
+         ${OFFER_BOOK_JOINS}
          ${joins}`;
     const countRows: Array<{ count: string }> = await em.query(
       `SELECT count(*)::int AS count ${fromJoins} ${where}`,
@@ -238,7 +273,7 @@ export class CatalogService {
     );
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
-              p.cost, p.price, ob.target_price AS "targetPrice", p.deals,
+              p.cost, p.price, ${PRICE_OFFER_EXPR} AS "priceOffer", p.deals,
               p.margin, p.average_variation AS "averageVariation", p.status
               ${selects ? `,\n              ${selects}` : ''}
          ${fromJoins} ${where}
@@ -348,10 +383,12 @@ export class CatalogService {
     const rows: VariantRow[] = await em.query(
       `SELECT p.active_ingredient AS ai, p.ean, p.name, p.price, p.cost, p.margin,
               COALESCE(ps.quantity, 0) AS "stockInSubsidiary",
-              cc.origin AS "competitorOrigin", cc.price AS "competitorPrice"
+              cc.origin AS "competitorOrigin", cc.price AS "competitorPrice",
+              ${PRICE_OFFER_EXPR} AS "priceOffer"
               ${selects ? `,\n              ${selects}` : ''}
          FROM product p
          ${joins}
+         ${OFFER_BOOK_JOINS}
          LEFT JOIN product_stock ps
            ON ps.ean = p.ean AND ps.subsidiary_external_id = $1::bigint
          LEFT JOIN LATERAL (
@@ -416,10 +453,13 @@ export class CatalogService {
     const prices = vs
       .map((v) => num(v.price))
       .filter((n): n is number => n !== null && n > 0);
+    const combateOffer = combate ? num(combate.priceOffer) : null;
     return {
       activeIngredient: ai,
       decision,
       targetPrice: prices.length ? Math.min(...prices) : null,
+      priceOffer:
+        combateOffer !== null && combateOffer > 0 ? combateOffer : null,
       combate: combate
         ? {
             ean: String(combate.ean),
@@ -438,6 +478,7 @@ export class CatalogService {
         price: num(v.price),
         cost: num(v.cost),
         margin: num(v.margin),
+        priceOffer: num(v.priceOffer),
         stockInSubsidiary: Number(v.stockInSubsidiary) || 0,
         isCombate: combate?.ean === v.ean,
         competitors: mapCompetitorsFromRow(v, origins, { price: true }),
