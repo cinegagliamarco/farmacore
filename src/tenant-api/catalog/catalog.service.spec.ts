@@ -21,9 +21,11 @@ const recordingEm = (): {
   em: EntityManager;
   query: jest.Mock;
 } => {
-  const query = jest.fn((sql: string) =>
-    sql.includes('count(*)') ? [{ count: '0' }] : [],
-  );
+  const query = jest.fn((sql: string) => {
+    // crossed() resolves the tenant uuid for core.tenant_competitor_origin.
+    if (sql.includes('FROM core.tenant WHERE slug')) return [{ id: 'tenant-uuid' }];
+    return sql.includes('count(*)') ? [{ count: '0' }] : [];
+  });
   return { em: { query } as unknown as EntityManager, query };
 };
 
@@ -402,7 +404,7 @@ describe('CatalogService.buildFilters (via .list/.crossed)', () => {
 
   it('filters reach .crossed() the same way', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().crossed(em, q({ active: 'false' }));
+    await new CatalogService().crossed(em, 'macfarma', q({ active: 'false' }));
     const [sql, params] = dataCall(query);
     expect(sql).toContain('WHERE p.active = $1');
     expect(params[0]).toBe(false);
@@ -437,23 +439,42 @@ describe('CatalogService.paginate (via .list)', () => {
 });
 
 describe('CatalogService.crossed', () => {
-  it('selects the active flag and the competitor price columns', async () => {
+  it('selects the active flag, legacy competitor columns and the dynamic competitors aggregate', async () => {
     const { em, query } = recordingEm();
-    await new CatalogService().crossed(em, q({}));
+    await new CatalogService().crossed(em, 'macfarma', q({}));
     const [sql] = dataCall(query);
     expect(sql).toContain('p.active');
+    // legacy columns kept for backward compat during the front migration
     expect(sql).toContain(`dg.price AS "drogalPrice"`);
     expect(sql).toContain(`ds.price AS "drogasilPrice"`);
     expect(sql).toContain(`mi.price AS "michelassiPrice"`);
+    // dynamic per-tenant competitors, filtered by enabled origins
+    expect(sql).toContain('AS competitors');
+    expect(sql).toContain('core.tenant_competitor_origin');
   });
 
   it('normalizes ean to string in the returned rows', async () => {
     const em = makeEm([
+      ['FROM core.tenant WHERE slug', [{ id: 'tenant-uuid' }]],
       ['count(*)::int AS count', [{ count: '1' }]],
       [`dg.price AS "drogalPrice"`, [{ ean: 7891234567890, name: 'X' }]],
     ]);
-    const out = await new CatalogService().crossed(em, q({}));
+    const out = await new CatalogService().crossed(em, 'macfarma', q({}));
     expect(out.rows[0].ean).toBe('7891234567890');
+  });
+
+  it('returns the tenant enabled origins and filters the data query by tenant id', async () => {
+    const query = jest.fn((sql: string) => {
+      if (sql.includes('FROM core.tenant WHERE slug')) return [{ id: 'tenant-uuid' }];
+      if (sql.includes('SELECT origin FROM core.tenant_competitor_origin'))
+        return [{ origin: 'DROGASIL' }, { origin: 'PAGUE_MENOS' }];
+      return [];
+    });
+    const em = { query } as unknown as EntityManager;
+    const out = await new CatalogService().crossed(em, 'macfarma', q({}));
+    expect(out.origins).toEqual(['DROGASIL', 'PAGUE_MENOS']);
+    const [, params] = dataCall(query);
+    expect(params).toContain('tenant-uuid'); // LATERAL filters by tenant
   });
 });
 

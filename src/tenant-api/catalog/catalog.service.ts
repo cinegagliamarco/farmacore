@@ -146,16 +146,39 @@ export class CatalogService {
     return { rows: rows.map((r) => this.normalize(r)), count, page, perPage };
   }
 
-  /** Tenant products crossed with competitor prices/observations. */
+  /** Tenant products crossed with competitor prices/observations.
+   *
+   *  Competitors are DYNAMIC per tenant: each row carries a `competitors` array
+   *  with one entry per origin the tenant has ENABLED in
+   *  core.tenant_competitor_origin (ordered by priority), and the response's
+   *  `origins` lists those enabled origins so the client can render a stable
+   *  column per origin. The legacy drogal/drogasil/michelassi columns are kept
+   *  for backward compat during the front migration (they ignore the enabled
+   *  flag, preserving today's behaviour for old clients) and can be dropped
+   *  once no client reads them. */
   public async crossed(
     em: EntityManager,
+    slug: string,
     q: ListProductsQueryDto,
-  ): Promise<Paginated<Record<string, unknown>>> {
+  ): Promise<Paginated<Record<string, unknown>> & { origins: string[] }> {
     const { page, perPage, offset } = this.paginate(q);
     const f = this.buildFilters(q);
     const order = this.orderBy(q);
+    const tenantId = await resolveTenantId(em, slug);
 
     const count = await this.count(em, f);
+    // Enabled origins for this tenant, in display order — the stable column set.
+    const originRows: Array<{ origin: string }> = await em.query(
+      `SELECT origin FROM core.tenant_competitor_origin
+        WHERE tenant_id = $1 AND enabled = true AND deleted_at IS NULL
+        ORDER BY priority ASC, origin ASC`,
+      [tenantId],
+    );
+    const origins = originRows.map((r) => r.origin);
+
+    const pTenant = f.params.length + 1;
+    const pLimit = f.params.length + 2;
+    const pOffset = f.params.length + 3;
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
               p.cost, p.price, ob.target_price AS "targetPrice",
@@ -165,19 +188,44 @@ export class CatalogService {
               (dg.metadata->>'isPbm') = 'true' AS "drogalIsPbm", dg.metadata->>'van' AS "drogalVan",
               ds.price AS "drogasilPrice", ds.metadata->>'observation' AS "drogasilObservation",
               (ds.metadata->>'isPbm') = 'true' AS "drogasilIsPbm",
-              mi.price AS "michelassiPrice"
+              mi.price AS "michelassiPrice",
+              COALESCE(cc.competitors, '[]'::json) AS competitors
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          LEFT JOIN offer_book ob ON ob.ean = p.ean
          LEFT JOIN shared_catalog.product dg ON dg.ean = p.ean AND dg.origin = 'DROGAL'
          LEFT JOIN shared_catalog.product ds ON ds.ean = p.ean AND ds.origin = 'DROGASIL'
          LEFT JOIN shared_catalog.product mi ON mi.ean = p.ean AND mi.origin = 'MICHELASSI'
+         LEFT JOIN LATERAL (
+           SELECT json_agg(
+                    json_build_object(
+                      'origin', sp.origin,
+                      'price', sp.price,
+                      'observation', sp.metadata->>'observation',
+                      'isPbm', (sp.metadata->>'isPbm') = 'true',
+                      'van', sp.metadata->>'van'
+                    ) ORDER BY tco.priority ASC, sp.origin ASC
+                  ) AS competitors
+             FROM shared_catalog.product sp
+             JOIN core.tenant_competitor_origin tco
+               ON tco.origin = sp.origin
+              AND tco.tenant_id = $${pTenant}
+              AND tco.enabled = true
+              AND tco.deleted_at IS NULL
+            WHERE sp.ean = p.ean AND sp.deleted_at IS NULL
+         ) cc ON true
         ${f.where}
         ORDER BY ${order}
-        LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
-      [...f.params, perPage, offset],
+        LIMIT $${pLimit} OFFSET $${pOffset}`,
+      [...f.params, tenantId, perPage, offset],
     );
-    return { rows: rows.map((r) => this.normalize(r)), count, page, perPage };
+    return {
+      rows: rows.map((r) => this.normalize(r)),
+      count,
+      page,
+      perPage,
+      origins,
+    };
   }
 
   /** Crossed products that are "strategic" — have a competitor deal

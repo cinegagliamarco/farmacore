@@ -48,9 +48,10 @@ export class CatalogController {
   @Get('crossed')
   public crossed(
     @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
-  ): Promise<Paginated<Record<string, unknown>>> {
-    return this.catalog.crossed(em, query);
+  ): Promise<Paginated<Record<string, unknown>> & { origins: string[] }> {
+    return this.catalog.crossed(em, user.tenantId, query);
   }
 
   @Get('strategic-price')
