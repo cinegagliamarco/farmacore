@@ -1,6 +1,7 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
 import { CompetitorOrigin } from '../../enums/competitor-origin.enum';
+import { ProductClusterEntity } from './product-cluster.entity';
 
 export type SuggestionStrategy = 'margem' | 'concorrencia';
 export type CompetitorMode = 'weighted' | 'cascade' | 'lowest';
@@ -84,4 +85,11 @@ export class PricingSuggestionRuleEntity extends BaseEntity {
 
   @Column({ type: 'boolean', default: true })
   public active!: boolean;
+
+  @ManyToOne(() => ProductClusterEntity, (cluster) => cluster.suggestionRules, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'cluster_id' })
+  public cluster?: ProductClusterEntity | null;
 }

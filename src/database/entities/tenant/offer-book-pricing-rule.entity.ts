@@ -1,5 +1,6 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
+import { OfferBookEntity } from './offer-book.entity';
 
 @Entity({ name: 'offer_book_pricing_rule' })
 export class OfferBookPricingRuleEntity extends BaseEntity {
@@ -11,4 +12,10 @@ export class OfferBookPricingRuleEntity extends BaseEntity {
 
   @Column({ type: 'int', default: 100 })
   public priority!: number;
+
+  @ManyToOne(() => OfferBookEntity, (book) => book.pricingRules, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'offer_book_id' })
+  public offerBook?: OfferBookEntity;
 }

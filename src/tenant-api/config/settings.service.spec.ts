@@ -1,4 +1,5 @@
 import type { EntityManager } from 'typeorm';
+import { StatusSettingsEntity } from '../../database/entities/core/status-settings.entity';
 import { SettingsService } from './settings.service';
 
 const DEFAULTS = {
@@ -8,19 +9,30 @@ const DEFAULTS = {
   suspectAbove: 50,
 };
 
-/** Dispatches em.query by SQL: tenant lookup, status_settings select, writes. */
 const makeEm = (opts: {
-  settingsRow?: unknown[];
-  existingRow?: unknown[];
-}): { em: EntityManager; query: jest.Mock } => {
-  const query = jest.fn((sql: string) => {
-    if (sql.includes('FROM core.tenant')) return [{ id: 't1' }];
-    if (sql.includes('SELECT settings')) return opts.settingsRow ?? [];
-    if (sql.includes('SELECT id FROM core.status_settings'))
-      return opts.existingRow ?? [];
-    return [];
+  settingsRow?: StatusSettingsEntity | null;
+}): { em: EntityManager; findOne: jest.Mock; save: jest.Mock } => {
+  let stored = opts.settingsRow ?? null;
+  const findOne = jest.fn(async ({ where }: { where: { tenantId?: string } }) => {
+    if (where.tenantId === 't1') return stored;
+    return null;
   });
-  return { em: { query } as unknown as EntityManager, query };
+  const save = jest.fn(async (row: StatusSettingsEntity) => {
+    stored = { ...(stored ?? {}), ...row } as StatusSettingsEntity;
+    return stored;
+  });
+  const em = {
+    query: jest.fn((sql: string) => {
+      if (sql.includes('FROM core.tenant')) return [{ id: 't1' }];
+      return [];
+    }),
+    getRepository: jest.fn().mockReturnValue({
+      findOne,
+      save,
+      create: (value: StatusSettingsEntity) => value,
+    }),
+  } as unknown as EntityManager;
+  return { em, findOne, save };
 };
 
 describe('SettingsService.getVariationStatus', () => {
@@ -33,7 +45,10 @@ describe('SettingsService.getVariationStatus', () => {
 
   it('overlays the stored partial settings on top of the defaults', async () => {
     const { em } = makeEm({
-      settingsRow: [{ settings: { suspectAbove: 99 } }],
+      settingsRow: {
+        tenantId: 't1',
+        settings: { suspectAbove: 99 },
+      } as unknown as StatusSettingsEntity,
     });
     expect(await new SettingsService().getVariationStatus(em, 's')).toEqual({
       ...DEFAULTS,
@@ -44,29 +59,33 @@ describe('SettingsService.getVariationStatus', () => {
 
 describe('SettingsService.updateVariationStatus', () => {
   it('merges only the sent fields and INSERTs when no row exists', async () => {
-    const { em, query } = makeEm({ existingRow: [] });
+    const { em, save } = makeEm({});
     const out = await new SettingsService().updateVariationStatus(em, 's', {
       attentionAbove: 30,
     });
     expect(out).toEqual({ ...DEFAULTS, attentionAbove: 30 });
-    const insert = query.mock.calls.find(([sql]) =>
-      sql.includes('INSERT INTO core.status_settings'),
-    );
-    expect(insert?.[1]).toEqual(['t1', JSON.stringify(out)]);
+    expect(save).toHaveBeenCalledWith({
+      tenantId: 't1',
+      settings: out,
+    });
   });
 
   it('UPDATEs the existing row by id', async () => {
-    const { em, query } = makeEm({
-      settingsRow: [{ settings: { suspectAbove: 99 } }],
-      existingRow: [{ id: 'row-9' }],
+    const { em, save } = makeEm({
+      settingsRow: {
+        id: 'row-9',
+        tenantId: 't1',
+        settings: { suspectAbove: 99 },
+      } as unknown as StatusSettingsEntity,
     });
     const out = await new SettingsService().updateVariationStatus(em, 's', {
       suspectBelow: -20,
     });
     expect(out).toEqual({ ...DEFAULTS, suspectBelow: -20, suspectAbove: 99 });
-    const update = query.mock.calls.find(([sql]) =>
-      sql.includes('UPDATE core.status_settings'),
-    );
-    expect(update?.[1]).toEqual([JSON.stringify(out), 'row-9']);
+    expect(save).toHaveBeenCalledWith({
+      id: 'row-9',
+      tenantId: 't1',
+      settings: out,
+    });
   });
 });

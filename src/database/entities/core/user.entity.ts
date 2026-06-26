@@ -1,6 +1,7 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from '../base.entity';
 import { UserRole } from '../../enums/user-role.enum';
+import { RefreshTokenEntity } from './refresh-token.entity';
 
 export type UserStatus = 'active' | 'disabled';
 
@@ -21,4 +22,7 @@ export class UserEntity extends BaseEntity {
 
   @Column({ type: 'text', default: 'active' })
   public status!: UserStatus;
+
+  @OneToMany(() => RefreshTokenEntity, (token) => token.user)
+  public refreshTokens?: RefreshTokenEntity[];
 }

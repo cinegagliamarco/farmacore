@@ -1,5 +1,6 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
+import { TenantEntity } from './tenant.entity';
 
 /**
  * Per-tenant status-threshold settings (jsonb bag) read by the
@@ -14,4 +15,8 @@ export class StatusSettingsEntity extends BaseEntity {
 
   @Column({ type: 'jsonb', default: {} })
   public settings!: Record<string, unknown>;
+
+  @ManyToOne(() => TenantEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'tenant_id' })
+  public tenant?: TenantEntity;
 }

@@ -1,4 +1,5 @@
 import type { EntityManager } from 'typeorm';
+import { ClassificationEntity } from '../../database/entities/tenant/classification.entity';
 import { ClassificationsService } from './classifications.service';
 
 const rows = [
@@ -8,12 +9,18 @@ const rows = [
   { id: 'a2', name: 'Analgésicos', parentId: 'a', visible: false },
 ];
 
-const makeEm = (result: unknown): EntityManager =>
-  ({ query: jest.fn().mockResolvedValue(result) }) as unknown as EntityManager;
+const makeEm = (result: ClassificationEntity[]): EntityManager => {
+  const find = jest.fn().mockResolvedValue(result);
+  return {
+    getRepository: jest.fn().mockReturnValue({ find }),
+  } as unknown as EntityManager;
+};
 
 describe('ClassificationsService.grouped', () => {
   it('nests each root with its direct children only', async () => {
-    const out = await new ClassificationsService().grouped(makeEm(rows));
+    const out = await new ClassificationsService().grouped(
+      makeEm(rows as ClassificationEntity[]),
+    );
     expect(out).toEqual([
       {
         id: 'a',

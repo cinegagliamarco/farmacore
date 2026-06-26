@@ -1,5 +1,6 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
+import { TenantEntity } from './tenant.entity';
 
 /**
  * Per-tenant subsidiary label lookup (maps an ERP store id to a name).
@@ -22,4 +23,8 @@ export class TenantSubsidiaryEntity extends BaseEntity {
 
   @Column({ type: 'boolean', default: true })
   public active!: boolean;
+
+  @ManyToOne(() => TenantEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'tenant_id' })
+  public tenant?: TenantEntity;
 }

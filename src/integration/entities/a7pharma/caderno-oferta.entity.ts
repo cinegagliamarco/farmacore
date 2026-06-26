@@ -1,4 +1,5 @@
-import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
+import { Column, Entity, Index, OneToMany, PrimaryColumn } from 'typeorm';
+import { ItemCadernoOfertaEntity } from './item-caderno-oferta.entity';
 
 @Entity({ name: 'cadernooferta', schema: 'public', synchronize: false })
 @Index('idx_cadernooferta_datahorainicial_datahorafinal_status', [
@@ -265,4 +266,7 @@ export class CadernoOfertaEntity {
     default: false,
   })
   public validoapenascupomdesconto!: boolean;
+
+  @OneToMany(() => ItemCadernoOfertaEntity, (item) => item.cadernooferta)
+  public itens?: ItemCadernoOfertaEntity[];
 }
