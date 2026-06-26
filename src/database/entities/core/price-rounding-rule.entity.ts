@@ -1,5 +1,7 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
+import { TenantEntity } from './tenant.entity';
+import { PriceRoundingRangeEntity } from './price-rounding-range.entity';
 
 /**
  * Decimal bucket within a price band. When a price falls in the parent
@@ -24,4 +26,14 @@ export class PriceRoundingRuleEntity extends BaseEntity {
 
   @Column({ name: 'round_to', type: 'numeric', precision: 4, scale: 2 })
   public roundTo!: string;
+
+  @ManyToOne(() => TenantEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'tenant_id' })
+  public tenant?: TenantEntity;
+
+  @ManyToOne(() => PriceRoundingRangeEntity, (range) => range.rules, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'range_id' })
+  public range?: PriceRoundingRangeEntity;
 }

@@ -1,5 +1,7 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, OneToMany } from 'typeorm';
 import { BaseEntity } from '../base.entity';
+import { PricingSuggestionRuleEntity } from './pricing-suggestion-rule.entity';
+import { ProductClusterMemberEntity } from './product-cluster-member.entity';
 
 /**
  * Cluster de produto — conjunto de EANs escolhidos a dedo para mirar regras de
@@ -10,4 +12,10 @@ import { BaseEntity } from '../base.entity';
 export class ProductClusterEntity extends BaseEntity {
   @Column({ type: 'text' })
   public name!: string;
+
+  @OneToMany(() => ProductClusterMemberEntity, (member) => member.cluster)
+  public members?: ProductClusterMemberEntity[];
+
+  @OneToMany(() => PricingSuggestionRuleEntity, (rule) => rule.cluster)
+  public suggestionRules?: PricingSuggestionRuleEntity[];
 }

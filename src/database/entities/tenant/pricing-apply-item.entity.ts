@@ -1,5 +1,6 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
+import { PricingApplyRunEntity } from './pricing-apply-run.entity';
 
 export type ApplyItemStatus = 'pending' | 'applied' | 'skipped' | 'failed';
 export type ApplyTarget = 'precoVenda' | 'precoOferta';
@@ -75,4 +76,10 @@ export class PricingApplyItemEntity extends BaseEntity {
 
   @Column({ name: 'applied_at', type: 'timestamptz', nullable: true })
   public appliedAt!: Date | null;
+
+  @ManyToOne(() => PricingApplyRunEntity, (run) => run.items, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'apply_run_id' })
+  public applyRun?: PricingApplyRunEntity;
 }

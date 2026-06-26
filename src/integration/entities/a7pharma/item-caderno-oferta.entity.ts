@@ -162,7 +162,9 @@ export class ItemCadernoOfertaEntity {
   @JoinColumn({ name: 'classificacaoid', referencedColumnName: 'id' })
   public classificacao?: ClassificacaoEntity;
 
-  @ManyToOne(() => CadernoOfertaEntity, { nullable: false })
+  @ManyToOne(() => CadernoOfertaEntity, (caderno) => caderno.itens, {
+    nullable: false,
+  })
   @JoinColumn({ name: 'cadernoofertaid', referencedColumnName: 'id' })
   public cadernooferta?: CadernoOfertaEntity;
 

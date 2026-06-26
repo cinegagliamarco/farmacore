@@ -4,7 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EntityManager } from 'typeorm';
+import { EntityManager, IsNull } from 'typeorm';
+import { ProductClusterEntity } from '../../database/entities/tenant/product-cluster.entity';
+import { ProductClusterMemberEntity } from '../../database/entities/tenant/product-cluster-member.entity';
 import { UpsertClusterDto } from './dto/cluster.dto';
 
 export interface ClusterApi {
@@ -58,10 +60,10 @@ export class ClustersService {
   ): Promise<ClusterApi & { eans: string[] }> {
     const cluster = (await this.list(em)).find((c) => c.id === id);
     if (!cluster) throw new NotFoundException(`cluster ${id} not found`);
-    const members: Array<{ ean: string }> = await em.query(
-      `SELECT ean FROM product_cluster_member WHERE cluster_id = $1 ORDER BY ean`,
-      [id],
-    );
+    const members = await em.getRepository(ProductClusterMemberEntity).find({
+      where: { clusterId: id },
+      order: { ean: 'ASC' },
+    });
     return { ...cluster, eans: members.map((m) => m.ean) };
   }
 
@@ -70,12 +72,11 @@ export class ClustersService {
     dto: UpsertClusterDto,
   ): Promise<ClusterApi & { eans: string[] }> {
     const eans = this.normalizeEans(dto.eans);
-    const [{ id }]: Array<{ id: string }> = await em.query(
-      `INSERT INTO product_cluster (name) VALUES ($1) RETURNING id`,
-      [dto.name.trim()],
-    );
-    if (eans.length) await this.replaceMembers(em, id, eans);
-    return this.get(em, id);
+    const cluster = await em
+      .getRepository(ProductClusterEntity)
+      .save({ name: dto.name.trim() });
+    if (eans.length) await this.replaceMembers(em, cluster.id, eans);
+    return this.get(em, cluster.id);
   }
 
   public async update(
@@ -83,12 +84,12 @@ export class ClustersService {
     id: string,
     dto: UpsertClusterDto,
   ): Promise<ClusterApi & { eans: string[] }> {
-    await this.get(em, id); // 404 se não existir
-    await em.query(
-      `UPDATE product_cluster SET name = $1, updated_at = now() WHERE id = $2`,
-      [dto.name.trim(), id],
-    );
-    // `eans` ausente = só renomeia; presente = substitui a membership.
+    const cluster = await em.getRepository(ProductClusterEntity).findOne({
+      where: { id, deletedAt: IsNull() },
+    });
+    if (!cluster) throw new NotFoundException(`cluster ${id} not found`);
+    cluster.name = dto.name.trim();
+    await em.getRepository(ProductClusterEntity).save(cluster);
     if (dto.eans !== undefined) {
       await this.replaceMembers(em, id, this.normalizeEans(dto.eans));
     }
@@ -99,11 +100,10 @@ export class ClustersService {
     em: EntityManager,
     id: string,
   ): Promise<{ id: string; name: string }> {
-    const rows: Array<{ name: string }> = await em.query(
-      `SELECT name FROM product_cluster WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
-      [id],
-    );
-    if (!rows.length) throw new NotFoundException(`cluster ${id} not found`);
+    const cluster = await em.getRepository(ProductClusterEntity).findOne({
+      where: { id, deletedAt: IsNull() },
+    });
+    if (!cluster) throw new NotFoundException(`cluster ${id} not found`);
     const usedBy: Array<{ name: string }> = await em.query(
       `SELECT name FROM pricing_suggestion_rule
         WHERE deleted_at IS NULL
@@ -116,13 +116,8 @@ export class ClustersService {
         `Cluster em uso pela(s) regra(s): ${names}. Remova a regra antes.`,
       );
     }
-    // UPDATE sem RETURNING (em.query com RETURNING volta [rows, count]); o nome
-    // já foi lido acima.
-    await em.query(
-      `UPDATE product_cluster SET deleted_at = now() WHERE id = $1`,
-      [id],
-    );
-    return { id, name: rows[0].name };
+    await em.getRepository(ProductClusterEntity).softDelete(id);
+    return { id, name: cluster.name };
   }
 
   /**
@@ -158,15 +153,10 @@ export class ClustersService {
     clusterId: string,
     eans: string[],
   ): Promise<void> {
-    await em.query(`DELETE FROM product_cluster_member WHERE cluster_id = $1`, [
-      clusterId,
-    ]);
+    const repo = em.getRepository(ProductClusterMemberEntity);
+    await repo.delete({ clusterId });
     if (!eans.length) return;
-    const values = eans.map((_, i) => `($1, $${i + 2})`).join(', ');
-    await em.query(
-      `INSERT INTO product_cluster_member (cluster_id, ean) VALUES ${values}`,
-      [clusterId, ...eans],
-    );
+    await repo.insert(eans.map((ean) => ({ clusterId, ean })));
   }
 
   private normalizeEans(raw: string[] | undefined): string[] {

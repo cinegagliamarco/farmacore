@@ -1,5 +1,6 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
+import { OfferBookEntity } from './offer-book.entity';
 
 @Entity({ name: 'offer_book_price_lock' })
 @Index('UQ_PRICE_LOCK_BOOK', ['offerBookId'], { unique: true })
@@ -12,4 +13,10 @@ export class OfferBookPriceLockEntity extends BaseEntity {
 
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
   public lockedUntil?: Date | null;
+
+  @ManyToOne(() => OfferBookEntity, (book) => book.priceLocks, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'offer_book_id' })
+  public offerBook?: OfferBookEntity;
 }

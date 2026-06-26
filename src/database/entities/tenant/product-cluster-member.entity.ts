@@ -1,4 +1,5 @@
-import { Entity, Index, PrimaryColumn } from 'typeorm';
+import { Entity, Index, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { ProductClusterEntity } from './product-cluster.entity';
 
 /**
  * Membro de um cluster: par (cluster, ean). Tabela de junção — PK composta, sem
@@ -13,4 +14,10 @@ export class ProductClusterMemberEntity {
 
   @PrimaryColumn({ type: 'text' })
   public ean!: string;
+
+  @ManyToOne(() => ProductClusterEntity, (cluster) => cluster.members, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'cluster_id' })
+  public cluster?: ProductClusterEntity;
 }

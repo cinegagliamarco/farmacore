@@ -66,7 +66,10 @@ export class ProductEntity extends BaseEntity {
   @Column({ name: 'classification_id', type: 'uuid', nullable: true })
   public classificationId?: string | null;
 
-  @ManyToOne(() => ClassificationEntity, { nullable: true })
+  @ManyToOne(() => ClassificationEntity, (classification) => classification.products, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'classification_id' })
   public classification?: ClassificationEntity | null;
 

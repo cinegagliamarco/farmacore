@@ -1,5 +1,6 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from '../base.entity';
+import { PricingApplyItemEntity } from './pricing-apply-item.entity';
 
 export type ApplyMode = 'agora' | 'agendado';
 export type ApplyRunStatus = 'pending' | 'running' | 'done' | 'failed';
@@ -40,4 +41,7 @@ export class PricingApplyRunEntity extends BaseEntity {
   // null = sem fluxo de aprovação (comportamento padrão).
   @Column({ name: 'approval_status', type: 'text', nullable: true })
   public approvalStatus!: ApprovalStatus | null;
+
+  @OneToMany(() => PricingApplyItemEntity, (item) => item.applyRun)
+  public items?: PricingApplyItemEntity[];
 }

@@ -1,5 +1,6 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
+import { TenantEntity } from './tenant.entity';
 
 /**
  * Per-tenant scheduled-job definition (cron + payload). Control-plane
@@ -21,4 +22,8 @@ export class SchedulingEntity extends BaseEntity {
 
   @Column({ type: 'jsonb', default: {} })
   public payload!: Record<string, unknown>;
+
+  @ManyToOne(() => TenantEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'tenant_id' })
+  public tenant?: TenantEntity;
 }

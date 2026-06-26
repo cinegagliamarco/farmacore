@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { EntityManager } from 'typeorm';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
+import { PricingApplyItemEntity } from '../../database/entities/tenant/pricing-apply-item.entity';
 import { PricingApplyRunEntity } from '../../database/entities/tenant/pricing-apply-run.entity';
 import { resolveTenantId } from '../../tenant/tenant-lookup';
 import { OutboxRepository } from '../../queue/outbox.repository';
@@ -184,18 +185,16 @@ export class PricingApplyService {
     await this.insertItems(em, applyRunId, accepted);
 
     if (accepted.length === 0) {
-      await em.query(
-        `UPDATE pricing_apply_run SET status='done', updated_at=now() WHERE id=$1`,
-        [applyRunId],
-      );
+      await em
+        .getRepository(PricingApplyRunEntity)
+        .update({ id: applyRunId }, { status: 'done' });
       return { applyRunId, accepted: 0, rejected };
     }
     if (opts.requireApproval) {
       // Segura o dispatch: o run fica 'pending' até um admin aprovar.
-      await em.query(
-        `UPDATE pricing_apply_run SET approval_status='pending' WHERE id=$1`,
-        [applyRunId],
-      );
+      await em
+        .getRepository(PricingApplyRunEntity)
+        .update({ id: applyRunId }, { approvalStatus: 'pending' });
       return {
         applyRunId,
         accepted: accepted.length,
@@ -240,17 +239,16 @@ export class PricingApplyService {
         { approvalStatus: 'rejected', status: 'failed' },
       );
     if (!res.affected) throw await this.approvalConflict(em, runId);
-    await em.query(
-      `UPDATE pricing_apply_run par
-          SET failed = par.total, updated_at = now()
-        WHERE id = $1`,
-      [runId],
-    );
-    await em.query(
-      `UPDATE pricing_apply_item
-          SET status='failed', reason='rejeitado'
-        WHERE apply_run_id = $1 AND status = 'pending'`,
-      [runId],
+    await em
+      .getRepository(PricingApplyRunEntity)
+      .createQueryBuilder()
+      .update()
+      .set({ failed: () => 'total' })
+      .where('id = :id', { id: runId })
+      .execute();
+    await em.getRepository(PricingApplyItemEntity).update(
+      { applyRunId: runId, status: 'pending' },
+      { status: 'failed', reason: 'rejeitado' },
     );
     return { id: runId, rejected: true };
   }
@@ -259,15 +257,12 @@ export class PricingApplyService {
     em: EntityManager,
     runId: string,
   ): Promise<HttpException> {
-    const rows: Array<{ approvalStatus: string | null }> = await em.query(
-      `SELECT approval_status AS "approvalStatus" FROM pricing_apply_run
-        WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
-      [runId],
-    );
-    if (!rows.length)
-      return new NotFoundException(`apply run ${runId} not found`);
+    const run = await em
+      .getRepository(PricingApplyRunEntity)
+      .findOne({ where: { id: runId } });
+    if (!run) return new NotFoundException(`apply run ${runId} not found`);
     return new ConflictException(
-      `apply run ${runId} não está aguardando aprovação (${rows[0].approvalStatus ?? 'sem aprovação'}).`,
+      `apply run ${runId} não está aguardando aprovação (${run.approvalStatus ?? 'sem aprovação'}).`,
     );
   }
 
@@ -297,14 +292,13 @@ export class PricingApplyService {
     em: EntityManager,
     key: string,
   ): Promise<ApplyResponse | null> {
-    const rows: Array<{ id: string; total: number }> = await em.query(
-      `SELECT id, total FROM pricing_apply_run WHERE idempotency_key = $1 LIMIT 1`,
-      [key],
-    );
-    if (!rows.length) return null;
+    const run = await em
+      .getRepository(PricingApplyRunEntity)
+      .findOne({ where: { idempotencyKey: key } });
+    if (!run) return null;
     return {
-      applyRunId: rows[0].id,
-      accepted: Number(rows[0].total),
+      applyRunId: run.id,
+      accepted: run.total,
       rejected: [],
       idempotent: true,
     };
@@ -353,36 +347,42 @@ export class PricingApplyService {
     page = 1,
     perPage = DEFAULT_PER_PAGE,
   ): Promise<ApplyReport> {
-    const runs: Array<{
-      id: string;
-      status: string;
-      mode: string;
-      approvalStatus: string | null;
-      total: number;
-      applied: number;
-      skipped: number;
-      failed: number;
-    }> = await em.query(
-      `SELECT id, status, mode, approval_status AS "approvalStatus",
-              total, applied, skipped, failed
-         FROM pricing_apply_run WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
-      [id],
-    );
-    if (!runs.length) throw new NotFoundException(`apply run ${id} not found`);
+    const run = await em.getRepository(PricingApplyRunEntity).findOne({
+      where: { id },
+    });
+    if (!run) throw new NotFoundException(`apply run ${id} not found`);
     const limit = Math.min(Math.max(perPage, 1), MAX_PER_PAGE);
     const offset = (Math.max(page, 1) - 1) * limit;
-    const items: Record<string, unknown>[] = await em.query(
-      `SELECT ean, target, price, status, reason, basis,
-              price_old_sell AS "priceOld", caderno_id AS "cadernoId",
-              rule_id AS "ruleId", erp_result AS "erpResult",
-              applied_at AS "appliedAt"
-         FROM pricing_apply_item
-        WHERE apply_run_id = $1
-        ORDER BY ean
-        LIMIT $2 OFFSET $3`,
-      [id, limit, offset],
-    );
-    return { ...runs[0], items };
+    const rows = await em.getRepository(PricingApplyItemEntity).find({
+      where: { applyRunId: id },
+      order: { ean: 'ASC' },
+      take: limit,
+      skip: offset,
+    });
+    const items: Record<string, unknown>[] = rows.map((item) => ({
+      ean: item.ean,
+      target: item.target,
+      price: item.price,
+      status: item.status,
+      reason: item.reason,
+      basis: item.basis,
+      priceOld: item.priceOldSell,
+      cadernoId: item.cadernoId,
+      ruleId: item.ruleId,
+      erpResult: item.erpResult,
+      appliedAt: item.appliedAt,
+    }));
+    return {
+      id: run.id,
+      status: run.status,
+      mode: run.mode,
+      approvalStatus: run.approvalStatus,
+      total: run.total,
+      applied: run.applied,
+      skipped: run.skipped,
+      failed: run.failed,
+      items,
+    };
   }
 
   /** Histórico de runs (não-deletados), mais recentes primeiro. */
@@ -393,15 +393,22 @@ export class PricingApplyService {
   ): Promise<ApplyRunSummary[]> {
     const limit = Math.min(Math.max(perPage, 1), MAX_PER_PAGE);
     const offset = (Math.max(page, 1) - 1) * limit;
-    return em.query(
-      `SELECT id, status, mode, approval_status AS "approvalStatus",
-              total, applied, skipped, failed, created_at AS "createdAt"
-         FROM pricing_apply_run
-        WHERE deleted_at IS NULL
-        ORDER BY created_at DESC
-        LIMIT $1 OFFSET $2`,
-      [limit, offset],
-    );
+    const runs = await em.getRepository(PricingApplyRunEntity).find({
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: offset,
+    });
+    return runs.map((run) => ({
+      id: run.id,
+      status: run.status,
+      mode: run.mode,
+      approvalStatus: run.approvalStatus,
+      total: run.total,
+      applied: run.applied,
+      skipped: run.skipped,
+      failed: run.failed,
+      createdAt: run.createdAt.toISOString(),
+    }));
   }
 
   /**
@@ -444,34 +451,28 @@ export class PricingApplyService {
     requestedBy: string | null,
     runId: string,
   ): Promise<ApplyResponse> {
-    const runs: Array<{ id: string }> = await em.query(
-      `SELECT id FROM pricing_apply_run
-        WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
-      [runId],
-    );
-    if (!runs.length)
+    const exists = await em
+      .getRepository(PricingApplyRunEntity)
+      .findOne({ where: { id: runId } });
+    if (!exists)
       throw new NotFoundException(`apply run ${runId} not found`);
 
-    const rows: Array<{
-      ean: string;
-      target: ApplyItemDto['target'];
-      priceOld: string | null;
-      cadernoId: number | null;
-    }> = await em.query(
-      `SELECT ean::text AS ean, target, caderno_id AS "cadernoId",
-              CASE WHEN target = 'precoOferta' THEN price_old_offer
-                   ELSE price_old_sell END AS "priceOld"
-         FROM pricing_apply_item
-        WHERE apply_run_id = $1 AND status = 'applied'`,
-      [runId],
-    );
-    const items: ApplyItemDto[] = rows
-      .map((r) => ({
-        ean: r.ean,
-        target: r.target,
-        price: num(r.priceOld) ?? 0,
-        cadernoId: r.cadernoId ?? undefined,
-      }))
+    const applied = await em.getRepository(PricingApplyItemEntity).find({
+      where: { applyRunId: runId, status: 'applied' },
+    });
+    const items: ApplyItemDto[] = applied
+      .map((item) => {
+        const priceOld =
+          item.target === 'precoOferta'
+            ? item.priceOldOffer
+            : item.priceOldSell;
+        return {
+          ean: item.ean,
+          target: item.target,
+          price: num(priceOld) ?? 0,
+          cadernoId: num(item.cadernoId) ?? undefined,
+        };
+      })
       .filter((i) => i.price > 0);
     if (!items.length) {
       throw new HttpException(

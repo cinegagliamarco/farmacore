@@ -1,6 +1,7 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
 import { CompetitorOrigin } from '../../enums/competitor-origin.enum';
+import { TenantEntity } from './tenant.entity';
 
 /**
  * Per-tenant competitor-scrape config. Control-plane data (which origins
@@ -25,4 +26,8 @@ export class TenantCompetitorOriginEntity extends BaseEntity {
 
   @Column({ type: 'jsonb', default: {} })
   public config!: Record<string, unknown>;
+
+  @ManyToOne(() => TenantEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'tenant_id' })
+  public tenant?: TenantEntity;
 }
