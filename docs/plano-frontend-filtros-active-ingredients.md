@@ -72,7 +72,7 @@ Preços/custos vêm como `number | null`. **`price` ou `cost` ausentes = não ca
 Dentro de um princípio ativo, **na loja escolhida**:
 - **combate** = variante do tenant **com menor preço entre as que têm estoque > 0 na loja**.
 - **lowestCost** = variante de menor custo do grupo (independe de preço/estoque).
-- **competitorCombate** = concorrente **com estoque e menor preço** (DROGAL/DROGASIL/PAGUE_MENOS/IKESAKI/MICHELASSI).
+- **competitorCombate** = concorrente de **menor preço** (DROGAL/DROGASIL/PAGUE_MENOS/IKESAKI/MICHELASSI).
 
 Precedência (igual ao servidor — útil pros textos/tooltips):
 1. **`sem-estoque`** — nenhuma variante com estoque na loja → não há combate. Não dá pra agir no preço.

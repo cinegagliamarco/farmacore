@@ -17,10 +17,9 @@ This is the refactor of `farmacore/src/cron/daily-routines.cron.ts` and the dele
 2. `synchronizeBaseProductStock`
 3. `synchronizeOfferBooksInfo`
 4. `importCompetitorProducts` (Michelassi, Drogal, Drogasil)
-5. `importCompetitorStock` (Drogal, Drogasil)
-6. `synchronizeBaseProductMetrics`
-7. `generateBaseProductProperties`
-8. `updateActiveIngredientMat`
+5. `synchronizeBaseProductMetrics`
+6. `generateBaseProductProperties`
+7. `updateActiveIngredientMat`
 
 Each step is `await`ed sequentially. Failure of one aborts the rest of the pipeline. The `import_process` table is used as a single-flight lock per step (`process_name` + `finished`).
 
@@ -60,9 +59,6 @@ Pain points:
  import-competitor-products
         │
         ▼
- import-competitor-stock
-        │
-        ▼
  calc-base-product-metrics
         │
         ▼
@@ -72,7 +68,7 @@ Pain points:
  update-active-ingredient-mat
 ```
 
-Steps publish their successor's message on successful completion. Parallel branches join implicitly — `calc-base-product-metrics` is only published once both `sync-base-product-stock` (chain A) and `import-competitor-stock` (chain B) have reported success for the same `pipelineRunId`. The join is tracked in `app_meta.pipeline_run`.
+Steps publish their successor's message on successful completion. Parallel branches join implicitly — `calc-base-product-metrics` is only published once both `sync-base-product-stock` (chain A) and `import-competitor-products` (chain B) have reported success for the same `pipelineRunId`. The join is tracked in `app_meta.pipeline_run`.
 
 ### Message shape
 
@@ -168,7 +164,7 @@ Order of changes when implementing:
 1. Stand up the CloudAMQP production instance and a local Docker RabbitMQ for development (no staging in v1 — see `00-architecture.md` §8).
 2. Add `@golevelup/nestjs-rabbitmq` config in the new app.
 3. Define one queue + consumer for `sync-base-product` as a vertical slice; verify end-to-end against a Neon branch.
-4. Port the remaining 7 steps as separate consumers.
+4. Port the remaining 6 steps as separate consumers.
 5. Wire chaining (success → publish next) and the parallel-branch join in `pipeline_run`.
 6. Add the cron-driven `pipeline.start` publisher.
 7. Delete the prototype's `daily-routines.cron.ts`, `periodic-routines.cron.ts`, and `import-process.*` files.
@@ -181,7 +177,7 @@ Order of changes when implementing:
 
 ## 13. Success Criteria
 
-- All 8 steps run as independent RMQ consumers; the chained graph completes end-to-end for a single tenant against a Neon branch off production.
+- All 7 steps run as independent RMQ consumers; the chained graph completes end-to-end for a single tenant against a Neon branch off production.
 - A failure in step N retries up to 4 times, then DLQs; alert fires.
 - Two tenants' pipelines run concurrently without interfering.
 - The `import_process` table and entity are deleted from the codebase.

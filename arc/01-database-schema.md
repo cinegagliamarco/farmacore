@@ -21,7 +21,7 @@ All schemas live in a single Neon database (`app-prod`).
 | Schema | Purpose | Lifetime |
 |---|---|---|
 | `app_meta` | Tenant registry, integration-DB credentials, users, queue-job audit | Single, shared across all tenants |
-| `shared_catalog` | Cross-tenant catalog: simplified `base_product`, scraped **competitor products & stock & images** (the canonical price/stock data for every competitor origin) | Single, shared |
+| `shared_catalog` | Cross-tenant catalog: simplified `base_product`, scraped **competitor products & images** (the canonical price data for every competitor origin) | Single, shared |
 | `tenant_<slug>` | Per-tenant data: **competitor selection config**, pricing rules, schedules, execution reports, status settings, tenant-specific product overrides | One per tenant |
 
 ### Tenant isolation: `search_path`
@@ -71,7 +71,6 @@ Copy as-is (column names, indexes, FKs unchanged):
 
 - `product` (scraped competitor product — **shared across all tenants**; the same Drogal/Drogasil/Pague Menos/Ikesaki/Michelassi product row is read by every tenant that has the corresponding origin enabled)
 - `product_image`
-- `product_stock`
 
 **Why competitor data is shared:** the scrape is expensive (hours of crawling) and the data is identical regardless of who's reading it. Doing the work once per origin and letting every interested tenant read the result is the whole point of sharing. Tenant isolation happens at the **read** layer via the `tenant_competitor_origin` table (see §6).
 

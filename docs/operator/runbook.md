@@ -13,9 +13,7 @@ pipeline.start
                                                                 ▼ (join via PipelineJoinService)
        sync-base-product-stock.dispatch ─► sync-base-product-stock.batch ──┐
                                                                             │
-       import-competitor-products.dispatch ─► .drogal / .drogasil / .michelassi
-                                                                ▼
-       import-competitor-stock.dispatch ─► .drogal / .drogasil ──┘
+       import-competitor-products.dispatch ─► .drogal / .drogasil / .michelassi ──┘
                                                                 ▼
                                         calc-base-product-metrics.dispatch ─► .batch
                                                                 ▼

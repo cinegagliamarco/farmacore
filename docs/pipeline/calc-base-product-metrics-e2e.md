@@ -26,7 +26,7 @@ computes the three metrics, and bulk-updates in one SQL statement.
 ## Running
 
 Fires as the join successor of (sync-base-product-stock +
-import-competitor-stock). Same trigger script as the earlier steps.
+import-competitor-products). Same trigger script as the earlier steps.
 
 ## Verifying
 

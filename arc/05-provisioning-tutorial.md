@@ -208,7 +208,7 @@ Either via the management UI, via your app's NestJS `@golevelup/nestjs-rabbitmq`
 rabbitmqadmin --uri="amqps://..." declare exchange name=pipeline.prod type=topic durable=true
 
 for step in sync-base-product sync-base-product-stock sync-offer-books-info \
-            import-competitor-products import-competitor-stock calc-base-product-metrics \
+            import-competitor-products calc-base-product-metrics \
             update-base-product-properties update-active-ingredient-mat; do
   rabbitmqadmin --uri="amqps://..." declare queue name=$step durable=true \
     arguments='{"x-dead-letter-exchange":"","x-dead-letter-routing-key":"'$step'.dlq"}'
