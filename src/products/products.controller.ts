@@ -32,9 +32,9 @@ export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 
   /**
-   * Bulk export of the shared competitor catalog (product + primary image
-   * + latest stock), optionally filtered by origin, paginated. JWT-guarded,
-   * not tenant-scoped.
+   * Bulk export of the shared competitor catalog (product + primary image),
+   * optionally filtered by origin, paginated. JWT-guarded, not
+   * tenant-scoped.
    */
   @Get('export')
   public export(

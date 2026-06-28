@@ -15,7 +15,7 @@ const SCRAPER_HTTP_RETRY = 'SCRAPER_HTTP_RETRY';
 
 /**
  * Per-origin scrapers (Phase C). Each scraper implements
- * ProductScraper and/or StockScraper from ./types. Steps inject the
+ * ProductScraper from ./types. Steps inject the
  * concrete scraper they need; no shared base class — each origin's
  * API differs enough that abstraction would obscure more than help.
  */

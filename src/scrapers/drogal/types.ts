@@ -49,16 +49,3 @@ export interface DrogalMeasures {
 export interface DrogalVariationsResponse {
   skus?: Array<{ measures?: DrogalMeasures }>;
 }
-
-export interface DrogalStockResponse {
-  body?: {
-    pickupPointItems?: Array<{
-      CodigoFilial: number;
-      CartDetail?: Array<{
-        productRefId: number;
-        quantityAvaliable?: number;
-        avaliable?: boolean;
-      }>;
-    }>;
-  };
-}

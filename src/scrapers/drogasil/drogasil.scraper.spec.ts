@@ -1,11 +1,4 @@
-import {
-  buildStockMap,
-  consumeForPattern,
-  detectPbm,
-  DrogasilScraper,
-  mapProduct,
-} from './drogasil.scraper';
-import type { DrogasilStockResponse } from './types';
+import { consumeForPattern, detectPbm, mapProduct } from './drogasil.scraper';
 
 const SKU_PATTERN = /<article[^>]*data-item-id="([^"]+)"[^>]*>/;
 
@@ -50,33 +43,6 @@ describe('detectPbm', () => {
       isPbm: false,
       pbmPrice: 0,
     });
-  });
-});
-
-describe('buildStockMap', () => {
-  it('returns empty map on null / errors', () => {
-    expect(buildStockMap(undefined).size).toBe(0);
-    expect(buildStockMap({ errors: ['x'] }).size).toBe(0);
-  });
-
-  it('maps the first branch stocks by sku', () => {
-    const data: DrogasilStockResponse = {
-      data: {
-        getNearbyStockByZipCode: [
-          {
-            stocks: [
-              { sku: '111', quantity: 5 },
-              { sku: '222', quantity: 0 },
-            ],
-          },
-          { stocks: [{ sku: '111', quantity: 99 }] },
-        ],
-      },
-    };
-    const out = buildStockMap(data);
-    expect(out.get('111')).toBe(5);
-    expect(out.get('222')).toBe(0);
-    expect(out.size).toBe(2);
   });
 });
 
@@ -129,21 +95,6 @@ describe('consumeForPattern', () => {
     });
     await consumeForPattern(stream, SKU_PATTERN, 1 << 20);
     expect(cancelled).toBe(true);
-  });
-});
-
-describe('scrapeStock error handling', () => {
-  afterEach(() => jest.restoreAllMocks());
-
-  it('returns zeroed items with an error on a non-2xx response', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue(new Response('', { status: 503 }));
-    const out = await new DrogasilScraper().scrapeStock([
-      { ean: '789', sku: '42' },
-    ]);
-    expect(out[0]).toMatchObject({ ean: '789', quantity: 0 });
-    expect(out[0].error).toContain('503');
   });
 });
 

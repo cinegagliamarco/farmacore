@@ -124,19 +124,17 @@ export class CatalogController {
   @Get('stock')
   public stock(
     @TenantEm() em: EntityManager,
-    @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
   ): Promise<Paginated<Record<string, unknown>>> {
-    return this.catalog.stock(em, user.tenantId, query);
+    return this.catalog.stock(em, query);
   }
 
   @Get('stock-metrics')
   public stockMetrics(
     @TenantEm() em: EntityManager,
-    @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
   ): Promise<StockMetrics> {
-    return this.catalog.stockMetrics(em, user.tenantId, query);
+    return this.catalog.stockMetrics(em, query);
   }
 
   @Patch(':ean')

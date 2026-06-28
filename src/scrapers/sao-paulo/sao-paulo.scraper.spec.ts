@@ -37,7 +37,6 @@ describe('mapProduct (São Paulo)', () => {
         description: 'Analgésico',
         image: 'https://x/img.jpg',
         observation: 'Leve 3 pague 2',
-        availableStock: true,
       },
     });
   });
@@ -48,13 +47,6 @@ describe('mapProduct (São Paulo)', () => {
       origin: 'SAO_PAULO',
       found: false,
     });
-  });
-
-  it('defaults availableStock to false when IsAvailable is absent', () => {
-    const out = mapProduct('7891', {
-      items: [{ sellers: [{ commertialOffer: { Price: 9 } }] }],
-    });
-    expect(out.metadata?.availableStock).toBe(false);
   });
 
   it('strips HTML and leaves undefined when description is empty', () => {

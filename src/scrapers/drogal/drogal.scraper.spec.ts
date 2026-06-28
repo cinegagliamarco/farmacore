@@ -1,6 +1,6 @@
 import { HttpService } from '@nestjs/axios';
-import { DrogalScraper, detectPbm, sumStockForSku } from './drogal.scraper';
-import type { DrogalProduct, DrogalStockResponse } from './types';
+import { DrogalScraper, detectPbm } from './drogal.scraper';
+import type { DrogalProduct } from './types';
 
 describe('detectPbm', () => {
   it('returns isPbm=true and divides pbmPrice by 100', () => {
@@ -42,51 +42,6 @@ describe('detectPbm', () => {
       CustomData: ['{broken', JSON.stringify({ pbmPrice: 500 })],
     } as DrogalProduct;
     expect(detectPbm(product).pbmPrice).toBe(5);
-  });
-});
-
-describe('sumStockForSku', () => {
-  it('returns 0 when response is empty', () => {
-    expect(sumStockForSku(undefined, '123')).toBe(0);
-    expect(sumStockForSku({}, '123')).toBe(0);
-  });
-
-  it('sums availability across subsidiaries 113 and 310', () => {
-    const data: DrogalStockResponse = {
-      body: {
-        pickupPointItems: [
-          {
-            CodigoFilial: 113,
-            CartDetail: [
-              { productRefId: 555, avaliable: true, quantityAvaliable: 3 },
-            ],
-          },
-          {
-            CodigoFilial: 310,
-            CartDetail: [
-              { productRefId: 555, avaliable: true, quantityAvaliable: 7 },
-            ],
-          },
-        ],
-      },
-    };
-    expect(sumStockForSku(data, '555')).toBe(10);
-  });
-
-  it('ignores items with avaliable=false', () => {
-    const data: DrogalStockResponse = {
-      body: {
-        pickupPointItems: [
-          {
-            CodigoFilial: 113,
-            CartDetail: [
-              { productRefId: 555, avaliable: false, quantityAvaliable: 99 },
-            ],
-          },
-        ],
-      },
-    };
-    expect(sumStockForSku(data, '555')).toBe(0);
   });
 });
 

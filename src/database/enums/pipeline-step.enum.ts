@@ -3,7 +3,6 @@ export enum PipelineStep {
   SYNC_BASE_PRODUCT_STOCK = 'sync-base-product-stock',
   SYNC_OFFER_BOOKS_INFO = 'sync-offer-books-info',
   IMPORT_COMPETITOR_PRODUCTS = 'import-competitor-products',
-  IMPORT_COMPETITOR_STOCK = 'import-competitor-stock',
   CALC_BASE_PRODUCT_METRICS = 'calc-base-product-metrics',
   UPDATE_BASE_PRODUCT_PROPERTIES = 'update-base-product-properties',
   // Aplicação de preço em massa (Fase 3 da sugestão de preços) — escreve no

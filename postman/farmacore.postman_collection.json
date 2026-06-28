@@ -844,7 +844,7 @@
         "import-competitor-products"
        ]
       },
-      "description": "Step 2 — run the competitor-products step IN ISOLATION (standalone: no downstream cascade) for whatever origins are currently enabled. Per-product it scrapes product → stock (Drogal/Drogasil) → image. Returns `{ pipelineRunId, step }`. There is no per-origin route — granularity comes from toggling origins in step 1."
+      "description": "Step 2 — run the competitor-products step IN ISOLATION (standalone: no downstream cascade) for whatever origins are currently enabled. Per-product it scrapes product → image. Returns `{ pipelineRunId, step }`. There is no per-origin route — granularity comes from toggling origins in step 1."
      },
      "response": []
     }
@@ -872,7 +872,7 @@
         "import"
        ]
       },
-      "description": "Live-scrape EVERY implemented competitor for one EAN, persist into shared_catalog (product, product_image→R2, product_stock, base_product), and return the merged cross-origin view. JWT-guarded, not tenant-scoped (the catalog is global). `:ean` must be numeric."
+      "description": "Live-scrape EVERY implemented competitor for one EAN, persist into shared_catalog (product, product_image→R2, base_product), and return the merged cross-origin view. JWT-guarded, not tenant-scoped (the catalog is global). `:ean` must be numeric."
      },
      "response": []
     },
@@ -907,7 +907,7 @@
         }
        ]
       },
-      "description": "Paginated bulk export of shared_catalog competitor data: each product with its primary image + latest stock. `origin` optional (one of DROGAL/DROGASIL/MICHELASSI/PAGUE_MENOS/IKESAKI); `limit` ≤ 1000. JWT-guarded."
+      "description": "Paginated bulk export of shared_catalog competitor data: each product with its primary image. `origin` optional (one of DROGAL/DROGASIL/MICHELASSI/PAGUE_MENOS/IKESAKI); `limit` ≤ 1000. JWT-guarded."
      },
      "response": []
     }
@@ -1049,7 +1049,7 @@
         }
        ]
       },
-      "description": "Per-product stock: own stock total + by-subsidiary vs each competitor's latest stock, plus derived stockStatus (OK / POTENTIAL / ANALYZE_INCLUSION). perPage <= 200."
+      "description": "Per-product stock: the tenant's own ERP stock total + by-subsidiary, plus derived stockStatus (OK / OUT_OF_STOCK). perPage <= 200."
      },
      "response": []
     },
@@ -1075,7 +1075,7 @@
         }
        ]
       },
-      "description": "Aggregate stock coverage over the filtered set: total, ownWithStock, competitorsWithStock[] ({ origin, withStock }) for each enabled origin."
+      "description": "Aggregate own-stock coverage over the filtered set: total, ownWithStock."
      },
      "response": []
     },

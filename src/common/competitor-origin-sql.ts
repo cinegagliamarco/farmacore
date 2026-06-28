@@ -39,39 +39,12 @@ export function buildCompetitorCrossJoins(
   };
 }
 
-/** LATERAL joins for each competitor's latest stock snapshot (alias exposes `q`). */
-export function buildCompetitorStockLaterals(origins: string[]): {
-  joins: string;
-  countFilters: string[];
-} {
-  const safe = safeOrigins(origins);
-  const joins: string[] = [];
-  const countFilters: string[] = [];
-  safe.forEach((origin, i) => {
-    const a = alias(i);
-    joins.push(
-      `LEFT JOIN LATERAL (
-         SELECT st.quantity AS q
-           FROM shared_catalog.product sp
-           JOIN shared_catalog.product_stock st ON st.product_id = sp.id
-          WHERE sp.ean = p.ean AND sp.origin = '${origin}'
-          ORDER BY st.captured_at DESC LIMIT 1
-       ) ${a} ON true`,
-    );
-    countFilters.push(
-      `count(*) FILTER (WHERE ${a}.q > 0)::int AS "${origin}__withStock"`,
-    );
-  });
-  return { joins: joins.join('\n         '), countFilters };
-}
-
 export interface MappedCompetitor {
   origin: string;
   price: number | null;
   observation?: string | null;
   isPbm?: boolean;
   van?: string | null;
-  stock?: number | null;
 }
 
 function num(v: unknown): number | null {
@@ -85,7 +58,6 @@ const COMPETITOR_ROW_SUFFIXES = [
   'observation',
   'isPbm',
   'van',
-  'stock',
 ] as const;
 
 /** Removes SQL column aliases (`ORIGIN__price`, …) after mapping to `competitors[]`. */
@@ -110,7 +82,6 @@ export function mapCompetitorsFromRow(
     observation?: boolean;
     isPbm?: boolean;
     van?: boolean;
-    stock?: boolean;
   },
 ): MappedCompetitor[] {
   return safeOrigins(origins).map((origin) => ({
@@ -121,6 +92,5 @@ export function mapCompetitorsFromRow(
       : undefined,
     isPbm: fields.isPbm ? row[`${origin}__isPbm`] === true : undefined,
     van: fields.van ? ((row[`${origin}__van`] as string) ?? null) : undefined,
-    stock: fields.stock ? num(row[`${origin}__stock`]) : undefined,
   }));
 }

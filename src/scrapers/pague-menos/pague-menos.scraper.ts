@@ -24,9 +24,7 @@ const TIMEOUT_MS = 30_000;
 
 /**
  * Pague Menos scraper — VTEX catalog_system, single search-by-EAN call
- * (port of legacy pague-menos.service.ts). Products-only: availability is
- * the inline `IsAvailable` boolean (kept in metadata), so there's no
- * separate stock step for this origin.
+ * (port of legacy pague-menos.service.ts).
  */
 @Injectable()
 export class PagueMenosScraper implements ProductScraper {
@@ -68,7 +66,6 @@ export function mapProduct(ean: string, p: PagueMenosProduct): ScrapedProduct {
       description: stripHtml(p.description),
       image: p.items?.[0]?.images?.[0]?.imageUrl,
       observation: offer.PromotionTeasers?.[0]?.Name,
-      availableStock: offer.IsAvailable ?? false,
     },
   };
 }

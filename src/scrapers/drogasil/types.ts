@@ -43,12 +43,3 @@ export interface DrogasilProductResponse {
   data?: { productBySku?: DrogasilProductBySku };
   errors?: unknown[];
 }
-
-export interface DrogasilStockBranch {
-  stocks?: Array<{ sku?: string; quantity?: number }>;
-}
-
-export interface DrogasilStockResponse {
-  data?: { getNearbyStockByZipCode?: DrogasilStockBranch[] };
-  errors?: unknown[];
-}

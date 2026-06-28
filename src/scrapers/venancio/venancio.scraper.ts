@@ -24,10 +24,8 @@ const TIMEOUT_MS = 30_000;
 
 /**
  * Drogaria Venâncio scraper — VTEX catalog_system, single search-by-EAN
- * call. Products-only: availability is the inline `IsAvailable` boolean
- * (kept in metadata), so there's no separate stock step for this origin.
- * `productReferenceCode` is the numeric SKU (the `v_`-prefixed value is on
- * `referenceId`, which we don't use).
+ * call. `productReferenceCode` is the numeric SKU (the `v_`-prefixed value
+ * is on `referenceId`, which we don't use).
  */
 @Injectable()
 export class VenancioScraper implements ProductScraper {
@@ -68,7 +66,6 @@ export function mapProduct(ean: string, p: VenancioProduct): ScrapedProduct {
       description: stripHtml(p.description),
       image: p.items?.[0]?.images?.[0]?.imageUrl,
       observation: offer.PromotionTeasers?.[0]?.Name,
-      availableStock: offer.IsAvailable ?? false,
     },
   };
 }
