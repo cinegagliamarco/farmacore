@@ -7,6 +7,7 @@ const rows = [
   { id: 'b', name: 'Similares', parentId: null, visible: true },
   { id: 'a1', name: 'Antibióticos', parentId: 'a', visible: true },
   { id: 'a2', name: 'Analgésicos', parentId: 'a', visible: false },
+  { id: 'a1x', name: 'Penicilinas', parentId: 'a1', visible: true },
 ];
 
 const makeEm = (result: ClassificationEntity[]): EntityManager => {
@@ -17,7 +18,7 @@ const makeEm = (result: ClassificationEntity[]): EntityManager => {
 };
 
 describe('ClassificationsService.grouped', () => {
-  it('nests each root with its direct children only', async () => {
+  it('nests roots with children up to three levels', async () => {
     const out = await new ClassificationsService().grouped(
       makeEm(rows as ClassificationEntity[]),
     );
@@ -27,7 +28,16 @@ describe('ClassificationsService.grouped', () => {
         name: 'Genéricos',
         parentId: null,
         visible: true,
-        children: [rows[2], rows[3]],
+        children: [
+          {
+            id: 'a1',
+            name: 'Antibióticos',
+            parentId: 'a',
+            visible: true,
+            children: [{ id: 'a1x', name: 'Penicilinas', parentId: 'a1', visible: true, children: [] }],
+          },
+          { id: 'a2', name: 'Analgésicos', parentId: 'a', visible: false, children: [] },
+        ],
       },
       {
         id: 'b',

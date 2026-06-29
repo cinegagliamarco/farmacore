@@ -23,6 +23,11 @@ import {
   resolveWinner,
   type SuggestionProduct,
 } from './pricing-suggestion.engine';
+import {
+  buildClassificationIndex,
+  type ClassificationIndex,
+} from '../classification/classification-index';
+import { ClassificationsService } from '../config/classifications.service';
 import { ClustersService } from './clusters.service';
 import { applyCascadePriority, originPriorities } from './pricing-rules.util';
 import { SuggestionRulesService } from './suggestion-rules.service';
@@ -83,6 +88,7 @@ interface ProductRow {
   cost: string | null;
   precoVenda: string | null;
   precoOferta: string | null;
+  classificationId: string | null;
   classificacao: string | null;
   cadernoId: string | null;
   competitorPrices: Partial<Record<CompetitorOrigin, number>>;
@@ -132,6 +138,7 @@ export class PricingApplyService {
     private readonly rules: SuggestionRulesService,
     private readonly clusters: ClustersService,
     private readonly outbox: OutboxRepository,
+    private readonly classifications: ClassificationsService,
   ) {}
 
   public async apply(
@@ -518,6 +525,7 @@ export class PricingApplyService {
     const membership = usesClusters
       ? await this.clusters.loadActiveClusterMembership(em)
       : new Map<string, string[]>();
+    const classificationIndex = await this.classificationIndex(em);
 
     // Dedup por (ean, target): dois itens para o mesmo alvo causariam preço
     // final não-determinístico no ERP (batches correm em ordem indefinida).
@@ -553,7 +561,7 @@ export class PricingApplyService {
         clusterIds.length
           ? findClusterRuleForProduct(clusterRules, clusterIds)
           : null,
-        findRuleForProduct(sp, classRules, clusterIds),
+        findRuleForProduct(sp, classRules, clusterIds, classificationIndex),
       ).winner;
       const floor = winner
         ? priceForMargin(cost, Number(winner.minMargin))
@@ -602,6 +610,19 @@ export class PricingApplyService {
     return { accepted, rejected };
   }
 
+  private async classificationIndex(
+    em: EntityManager,
+  ): Promise<ClassificationIndex> {
+    const rows = await this.classifications.list(em);
+    return buildClassificationIndex(
+      rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        parentId: row.parentId,
+      })),
+    );
+  }
+
   /** Origens de concorrente habilitadas do tenant (core, fora do search_path). */
   private async enabledOrigins(
     em: EntityManager,
@@ -642,7 +663,8 @@ export class PricingApplyService {
       .join(', ');
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean::text AS ean, p.cost, p.price AS "precoVenda",
-              ob.target_price AS "precoOferta", c.name AS classificacao,
+              ob.target_price AS "precoOferta", p.classification_id AS "classificationId",
+              c.name AS classificacao,
               ob.external_id::text AS "cadernoId"
               ${selects ? ',' + selects : ''}
          FROM product p
@@ -665,6 +687,7 @@ export class PricingApplyService {
         cost: r.cost as string | null,
         precoVenda: r.precoVenda as string | null,
         precoOferta: r.precoOferta as string | null,
+        classificationId: (r.classificationId as string | null) ?? null,
         classificacao: r.classificacao as string | null,
         cadernoId: r.cadernoId as string | null,
         competitorPrices,
@@ -684,6 +707,7 @@ export class PricingApplyService {
       ean: row.ean,
       nome: '',
       fabricante: '',
+      classificationId: row.classificationId,
       classificacao: row.classificacao ?? '',
       cadernoOferta: '',
       custo,

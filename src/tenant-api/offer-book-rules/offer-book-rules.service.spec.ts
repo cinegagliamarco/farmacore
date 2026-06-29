@@ -4,13 +4,34 @@ import { CalculationBaseType } from '../../database/enums/calculation-base-type.
 import { PriceBaseSource } from '../../database/enums/price-base-source.enum';
 import { PricingActionType } from '../../database/enums/pricing-action-type.enum';
 import type { PriceRoundingService } from '../config/price-rounding.service';
+import { buildClassificationIndex } from '../classification/classification-index';
 import {
   CalculationParams,
   normalizeClassification,
-  normalizeClassifications,
+  normalizeClassificationIds,
   OfferBookRulesService,
   PreviewProductInput,
 } from './offer-book-rules.service';
+
+const IDX = buildClassificationIndex([
+  { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', name: 'A', parentId: null },
+  {
+    id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    name: 'B',
+    parentId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  },
+  {
+    id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    name: 'C',
+    parentId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+  },
+  { id: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', name: 'X', parentId: null },
+  {
+    id: 'yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy',
+    name: 'Y',
+    parentId: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+  },
+]);
 
 const makeService = (
   roundingList: jest.Mock = jest.fn().mockResolvedValue([]),
@@ -27,7 +48,8 @@ const product = (
   ean: '7890000000001',
   name: 'Produto',
   externalId: '1',
-  classificationPath: 'A > B',
+  classificationId: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+  classificationPath: 'A > B > C',
   salePrice: 100,
   cost: 50,
   margin: 50,
@@ -40,6 +62,7 @@ const params = (over: Partial<CalculationParams> = {}): CalculationParams => ({
   calculationBaseType: CalculationBaseType.SALE_PRICE,
   pricingRules: [],
   priceLocks: [],
+  classificationIndex: IDX,
   ...over,
 });
 
@@ -51,12 +74,11 @@ describe('normalizeClassification', () => {
     expect(normalizeClassification('')).toBe('');
   });
 
-  it('dedupes after normalizing a list', () => {
-    expect(normalizeClassifications(['A > B > C', 'A > B > D'])).toEqual([
-      'A > B',
-    ]);
-    expect(normalizeClassifications([])).toBeUndefined();
-    expect(normalizeClassifications(undefined)).toBeUndefined();
+  it('dedupes classification id lists', () => {
+    const id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    expect(normalizeClassificationIds([id, id])).toEqual([id]);
+    expect(normalizeClassificationIds([])).toBeUndefined();
+    expect(normalizeClassificationIds(undefined)).toBeUndefined();
   });
 });
 
@@ -173,16 +195,24 @@ describe('OfferBookRulesService.calculatePreviews', () => {
     expect(r.percentageValue).toBe(10.55);
   });
 
-  it('matches rules by normalized classification prefix only', () => {
+  it('matches rules by classification id subtree', () => {
     const rows = service.calculatePreviews(
       [
-        product({ ean: '1', classificationPath: 'A > B > C' }),
-        product({ ean: '2', classificationPath: 'X > Y' }),
+        product({
+          ean: '1',
+          classificationId: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+          classificationPath: 'A > B > C',
+        }),
+        product({
+          ean: '2',
+          classificationId: 'yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy',
+          classificationPath: 'X > Y',
+        }),
       ],
       params({
         pricingRules: [
           {
-            classifications: ['A > B'],
+            classifications: ['bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'],
             actionType: PricingActionType.DISCOUNT,
             percentageValue: 10,
           },
@@ -324,116 +354,140 @@ describe('OfferBookRulesService overlap validation', () => {
 
   it('rejects two unscoped pricing rules', () => {
     expect(() =>
-      service.validateNonOverlappingPricingRules([
-        { actionType: PricingActionType.DISCOUNT, percentageValue: 5 },
-        { actionType: PricingActionType.INCREASE, percentageValue: 5 },
-      ]),
+      service.validateNonOverlappingPricingRules(
+        [
+          { actionType: PricingActionType.DISCOUNT, percentageValue: 5 },
+          { actionType: PricingActionType.INCREASE, percentageValue: 5 },
+        ],
+        IDX,
+      ),
     ).toThrow(BadRequestException);
   });
 
   it('allows pricing rules on disjoint classifications', () => {
     expect(() =>
-      service.validateNonOverlappingPricingRules([
-        {
-          classifications: ['A'],
-          actionType: PricingActionType.DISCOUNT,
-          percentageValue: 5,
-        },
-        {
-          classifications: ['B'],
-          actionType: PricingActionType.DISCOUNT,
-          percentageValue: 5,
-        },
-      ]),
+      service.validateNonOverlappingPricingRules(
+        [
+          {
+            classifications: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+            actionType: PricingActionType.DISCOUNT,
+            percentageValue: 5,
+          },
+          {
+            classifications: ['xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'],
+            actionType: PricingActionType.DISCOUNT,
+            percentageValue: 5,
+          },
+        ],
+        IDX,
+      ),
     ).not.toThrow();
   });
 
   it('rejects locks on overlapping classifications', () => {
     expect(() =>
-      service.validateNonOverlappingPriceLocks([
-        { classifications: ['A'], minMargin: 10 },
-        { classifications: ['A'], minMargin: 20 },
-      ]),
+      service.validateNonOverlappingPriceLocks(
+        [
+          {
+            classifications: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+            minMargin: 10,
+          },
+          {
+            classifications: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+            minMargin: 20,
+          },
+        ],
+        IDX,
+      ),
     ).toThrow(BadRequestException);
   });
 
   it('rejects an all-classifications lock coexisting with another', () => {
     expect(() =>
-      service.validateNonOverlappingPriceLocks([
-        { minMargin: 10 },
-        { classifications: ['A'], minMargin: 20 },
-      ]),
+      service.validateNonOverlappingPriceLocks(
+        [{ minMargin: 10 }, { classifications: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'], minMargin: 20 }],
+        IDX,
+      ),
     ).toThrow(BadRequestException);
   });
 
   it('allows a single lock', () => {
     expect(() =>
-      service.validateNonOverlappingPriceLocks([{ minMargin: 10 }]),
+      service.validateNonOverlappingPriceLocks([{ minMargin: 10 }], IDX),
     ).not.toThrow();
   });
 
   it('rejects price-only rules with overlapping price ranges', () => {
     expect(() =>
-      service.validateNonOverlappingPricingRules([
-        {
-          priceRangeMin: 0,
-          priceRangeMax: 100,
-          actionType: PricingActionType.DISCOUNT,
-          percentageValue: 5,
-        },
-        {
-          priceRangeMin: 50,
-          priceRangeMax: 150,
-          actionType: PricingActionType.DISCOUNT,
-          percentageValue: 5,
-        },
-      ]),
+      service.validateNonOverlappingPricingRules(
+        [
+          {
+            priceRangeMin: 0,
+            priceRangeMax: 100,
+            actionType: PricingActionType.DISCOUNT,
+            percentageValue: 5,
+          },
+          {
+            priceRangeMin: 50,
+            priceRangeMax: 150,
+            actionType: PricingActionType.DISCOUNT,
+            percentageValue: 5,
+          },
+        ],
+        IDX,
+      ),
     ).toThrow(BadRequestException);
   });
 
   it('rejects both-range rules when price AND margin both overlap', () => {
     expect(() =>
-      service.validateNonOverlappingPricingRules([
-        {
-          priceRangeMin: 0,
-          priceRangeMax: 100,
-          marginRangeMin: 0,
-          marginRangeMax: 50,
-          actionType: PricingActionType.DISCOUNT,
-          percentageValue: 5,
-        },
-        {
-          priceRangeMin: 50,
-          priceRangeMax: 150,
-          marginRangeMin: 40,
-          marginRangeMax: 90,
-          actionType: PricingActionType.DISCOUNT,
-          percentageValue: 5,
-        },
-      ]),
+      service.validateNonOverlappingPricingRules(
+        [
+          {
+            priceRangeMin: 0,
+            priceRangeMax: 100,
+            marginRangeMin: 0,
+            marginRangeMax: 50,
+            actionType: PricingActionType.DISCOUNT,
+            percentageValue: 5,
+          },
+          {
+            priceRangeMin: 50,
+            priceRangeMax: 150,
+            marginRangeMin: 40,
+            marginRangeMax: 90,
+            actionType: PricingActionType.DISCOUNT,
+            percentageValue: 5,
+          },
+        ],
+        IDX,
+      ),
     ).toThrow(BadRequestException);
   });
 
   it('allows both-range rules when only price overlaps but margin does not', () => {
     expect(() =>
-      service.validateNonOverlappingPricingRules([
-        {
-          priceRangeMin: 0,
-          priceRangeMax: 100,
-          marginRangeMin: 0,
-          marginRangeMax: 50,
-          actionType: PricingActionType.DISCOUNT,
-          percentageValue: 5,
-        },
-        {
-          priceRangeMin: 50,
-          priceRangeMax: 150,
-          marginRangeMin: 60,
-          marginRangeMax: 90,
-          actionType: PricingActionType.DISCOUNT,
-          percentageValue: 5,
-        },
-      ]),
+      service.validateNonOverlappingPricingRules(
+        [
+          {
+            priceRangeMin: 0,
+            priceRangeMax: 100,
+            marginRangeMin: 0,
+            marginRangeMax: 50,
+            actionType: PricingActionType.DISCOUNT,
+            percentageValue: 5,
+          },
+          {
+            priceRangeMin: 50,
+            priceRangeMax: 150,
+            marginRangeMin: 60,
+            marginRangeMax: 90,
+            actionType: PricingActionType.DISCOUNT,
+            percentageValue: 5,
+          },
+        ],
+        IDX,
+      ),
     ).not.toThrow();
   });
 });
@@ -446,7 +500,21 @@ const makeEmSpy = (
       if (sql.includes(fragment)) return Promise.resolve(result);
     return Promise.resolve([]);
   });
-  return { em: { query } as unknown as EntityManager, query };
+  const find = jest.fn().mockResolvedValue([
+    { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', name: 'A', parentId: null },
+    {
+      id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      name: 'B',
+      parentId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    },
+  ]);
+  return {
+    em: {
+      query,
+      getRepository: jest.fn().mockReturnValue({ find }),
+    } as unknown as EntityManager,
+    query,
+  };
 };
 
 const makeEm = (handlers: Record<string, unknown>): EntityManager =>
@@ -459,7 +527,7 @@ describe('OfferBookRulesService.preview', () => {
       service.preview(makeEm({}), 'slug', {
         calculationBaseType: CalculationBaseType.SALE_PRICE,
         eans: ['1'],
-        classifications: ['A'],
+        classifications: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
         pricingRules: [],
         priceLocks: [],
       }),
@@ -502,6 +570,7 @@ describe('OfferBookRulesService.preview', () => {
           cost: '50.0000',
           margin: '50.0000',
           classification: 'A > B',
+          classificationId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
           offerPrice: null,
         },
       ],
@@ -534,6 +603,7 @@ describe('OfferBookRulesService.preview', () => {
           cost: '40.0000',
           margin: '60.0000',
           classification: 'A > B',
+          classificationId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
           offerPrice: null,
         },
       ],
@@ -572,6 +642,7 @@ describe('OfferBookRulesService.preview', () => {
           cost: '10.0000',
           margin: '90.0000',
           classification: 'A > B',
+          classificationId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
           offerPrice: null,
         },
       ],
@@ -590,7 +661,7 @@ describe('OfferBookRulesService.preview', () => {
     expect(result.rows[0].finalPrice).toBe(89.49);
   });
 
-  it('queries the classifications branch with starts_with and correctly indexed params', async () => {
+  it('queries products by expanded classification subtree ids', async () => {
     const { service } = makeService();
     const { em, query } = makeEmSpy({
       'count(*)::int': [{ count: 1 }],
@@ -603,13 +674,14 @@ describe('OfferBookRulesService.preview', () => {
           cost: '50.0000',
           margin: '50.0000',
           classification: 'A > B',
+          classificationId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
           offerPrice: null,
         },
       ],
     });
     const result = await service.preview(em, 'slug', {
       calculationBaseType: CalculationBaseType.SALE_PRICE,
-      classifications: ['A > B', 'C'],
+      classifications: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
       pricingRules: [],
       priceLocks: [],
       page: 2,
@@ -619,10 +691,12 @@ describe('OfferBookRulesService.preview', () => {
     const pageCall = query.mock.calls.find(([sql]: [string]) =>
       sql.includes('p.ean AS ean'),
     );
-    expect(pageCall[0]).toContain("starts_with(cls.path, $1 || ' > ')");
-    expect(pageCall[0]).toContain("starts_with(cls.path, $2 || ' > ')");
-    // 2 classification params, then LIMIT pageSize=10, OFFSET (2-1)*10=10
-    expect(pageCall[1]).toEqual(['A > B', 'C', 10, 10]);
+    expect(pageCall[0]).toContain('p.classification_id = ANY($1::uuid[])');
+    expect(pageCall[1][0]).toEqual([
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    ]);
+    expect(pageCall[1].slice(1)).toEqual([10, 10]);
   });
 
   it('returns an empty page when no products match', async () => {

@@ -41,7 +41,7 @@ export class UpsertSuggestionRuleDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(200)
-  @IsString({ each: true })
+  @IsUUID('4', { each: true })
   public classifications?: string[];
 
   @IsOptional()

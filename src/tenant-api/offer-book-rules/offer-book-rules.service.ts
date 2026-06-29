@@ -1,8 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { EntityManager } from 'typeorm';
+import { EntityManager, IsNull } from 'typeorm';
 import { CalculationBaseType } from '../../database/enums/calculation-base-type.enum';
 import { PriceBaseSource } from '../../database/enums/price-base-source.enum';
 import { PricingActionType } from '../../database/enums/pricing-action-type.enum';
+import { ClassificationEntity } from '../../database/entities/tenant/classification.entity';
+import {
+  buildClassificationIndex,
+  type ClassificationIndex,
+} from '../classification/classification-index';
 import { PriceRoundingService } from '../config/price-rounding.service';
 import {
   CreatePriceLockDto,
@@ -22,11 +27,12 @@ export function normalizeClassification(classification: string): string {
   return parts.length <= 2 ? classification : `${parts[0]} > ${parts[1]}`;
 }
 
-export function normalizeClassifications(
+/** Dedupes classification UUID lists; empty/omitted = all (per rule contract). */
+export function normalizeClassificationIds(
   classifications?: string[] | null,
 ): string[] | undefined {
-  if (!classifications || classifications.length === 0) return undefined;
-  return [...new Set(classifications.map(normalizeClassification))];
+  if (!classifications?.length) return undefined;
+  return [...new Set(classifications)];
 }
 
 /** A product fed to the calculation engine — DB-agnostic plain data. */
@@ -34,6 +40,7 @@ export interface PreviewProductInput {
   ean: string;
   name: string;
   externalId: string | null;
+  classificationId: string | null;
   classificationPath: string;
   salePrice: number;
   cost: number;
@@ -55,6 +62,7 @@ export interface CalculationParams {
   pricingRules: CreatePricingRuleDto[];
   priceLocks: CreatePriceLockDto[];
   priceRoundingRules?: PriceRoundingRuleInput[];
+  classificationIndex: ClassificationIndex;
 }
 
 const MAX_PAGE_SIZE = 1000;
@@ -92,14 +100,24 @@ export class OfferBookRulesService {
     const page = dto.page ?? 1;
     const pageSize = Math.min(dto.pageSize ?? MAX_PAGE_SIZE, MAX_PAGE_SIZE);
 
+    const classificationIndex = await this.loadClassificationIndex(em);
     const pricingRules = this.normalizePricingRules(dto.pricingRules);
     const priceLocks = this.normalizePriceLocks(dto.priceLocks);
-    this.validateNonOverlappingPricingRules(pricingRules);
-    this.validateNonOverlappingPriceLocks(priceLocks);
+    this.assertKnownClassificationIds(
+      [
+        ...(dto.classifications ?? []),
+        ...pricingRules.flatMap((r) => r.classifications ?? []),
+        ...priceLocks.flatMap((l) => l.classifications ?? []),
+      ],
+      classificationIndex,
+    );
+    this.validateNonOverlappingPricingRules(pricingRules, classificationIndex);
+    this.validateNonOverlappingPriceLocks(priceLocks, classificationIndex);
 
     const { total, products } = await this.fetchProducts(
       em,
       dto,
+      classificationIndex,
       page,
       pageSize,
     );
@@ -119,6 +137,7 @@ export class OfferBookRulesService {
       pricingRules,
       priceLocks,
       priceRoundingRules,
+      classificationIndex,
     });
 
     return {
@@ -135,7 +154,7 @@ export class OfferBookRulesService {
   ): CreatePricingRuleDto[] {
     return pricingRules.map((rule) => ({
       ...rule,
-      classifications: normalizeClassifications(rule.classifications),
+      classifications: normalizeClassificationIds(rule.classifications),
     }));
   }
 
@@ -144,12 +163,13 @@ export class OfferBookRulesService {
   ): CreatePriceLockDto[] {
     return priceLocks.map((lock) => ({
       ...lock,
-      classifications: normalizeClassifications(lock.classifications),
+      classifications: normalizeClassificationIds(lock.classifications),
     }));
   }
 
   public validateNonOverlappingPriceLocks(
     priceLocks: CreatePriceLockDto[],
+    classificationIndex: ClassificationIndex,
   ): void {
     const activeLocks = priceLocks.filter((lock) => lock.active !== false);
     if (activeLocks.length === 0) return;
@@ -169,6 +189,7 @@ export class OfferBookRulesService {
           this.classificationsOverlap(
             activeLocks[i].classifications,
             activeLocks[j].classifications,
+            classificationIndex,
           )
         )
           throw new BadRequestException(
@@ -181,11 +202,12 @@ export class OfferBookRulesService {
 
   public validateNonOverlappingPricingRules(
     pricingRules: CreatePricingRuleDto[],
+    classificationIndex: ClassificationIndex,
   ): void {
     const activeRules = pricingRules.filter((rule) => rule.active !== false);
     for (let i = 0; i < activeRules.length; i++) {
       for (let j = i + 1; j < activeRules.length; j++) {
-        if (this.rulesOverlap(activeRules[i], activeRules[j]))
+        if (this.rulesOverlap(activeRules[i], activeRules[j], classificationIndex))
           throw new BadRequestException(
             `Pricing rules overlap: Rule ${i + 1} and Rule ${j + 1} can target the same products. ` +
               'Ensure classifications and price/margin ranges do not overlap.',
@@ -254,10 +276,12 @@ export class OfferBookRulesService {
       product,
       params.pricingRules,
       currentPrice,
+      params.classificationIndex,
     );
     const matchingPriceLock = this.findMatchingPriceLock(
       product,
       params.priceLocks,
+      params.classificationIndex,
     );
 
     let actionType: PricingActionType | null = null;
@@ -420,13 +444,19 @@ export class OfferBookRulesService {
     product: PreviewProductInput,
     pricingRules: CreatePricingRuleDto[],
     currentPrice: number,
+    classificationIndex: ClassificationIndex,
   ): CreatePricingRuleDto | null {
-    const classification = normalizeClassification(product.classificationPath);
     const margin = product.margin;
 
     for (const rule of pricingRules) {
       if (rule.active === false) continue;
-      if (!this.classificationMatches(classification, rule.classifications))
+      if (
+        !this.classificationMatches(
+          product.classificationId,
+          rule.classifications,
+          classificationIndex,
+        )
+      )
         continue;
 
       const priceRangeMatches = this.rangeMatches(
@@ -460,11 +490,17 @@ export class OfferBookRulesService {
   private findMatchingPriceLock(
     product: PreviewProductInput,
     priceLocks: CreatePriceLockDto[],
+    classificationIndex: ClassificationIndex,
   ): CreatePriceLockDto | null {
-    const classification = normalizeClassification(product.classificationPath);
     for (const lock of priceLocks) {
       if (lock.active === false) continue;
-      if (this.classificationMatches(classification, lock.classifications))
+      if (
+        this.classificationMatches(
+          product.classificationId,
+          lock.classifications,
+          classificationIndex,
+        )
+      )
         return lock;
     }
     return null;
@@ -494,11 +530,15 @@ export class OfferBookRulesService {
   }
 
   private classificationMatches(
-    classification: string,
-    classifications?: string[],
+    productClassificationId: string | null,
+    classifications: string[] | undefined,
+    classificationIndex: ClassificationIndex,
   ): boolean {
-    if (!classifications || classifications.length === 0) return true;
-    return classifications.some((filter) => classification.startsWith(filter));
+    if (!classifications?.length) return true;
+    if (!productClassificationId) return false;
+    return classifications.some((id) =>
+      classificationIndex.isUnder(productClassificationId, id),
+    );
   }
 
   private rangeMatches(value: number, min?: number, max?: number): boolean {
@@ -510,9 +550,14 @@ export class OfferBookRulesService {
   private rulesOverlap(
     ruleA: CreatePricingRuleDto,
     ruleB: CreatePricingRuleDto,
+    classificationIndex: ClassificationIndex,
   ): boolean {
     if (
-      !this.classificationsOverlap(ruleA.classifications, ruleB.classifications)
+      !this.classificationsOverlap(
+        ruleA.classifications,
+        ruleB.classifications,
+        classificationIndex,
+      )
     )
       return false;
 
@@ -573,14 +618,13 @@ export class OfferBookRulesService {
   }
 
   private classificationsOverlap(
-    classificationsA?: string[],
-    classificationsB?: string[],
+    classificationsA: string[] | undefined,
+    classificationsB: string[] | undefined,
+    classificationIndex: ClassificationIndex,
   ): boolean {
-    // Null/empty means "all classifications" — overlaps with anything.
-    if (!classificationsA || classificationsA.length === 0) return true;
-    if (!classificationsB || classificationsB.length === 0) return true;
+    if (!classificationsA?.length || !classificationsB?.length) return true;
     return classificationsA.some((a) =>
-      classificationsB.some((b) => a.startsWith(b) || b.startsWith(a)),
+      classificationsB.some((b) => classificationIndex.idsOverlap(a, b)),
     );
   }
 
@@ -600,6 +644,7 @@ export class OfferBookRulesService {
   private async fetchProducts(
     em: EntityManager,
     dto: PreviewOfferBookRulesDto,
+    classificationIndex: ClassificationIndex,
     page: number,
     pageSize: number,
   ): Promise<{ total: number; products: PreviewProductInput[] }> {
@@ -614,17 +659,14 @@ export class OfferBookRulesService {
         'WHERE p.active = true AND p.deleted_at IS NULL AND p.ean = ANY($1::bigint[])';
       params = [dto.eans];
     } else {
-      // starts_with (not LIKE) so a classification name containing % or _ is
-      // matched literally; the `' > '` boundary keeps "Medica" from matching
-      // "Medicamentos" (legacy used a bare prefix and would).
-      const conds = dto
-        .classifications!.map(
-          (_c, i) =>
-            `(cls.path = $${i + 1} OR starts_with(cls.path, $${i + 1} || ' > '))`,
-        )
-        .join(' OR ');
-      where = `WHERE p.active = true AND p.deleted_at IS NULL AND (${conds})`;
-      params = [...dto.classifications!];
+      const subtree = [
+        ...classificationIndex.expandSubtree(dto.classifications!),
+      ];
+      if (subtree.length === 0)
+        return { total: 0, products: [] };
+      where =
+        'WHERE p.active = true AND p.deleted_at IS NULL AND p.classification_id = ANY($1::uuid[])';
+      params = [subtree];
     }
 
     const countRows: Array<{ count: number }> = await em.query(
@@ -637,6 +679,7 @@ export class OfferBookRulesService {
     const rows: Array<Record<string, unknown>> = await em.query(
       `${CLS_CTE}
        SELECT p.ean AS ean, p.name AS name, p.external_id AS "externalId",
+              p.classification_id AS "classificationId",
               p.price AS price, p.cost AS cost, p.margin AS margin,
               COALESCE(cls.path, '') AS classification,
               ob.target_price AS "offerPrice"
@@ -679,6 +722,35 @@ export class OfferBookRulesService {
       product.competitorPrices = byEan.get(product.ean) ?? {};
   }
 
+  private async loadClassificationIndex(
+    em: EntityManager,
+  ): Promise<ClassificationIndex> {
+    const rows = await em.getRepository(ClassificationEntity).find({
+      where: { deletedAt: IsNull() },
+      select: { id: true, name: true, parentId: true },
+    });
+    return buildClassificationIndex(
+      rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        parentId: row.parentId ?? null,
+      })),
+    );
+  }
+
+  private assertKnownClassificationIds(
+    ids: string[],
+    classificationIndex: ClassificationIndex,
+  ): void {
+    const unknown = [...new Set(ids)].filter(
+      (id) => !classificationIndex.depthById.has(id),
+    );
+    if (unknown.length)
+      throw new BadRequestException(
+        `Unknown classification id(s): ${unknown.join(', ')}`,
+      );
+  }
+
   private async fetchRoundingRules(
     em: EntityManager,
     slug: string,
@@ -717,6 +789,7 @@ function toPreviewProduct(r: Record<string, unknown>): PreviewProductInput {
     ean: String(r.ean),
     name: (r.name as string | null) ?? '',
     externalId: (r.externalId as string | null) ?? null,
+    classificationId: (r.classificationId as string | null) ?? null,
     classificationPath: (r.classification as string | null) ?? '',
     salePrice: num(r.price),
     cost: num(r.cost),

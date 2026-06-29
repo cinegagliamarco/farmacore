@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { resolveTenantId } from '../../tenant/tenant-lookup';
+import {
+  buildClassificationIndex,
+  type ClassificationIndex,
+} from '../classification/classification-index';
+import { ClassificationsService } from '../config/classifications.service';
 import { PriceRoundingService } from '../config/price-rounding.service';
 import { ClustersService } from './clusters.service';
 import { applyCascadePriority, originPriorities } from './pricing-rules.util';
@@ -34,6 +39,7 @@ interface ResponseProduct {
   ean: string;
   name: string;
   supplier: string | null;
+  classificationId: string | null;
   classification: string | null;
   book: string | null;
   cost: number | null;
@@ -87,6 +93,7 @@ export class PricingSuggestionsService {
     private readonly rules: SuggestionRulesService,
     private readonly clusters: ClustersService,
     private readonly priceRounding: PriceRoundingService,
+    private readonly classifications: ClassificationsService,
   ) {}
 
   /**
@@ -213,6 +220,7 @@ export class PricingSuggestionsService {
     classRules: SuggestionRuleApi[];
     membership: Map<string, string[]>;
     roundingRanges: PriceRoundingRange[];
+    classificationIndex: ClassificationIndex;
   }> {
     let activeRules = (overrideRules ?? (await this.rules.list(em))).filter(
       (r) => r.active,
@@ -240,7 +248,21 @@ export class PricingSuggestionsService {
       roundingRanges: activeRules.some((r) => r.applyRounding)
         ? await this.roundingRanges(em, slug)
         : [],
+      classificationIndex: await this.classificationIndex(em),
     };
+  }
+
+  private async classificationIndex(
+    em: EntityManager,
+  ): Promise<ClassificationIndex> {
+    const rows = await this.classifications.list(em);
+    return buildClassificationIndex(
+      rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        parentId: row.parentId,
+      })),
+    );
   }
 
   private computeRow(
@@ -250,6 +272,7 @@ export class PricingSuggestionsService {
       classRules: SuggestionRuleApi[];
       membership: Map<string, string[]>;
       roundingRanges: PriceRoundingRange[];
+      classificationIndex: ClassificationIndex;
     },
   ): {
     product: ResponseProduct;
@@ -262,7 +285,12 @@ export class PricingSuggestionsService {
     const clusterRule = clusterIds.length
       ? findClusterRuleForProduct(ctx.clusterRules, clusterIds)
       : null;
-    const classRule = findRuleForProduct(sp, ctx.classRules, clusterIds);
+    const classRule = findRuleForProduct(
+      sp,
+      ctx.classRules,
+      clusterIds,
+      ctx.classificationIndex,
+    );
     const { winner, overrodeRule } = resolveWinner(clusterRule, classRule);
     const result: SuggestionResult = winner
       ? computeSuggestion(
@@ -346,7 +374,8 @@ export class PricingSuggestionsService {
     }
 
     const rows: Array<Record<string, unknown>> = await em.query(
-      `SELECT p.ean, p.name, p.supplier, c.name AS classification,
+      `SELECT p.ean, p.name, p.supplier, p.classification_id AS "classificationId",
+              c.name AS classification,
               p.cost, p.price AS "priceForSell", ob.target_price AS "priceForOffer",
               ob.description AS book, p.margin,
               p.average_variation AS "averageVariation", p.status
@@ -364,6 +393,7 @@ export class PricingSuggestionsService {
       ean: String(r.ean),
       name: (r.name as string) ?? '',
       supplier: (r.supplier as string) ?? null,
+      classificationId: (r.classificationId as string | null) ?? null,
       classification: (r.classification as string) ?? null,
       book: (r.book as string) ?? null,
       cost: num(r.cost),
@@ -393,6 +423,7 @@ export class PricingSuggestionsService {
       ean: p.ean,
       nome: p.name,
       fabricante: p.supplier ?? '',
+      classificationId: p.classificationId,
       classificacao: p.classification ?? '',
       cadernoOferta: p.book ?? '',
       custo: money(p.cost),
