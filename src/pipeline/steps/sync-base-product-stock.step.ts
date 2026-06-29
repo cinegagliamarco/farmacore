@@ -17,16 +17,16 @@ interface SyncBaseProductStockBatchResult {
 /**
  * Per-batch business logic for sync-base-product-stock. Pure use-case:
  * reads a slice of embalagens + their estoque rows from the ERP, sums
- * quantities by (ean, subsidiary), and upserts into product_stock.
+ * quantities by (ean, store), and upserts into product_stock.
  *
  * Divergence from legacy:
- *  - No SubsidiaryMaping enum: every store id is imported. Labels live
- *    in tenant_subsidiary, configured per-tenant during onboarding.
+ *  - No StoreMaping enum: every store id is imported. Labels live
+ *    in tenant_store, configured per-tenant during onboarding.
  *  - No deleteByBaseProductId before insert: dispatcher restart safety.
  *    Stale rows for EANs that disappear from the ERP accumulate; a
  *    follow-up cleanup pass can reconcile.
  *  - Stock rows for this batch are bounded-deleted by EAN before
- *    upsert, so a subsidiary that fell to zero (no longer in estoque)
+ *    upsert, so a store that fell to zero (no longer in estoque)
  *    is removed in the same batch that refreshes its peers.
  */
 @Injectable()
@@ -71,8 +71,8 @@ export class SyncBaseProductStockStep {
     );
     const estoques = await a7.estoque.findByEmbalagemIds(validEmbalagemIds);
 
-    // Sum quantities per (ean, subsidiary). An embalagem appears at
-    // most once in estoque per subsidiary (UNIQUE index), but two
+    // Sum quantities per (ean, store). An embalagem appears at
+    // most once in estoque per store (UNIQUE index), but two
     // embalagens sharing a barcode would otherwise double-count, so we
     // aggregate at the EAN level too.
     const sumByPair = new Map<string, ProductStockUpsertInput>();
@@ -89,7 +89,7 @@ export class SyncBaseProductStockStep {
       } else {
         sumByPair.set(key, {
           ean,
-          subsidiaryExternalId: subId,
+          storeExternalId: subId,
           quantity: qty,
         });
       }
@@ -98,7 +98,7 @@ export class SyncBaseProductStockStep {
     const inputs = Array.from(sumByPair.values());
 
     // Drop any prior rows for the EANs we're about to refresh so a
-    // subsidiary that went to zero (not in the new inputs) is removed
+    // store that went to zero (not in the new inputs) is removed
     // in the same batch — without touching other batches' EANs.
     const eans = Array.from(eanByEmbalagemId.values());
     await stockRepo.deleteByEans(eans);

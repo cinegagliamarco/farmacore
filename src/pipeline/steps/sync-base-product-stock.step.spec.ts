@@ -6,7 +6,7 @@ import { ProductStockEntity } from '../../database/entities/tenant/product-stock
 
 /**
  * Lightweight mock of the per-call repos. Keeps the suite focused on
- * the aggregation behavior (parsing, dedupe, summing per subsidiary)
+ * the aggregation behavior (parsing, dedupe, summing per store)
  * without setting up a real DataSource.
  */
 const buildIntegrationDs = (
@@ -84,7 +84,7 @@ describe('SyncBaseProductStockStep.run', () => {
     expect(captures.upsertArgs).toHaveLength(0);
   });
 
-  it('parses EANs, sums quantities per subsidiary, and upserts', async () => {
+  it('parses EANs, sums quantities per store, and upserts', async () => {
     const embalagens = [
       { id: 10, codigobarras: '7891234567890', quantidadeporembalagem: 1 },
       { id: 11, codigobarras: '7891111111111', quantidadeporembalagem: 1 },
@@ -104,14 +104,14 @@ describe('SyncBaseProductStockStep.run', () => {
     expect(out).toEqual({ processed: 3, skipped: 0 });
     const upserted = captures.upsertArgs[0] as Array<{
       ean: string;
-      subsidiaryExternalId: string;
+      storeExternalId: string;
       quantity: number;
     }>;
     expect(upserted).toEqual(
       expect.arrayContaining([
-        { ean: '7891234567890', subsidiaryExternalId: '1', quantity: 5 },
-        { ean: '7891234567890', subsidiaryExternalId: '2', quantity: 7 },
-        { ean: '7891111111111', subsidiaryExternalId: '1', quantity: 3 },
+        { ean: '7891234567890', storeExternalId: '1', quantity: 5 },
+        { ean: '7891234567890', storeExternalId: '2', quantity: 7 },
+        { ean: '7891111111111', storeExternalId: '1', quantity: 3 },
       ]),
     );
   });
@@ -138,7 +138,7 @@ describe('SyncBaseProductStockStep.run', () => {
     expect(upserted[0].ean).toBe('7891111111111');
   });
 
-  it('sums two estoque rows for the same (ean, subsidiary)', async () => {
+  it('sums two estoque rows for the same (ean, store)', async () => {
     // Two embalagens sharing a barcode + same store should NOT double-count
     // the stock; the step aggregates at the EAN level.
     const embalagens = [

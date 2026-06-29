@@ -1049,7 +1049,7 @@
         }
        ]
       },
-      "description": "Per-product stock: the tenant's own ERP stock total + by-subsidiary, plus derived stockStatus (OK / OUT_OF_STOCK). perPage <= 200."
+      "description": "Per-product stock: the tenant's own ERP stock total + by-store, plus derived stockStatus (OK / OUT_OF_STOCK). perPage <= 200."
      },
      "response": []
     },
