@@ -207,7 +207,9 @@ export class OfferBookRulesService {
     const activeRules = pricingRules.filter((rule) => rule.active !== false);
     for (let i = 0; i < activeRules.length; i++) {
       for (let j = i + 1; j < activeRules.length; j++) {
-        if (this.rulesOverlap(activeRules[i], activeRules[j], classificationIndex))
+        if (
+          this.rulesOverlap(activeRules[i], activeRules[j], classificationIndex)
+        )
           throw new BadRequestException(
             `Pricing rules overlap: Rule ${i + 1} and Rule ${j + 1} can target the same products. ` +
               'Ensure classifications and price/margin ranges do not overlap.',
@@ -662,8 +664,7 @@ export class OfferBookRulesService {
       const subtree = [
         ...classificationIndex.expandSubtree(dto.classifications!),
       ];
-      if (subtree.length === 0)
-        return { total: 0, products: [] };
+      if (subtree.length === 0) return { total: 0, products: [] };
       where =
         'WHERE p.active = true AND p.deleted_at IS NULL AND p.classification_id = ANY($1::uuid[])';
       params = [subtree];

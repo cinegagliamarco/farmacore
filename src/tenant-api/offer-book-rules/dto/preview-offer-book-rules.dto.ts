@@ -9,7 +9,6 @@ import {
   IsNotEmpty,
   IsNumber,
   IsOptional,
-  IsString,
   IsUUID,
   Matches,
   Max,

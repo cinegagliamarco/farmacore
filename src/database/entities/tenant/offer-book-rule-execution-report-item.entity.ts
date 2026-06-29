@@ -32,9 +32,13 @@ export class OfferBookRuleExecutionReportItemEntity extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   public outcome?: string | null;
 
-  @ManyToOne(() => OfferBookRuleExecutionReportEntity, (report) => report.items, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(
+    () => OfferBookRuleExecutionReportEntity,
+    (report) => report.items,
+    {
+      onDelete: 'CASCADE',
+    },
+  )
   @JoinColumn({ name: 'report_id' })
   public report?: OfferBookRuleExecutionReportEntity;
 }

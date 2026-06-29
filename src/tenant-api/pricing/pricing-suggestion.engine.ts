@@ -95,7 +95,6 @@ export type SuggestionResult =
   | { kind: 'suggestion'; suggestion: PriceSuggestion }
   | { kind: 'none'; reason: NoSuggestionReason; rule?: SuggestionRule };
 
-
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 const toFiniteNumber = (

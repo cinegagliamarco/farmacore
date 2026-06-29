@@ -34,9 +34,23 @@ describe('ClassificationsService.grouped', () => {
             name: 'Antibióticos',
             parentId: 'a',
             visible: true,
-            children: [{ id: 'a1x', name: 'Penicilinas', parentId: 'a1', visible: true, children: [] }],
+            children: [
+              {
+                id: 'a1x',
+                name: 'Penicilinas',
+                parentId: 'a1',
+                visible: true,
+                children: [],
+              },
+            ],
           },
-          { id: 'a2', name: 'Analgésicos', parentId: 'a', visible: false, children: [] },
+          {
+            id: 'a2',
+            name: 'Analgésicos',
+            parentId: 'a',
+            visible: false,
+            children: [],
+          },
         ],
       },
       {

@@ -1,4 +1,11 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+} from 'typeorm';
 import { BaseEntity } from '../base.entity';
 import { OfferBookRuleEntity } from './offer-book-rule.entity';
 import { OfferBookRuleExecutionReportItemEntity } from './offer-book-rule-execution-report-item.entity';
@@ -27,6 +34,9 @@ export class OfferBookRuleExecutionReportEntity extends BaseEntity {
   @JoinColumn({ name: 'rule_id' })
   public rule?: OfferBookRuleEntity;
 
-  @OneToMany(() => OfferBookRuleExecutionReportItemEntity, (item) => item.report)
+  @OneToMany(
+    () => OfferBookRuleExecutionReportItemEntity,
+    (item) => item.report,
+  )
   public items?: OfferBookRuleExecutionReportItemEntity[];
 }

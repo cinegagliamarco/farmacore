@@ -253,10 +253,12 @@ export class PricingApplyService {
       .set({ failed: () => 'total' })
       .where('id = :id', { id: runId })
       .execute();
-    await em.getRepository(PricingApplyItemEntity).update(
-      { applyRunId: runId, status: 'pending' },
-      { status: 'failed', reason: 'rejeitado' },
-    );
+    await em
+      .getRepository(PricingApplyItemEntity)
+      .update(
+        { applyRunId: runId, status: 'pending' },
+        { status: 'failed', reason: 'rejeitado' },
+      );
     return { id: runId, rejected: true };
   }
 
@@ -461,8 +463,7 @@ export class PricingApplyService {
     const exists = await em
       .getRepository(PricingApplyRunEntity)
       .findOne({ where: { id: runId } });
-    if (!exists)
-      throw new NotFoundException(`apply run ${runId} not found`);
+    if (!exists) throw new NotFoundException(`apply run ${runId} not found`);
 
     const applied = await em.getRepository(PricingApplyItemEntity).find({
       where: { applyRunId: runId, status: 'applied' },
