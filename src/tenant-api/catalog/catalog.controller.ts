@@ -68,12 +68,12 @@ export class CatalogController {
     return this.catalog.strategicPrice(em, user.tenantId, query);
   }
 
-  @Get('subsidiaries')
-  public subsidiaries(
+  @Get('stores')
+  public stores(
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
-  ): Promise<Array<{ subsidiaryExternalId: string; label: string }>> {
-    return this.catalog.subsidiaries(em, user.tenantId);
+  ): Promise<Array<{ storeExternalId: string; label: string }>> {
+    return this.catalog.stores(em, user.tenantId);
   }
 
   @Get('active-ingredients')

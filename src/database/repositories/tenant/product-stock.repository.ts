@@ -3,14 +3,14 @@ import { ProductStockEntity } from '../../entities/tenant/product-stock.entity';
 
 export interface ProductStockUpsertInput {
   ean: string;
-  subsidiaryExternalId: string;
+  storeExternalId: string;
   quantity: number;
 }
 
 /**
- * Per-tenant stock repository — (ean, subsidiary_external_id) keyed.
+ * Per-tenant stock repository — (ean, store_external_id) keyed.
  * The legacy "deleteByBaseProductId + insert" full-refresh pattern is
- * replaced with an upsert keyed on the (ean, subsidiary) pair, which
+ * replaced with an upsert keyed on the (ean, store) pair, which
  * is idempotent across dispatcher restarts; rows for EANs/stores that
  * vanish from the ERP can be reconciled by a future cleanup pass.
  */
@@ -22,14 +22,14 @@ export class ProductStockRepository {
     const repo = this.em.getRepository(ProductStockEntity);
     const deduped = this.dedupe(inputs);
     await repo.upsert(deduped, {
-      conflictPaths: ['ean', 'subsidiaryExternalId'],
+      conflictPaths: ['ean', 'storeExternalId'],
       skipUpdateIfNoValuesChanged: true,
     });
   }
 
   /**
    * Wipes stock rows for the given EAN set. Used by the batch consumer
-   * to drop subsidiaries whose stock fell to zero (and therefore aren't
+   * to drop stores whose stock fell to zero (and therefore aren't
    * in the inputs anymore) before the upsert. Bounded by batch IDs so
    * concurrent batches don't step on each other.
    */
@@ -41,7 +41,7 @@ export class ProductStockRepository {
   private dedupe(inputs: ProductStockUpsertInput[]): ProductStockUpsertInput[] {
     const byPair = new Map<string, ProductStockUpsertInput>();
     for (const i of inputs) {
-      byPair.set(`${i.ean}|${i.subsidiaryExternalId}`, i);
+      byPair.set(`${i.ean}|${i.storeExternalId}`, i);
     }
     return [...byPair.values()];
   }
