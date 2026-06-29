@@ -25,13 +25,11 @@ Probe real do endpoint VTEX `…/api/catalog_system/pub/products/search?fq=alter
 | Drogaria Araujo | `www.araujo.com.br` | `ARAUJO` | ✅ (é VTEX) | ❌ **403** | — | **bloqueado por Akamai WAF** → **adiado** (ver §6, decisão 1) |
 | ~~Pague-Menos~~ | `www.paguemenos.com.br` | `PAGUE_MENOS` | — | — | — | **já existe** no enum, não refazer |
 
-**Captura "product-only":** as 4 lojas limpas devolvem **preço e disponibilidade
-numa única chamada** — `commertialOffer.Price` (+ `ListPrice`) e
-`commertialOffer.IsAvailable`/`AvailableQuantity`. Não têm endpoint de estoque
-dedicado (como o `/_v/drogalCheckout` do Drogal) nem PBM exposto nos produtos
-testados. Logo, o padrão correto a espelhar é **Pague-Menos / Ikesaki**
-(`implements ProductScraper`, disponibilidade inline em `metadata.availableStock`),
-**não** o Drogal completo (que tem checkout + measures + PBM próprios).
+**Captura "product-only":** as 4 lojas limpas devolvem **preço
+numa única chamada** — `commertialOffer.Price` (+ `ListPrice`). Não têm
+PBM exposto nos produtos testados. Logo, o padrão correto a espelhar é
+**Pague-Menos / Ikesaki** (`implements ProductScraper`), **não** o Drogal
+completo (que tem checkout + measures + PBM próprios).
 
 > "Baseado na Drogal" = mesma **estrutura/wiring** de um concorrente VTEX. Como
 > estas lojas são mais simples que o Drogal (sem checkout/measures/PBM), o
@@ -91,7 +89,6 @@ espelhando Pague-Menos. Passos na ordem, com os arquivos exatos:
      `batch.consumers.ts:50`).
 6. **Import step** — `src/pipeline/steps/import-competitor-products.step.ts`:
    injetar o novo scraper no construtor + `case` em `scraperFor()`.
-   `stockScraperFor()` retorna `null` para as novas (product-only).
 7. **Import manual (admin)** — `src/products/products.service.ts`: **não mexer**
    (decisão 4). As novas origens ficam só no pipeline; o import manual de 1 EAN
    segue com `drogal/drogasil/michelassi`.
@@ -123,7 +120,7 @@ catálogo tem hoje **colunas fixas por loja** (`drogalPrice`, `drogasilPrice`,
 
 **Já funciona de graça (genérico):** a decisão **combate / por-loja**
 (`active-ingredients/crossed` + `decision-counts`) usa um LATERAL
-`competitorCombate` = "concorrente com estoque e menor preço" **agnóstico de
+`competitorCombate` = "concorrente com menor preço" **agnóstico de
 origem** (`catalog.service.ts`) → as novas origens **já entram** na decisão
 `subir/abaixar/ok` automaticamente, assim que habilitadas e scrapeadas.
 
@@ -132,9 +129,8 @@ as origens habilitadas do tenant) — todos em `src/tenant-api/catalog/catalog.s
 
 | Superfície | Hoje | Mudança |
 |---|---|---|
-| `crossed()` (lista cruzada) | `drogalPrice/drogasilPrice/michelassiPrice` (joins `origin='DROGAL'…`) | `competitors: [{origin, price, isPbm, available}]` por origem habilitada |
+| `crossed()` (lista cruzada) | `drogalPrice/drogasilPrice/michelassiPrice` (joins `origin='DROGAL'…`) | `competitors: [{origin, price, isPbm}]` por origem habilitada |
 | `active-ingredients/crossed` `variants[]` | per-variant `drogalPrice/drogasilPrice` | idem (array por variante) |
-| `stock()` / `stock-metrics()` | `drogalStock/drogasilStock/michelassiStock` + `competitorStockLateral()` fixo | generalizar laterais; p/ product-only, disponibilidade vem inline (`availableStock`) |
 | `exportCsv()` | colunas fixas `drogal/drogasil/michelassi` | colunas por origem habilitada |
 | `calc-base-product-metrics.step.ts` `averageVariation` | só `DROGAL + DROGASIL` | **incluir as novas** (decisão 3) — generalizar o JOIN/agregação |
 | `update-base-product-properties.step.ts` | só `DROGAL + DROGASIL` (`p.origin IN ('DROGAL','DROGASIL')` no repo) | provavelmente **manter** — é enriquecimento de propriedade do produto base, não comparação |
@@ -159,7 +155,7 @@ Fase 2 alinha com aquele plano. Recomendação: contrato genérico `competitors[
    `shared_catalog.product`; conferir que entram na decisão combate
    (`GET /products/active-ingredients/crossed?subsidiary=…&tolerance=…`).
 3. **Smoke do scrape (já validado neste plano):** EAN `7891058002602` retorna
-   1 produto com `Price`/`IsAvailable` em Pacheco, São Paulo, Venâncio e Indiana.
+   1 produto com `Price` em Pacheco, São Paulo, Venâncio e Indiana.
 
 ---
 

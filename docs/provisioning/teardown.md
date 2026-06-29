@@ -31,7 +31,7 @@ Inspect DLQs first — anything left there is unprocessed work:
 ```bash
 TOKEN="<system admin access token>"
 for step in sync-base-product sync-base-product-stock sync-offer-books-info \
-            import-competitor-products import-competitor-stock \
+            import-competitor-products \
             calc-base-product-metrics update-base-product-properties; do
   echo "--- $step ---"
   curl -sH "Authorization: Bearer $TOKEN" \

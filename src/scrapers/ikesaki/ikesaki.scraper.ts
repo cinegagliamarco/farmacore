@@ -24,9 +24,7 @@ const TIMEOUT_MS = 30_000;
 
 /**
  * Ikesaki scraper — VTEX catalog_system, single search-by-EAN call
- * (port of legacy ikesaki.service.ts). Products-only: availability is the
- * inline `IsAvailable` boolean (kept in metadata), so there's no separate
- * stock step for this origin.
+ * (port of legacy ikesaki.service.ts).
  */
 @Injectable()
 export class IkesakiScraper implements ProductScraper {
@@ -67,7 +65,6 @@ export function mapProduct(ean: string, p: IkesakiProduct): ScrapedProduct {
       description: stripHtml(p.description),
       image: p.items?.[0]?.images?.[0]?.imageUrl,
       observation: offer.PromotionTeasers?.[0]?.Name,
-      availableStock: offer.IsAvailable ?? false,
     },
   };
 }

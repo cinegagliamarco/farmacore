@@ -8,6 +8,8 @@
 
 **Result:** 9/9 test groups passed. 1 bug found (DLQ v2 coverage) — fixed, deployed, and re-validated in prod the same session.
 
+> **Note (2026-06-28):** competitor stock (`import-competitor-stock` step, `shared_catalog.product_stock`) was removed after this report. Mentions of `import-competitor-stock` and `branch.stock-b` from that step below are historical; the pipeline now fans into CALC from `sync-base-product-stock` + `import-competitor-products`.
+
 ---
 
 ## Summary

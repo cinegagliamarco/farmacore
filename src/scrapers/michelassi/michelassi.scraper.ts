@@ -34,10 +34,8 @@ const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 2_000;
 
 /**
- * Michelassi scraper (instabuy.com.br). Single endpoint returns
- * everything — product metadata + stock. Per the v2 plan Michelassi
- * is products-only (no separate stock step), so stock_balance lives
- * in metadata.
+ * Michelassi scraper (instabuy.com.br). Single endpoint returns the
+ * full product metadata.
  *
  * Rate-limit handling: 429 retries up to 3 times with exponential
  * backoff (2s, 4s, 8s) — matches legacy behavior.
@@ -97,8 +95,6 @@ export function mapProduct(ean: string, p: MichelassiProduct): ScrapedProduct {
     metadata: {
       description: p.description,
       image: p.images?.[0] ? IMAGE_URL(p.images[0]) : undefined,
-      stockBalance: p.stock_infos?.stock_balance ?? 0,
-      availableStock: p.available_stock ?? false,
     },
   };
 }

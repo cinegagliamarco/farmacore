@@ -68,7 +68,6 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `sync-base-product-stock` | `POST /products/base/synchronize-stock` |
 | `sync-offer-books-info` | `POST /offer-books/info/synchronize` |
 | `import-competitor-products` | `POST /products/import/drogal`, `/import/drogasil` (all enabled origins) |
-| `import-competitor-stock` | `POST /products/import/drogal/stock`, `/import/drogasil/stock` (all enabled origins) |
 | `calc-base-product-metrics` | `POST /products/base/synchronize-metrics` |
 | `update-base-product-properties` | `POST /products/base/generate-properties` |
 | `migrate-tenant` | (new — per-tenant schema migration; not exposed as a routine trigger) |
@@ -121,8 +120,8 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 |---|---|---|
 | `POST /products/import/drogal` | `…/pipeline/steps/import-competitor-products` ¹ | ▶️ |
 | `POST /products/import/drogasil` | `…/pipeline/steps/import-competitor-products` ¹ | ▶️ |
-| `POST /products/import/drogal/stock` | `…/pipeline/steps/import-competitor-stock` ¹ | ▶️ |
-| `POST /products/import/drogasil/stock` | `…/pipeline/steps/import-competitor-stock` ¹ | ▶️ |
+| `POST /products/import/drogal/stock` | — (competitor stock removed) | ❌ |
+| `POST /products/import/drogasil/stock` | — (competitor stock removed) | ❌ |
 | `GET /products/details/:ean` | `POST /admin/catalog/products/:ean/import` | ✅ ² |
 | `GET /products/export` | `GET /admin/catalog/products/export` (shared) ⁴ | ✅ |
 

@@ -43,7 +43,7 @@ Expected:
   `batches_planned=N`, `batches_done=N`).
 - N batch rows (`batch_seq=1..N`, `status='completed'`).
 - one `branch.stock-a` row (from `PipelineJoinService.markBranchComplete`).
-  When the import-competitor-stock branch closes too, the join fires
+  When the import-competitor-products branch closes too, the join fires
   CALC_BASE_PRODUCT_METRICS.
 
 ```sql

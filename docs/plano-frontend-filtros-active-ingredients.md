@@ -72,7 +72,7 @@ Preços/custos vêm como `number | null`. **`price` ou `cost` ausentes = não ca
 Dentro de um princípio ativo, **na loja escolhida**:
 - **combate** = variante do tenant **com menor preço entre as que têm estoque > 0 na loja**.
 - **lowestCost** = variante de menor custo do grupo (independe de preço/estoque).
-- **competitorCombate** = concorrente **com estoque e menor preço** (DROGAL/DROGASIL/PAGUE_MENOS/IKESAKI/MICHELASSI).
+- **competitorCombate** = concorrente de **menor preço** (DROGAL/DROGASIL/PAGUE_MENOS/IKESAKI/MICHELASSI).
 
 Precedência (igual ao servidor — útil pros textos/tooltips):
 1. **`sem-estoque`** — nenhuma variante com estoque na loja → não há combate. Não dá pra agir no preço.
@@ -80,7 +80,7 @@ Precedência (igual ao servidor — útil pros textos/tooltips):
    Você está combatendo com um produto que custa mais → dinheiro na mesa. **Tem precedência** sobre subir/abaixar/ok.
 3. **`subir`** — `combate.price < competitorCombate.price × (1 − tol)` → está barato demais, dá pra subir.
 4. **`abaixar`** — `combate.price > competitorCombate.price × (1 + tol)` → está caro demais, precisa abaixar.
-5. **`ok`** — dentro da tolerância, ou sem concorrente com estoque (comparação ignorada).
+5. **`ok`** — dentro da tolerância, ou sem concorrente (comparação ignorada).
 
 ## 3. Estado da tela (fonte única → URL)
 
@@ -110,7 +110,7 @@ Card/linha por `IngredientGroup`:
 - **Cabeçalho**: `activeIngredient` + badge da `decision` (com tooltip explicando, §2).
 - **Combate** (`combate`): nome + EAN + `price` + `cost`/`margin`. Se `null` (sem-estoque) → "Sem combate nesta loja".
 - **vs Concorrente** (`competitorCombate`): `origin` + `price`, e o **delta** vs `combate.price`
-  (ex.: "+6,3% acima do DROGAL"). Se `null` → "Nenhum concorrente com estoque".
+  (ex.: "+6,3% acima do DROGAL"). Se `null` → "Nenhum concorrente".
 - **Menor custo** (`lowestCost`): EAN + `cost`. Em `mix`, destacar que **o combate ≠ menor custo**
   (mostrar `combate.cost` vs `lowestCost.cost` e a diferença — o "dinheiro na mesa").
 - **Variantes** (`variants`, expandível): tabela EAN · nome · preço · custo · margem ·

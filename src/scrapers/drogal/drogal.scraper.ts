@@ -1,22 +1,15 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
-import {
-  ProductScraper,
-  ScrapedProduct,
-  ScrapedStock,
-  StockScraper,
-} from '../types';
+import { ProductScraper, ScrapedProduct } from '../types';
 import {
   DrogalCustomData,
   DrogalMeasures,
   DrogalProduct,
-  DrogalStockResponse,
   DrogalVariationsResponse,
 } from './types';
 
 const BASE_URL = 'https://www.drogal.com.br';
-const STOCK_SUBSIDIARY_IDS = [113, 310] as const;
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0',
@@ -34,15 +27,15 @@ const HEADERS = {
 const TIMEOUT_MS = 30_000;
 
 /**
- * Drogal scraper: hits three VTEX endpoints — catalog_system for
- * product metadata, variations for measures, drogalCheckout for stock.
+ * Drogal scraper: hits two VTEX endpoints — catalog_system for
+ * product metadata, variations for measures.
  *
- * Returns ScrapedProduct / ScrapedStock; the step is responsible for
- * persistence. PBM detection ports the legacy logic verbatim:
- * CustomData.pbmPrice overrides Price when present.
+ * Returns ScrapedProduct; the step is responsible for persistence.
+ * PBM detection ports the legacy logic verbatim: CustomData.pbmPrice
+ * overrides Price when present.
  */
 @Injectable()
-export class DrogalScraper implements ProductScraper, StockScraper {
+export class DrogalScraper implements ProductScraper {
   public readonly origin = CompetitorOrigin.DROGAL;
   private readonly logger = new Logger(DrogalScraper.name);
 
@@ -60,44 +53,6 @@ export class DrogalScraper implements ProductScraper, StockScraper {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`scrapeProduct ean=${ean} failed: ${message}`);
       return { ean, origin: this.origin, found: false, error: message };
-    }
-  }
-
-  public async scrapeStock(
-    items: Array<{ ean: string; sku: string }>,
-  ): Promise<ScrapedStock[]> {
-    if (items.length === 0) return [];
-    const capturedAt = new Date();
-    const payload = {
-      type: 'getPickupPointsByItems',
-      params: {
-        items: items.map((i) => ({ productRefId: i.sku, quantity: '1' })),
-      },
-    };
-    try {
-      const { data } = await this.http.axiosRef.post<DrogalStockResponse>(
-        `${BASE_URL}/_v/drogalCheckout`,
-        payload,
-        { headers: HEADERS, timeout: TIMEOUT_MS },
-      );
-      return items.map((i) => ({
-        ean: i.ean,
-        origin: this.origin,
-        quantity: sumStockForSku(data, i.sku),
-        capturedAt,
-      }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(
-        `scrapeStock for ${items.length} SKUs failed: ${message}`,
-      );
-      return items.map((i) => ({
-        ean: i.ean,
-        origin: this.origin,
-        quantity: 0,
-        capturedAt,
-        error: message,
-      }));
     }
   }
 
@@ -181,24 +136,6 @@ export function detectPbm(product: DrogalProduct): {
     }
   }
   return { isPbm: (product.PBM?.length ?? 0) > 0, pbmPrice: 0, van };
-}
-
-export function sumStockForSku(
-  data: DrogalStockResponse | undefined,
-  sku: string,
-): number {
-  if (!data?.body?.pickupPointItems?.length) return 0;
-  const skuNum = Number(sku);
-  let total = 0;
-  for (const subsidiaryId of STOCK_SUBSIDIARY_IDS) {
-    const point = data.body.pickupPointItems.find(
-      (p) => p.CodigoFilial === subsidiaryId,
-    );
-    const item = point?.CartDetail?.find((c) => c.productRefId === skuNum);
-    if (item?.avaliable && item.quantityAvaliable)
-      total += item.quantityAvaliable;
-  }
-  return total;
 }
 
 function toNumericString(value: number | null | undefined): string | null {

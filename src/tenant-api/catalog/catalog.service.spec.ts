@@ -234,40 +234,20 @@ describe('CatalogService.decisionCounts', () => {
 });
 
 describe('CatalogService.stock', () => {
-  it('derives the stock status from own vs competitor coverage', async () => {
+  it('derives the stock status from the tenant own stock', async () => {
     const em = makeEm([
-      ['count(*)::int AS count', [{ count: '3' }]],
+      ['count(*)::int AS count', [{ count: '2' }]],
       [
         '"ownStock"',
         [
-          {
-            ean: 1,
-            name: 'A',
-            ownStock: 0,
-            DROGAL__stock: 5,
-            DROGASIL__stock: 3,
-          },
-          {
-            ean: 2,
-            name: 'B',
-            ownStock: 0,
-            DROGAL__stock: 5,
-            DROGASIL__stock: 0,
-          },
-          {
-            ean: 3,
-            name: 'C',
-            ownStock: 10,
-            DROGAL__stock: 0,
-            DROGASIL__stock: 0,
-          },
+          { ean: 1, name: 'A', ownStock: 0 },
+          { ean: 2, name: 'B', ownStock: 10 },
         ],
       ],
     ]);
-    const out = await catalog().stock(em, SLUG, q({}));
+    const out = await catalog().stock(em, q({}));
     expect(out.rows.map((r) => r.stockStatus)).toEqual([
-      'ANALYZE_INCLUSION', // own 0, 2 competitors
-      'POTENTIAL', // own 0, 1 competitor
+      'OUT_OF_STOCK', // own 0
       'OK', // own stock present
     ]);
   });
@@ -614,42 +594,15 @@ describe('CatalogService.genericMissing', () => {
 describe('CatalogService.stockMetrics', () => {
   it('coerces the single aggregated row to numbers', async () => {
     const em = makeEm([
-      [
-        '"ownWithStock"',
-        [
-          {
-            total: '120',
-            ownWithStock: '80',
-            DROGAL__withStock: '40',
-            DROGASIL__withStock: '30',
-            MICHELASSI__withStock: '10',
-          },
-        ],
-      ],
+      ['"ownWithStock"', [{ total: '120', ownWithStock: '80' }]],
     ]);
-    const out = await catalog().stockMetrics(em, SLUG, q({}));
-    expect(out).toEqual({
-      total: 120,
-      ownWithStock: 80,
-      competitorsWithStock: [
-        { origin: 'DROGAL', withStock: 40 },
-        { origin: 'DROGASIL', withStock: 30 },
-        { origin: 'MICHELASSI', withStock: 10 },
-      ],
-    });
+    const out = await catalog().stockMetrics(em, q({}));
+    expect(out).toEqual({ total: 120, ownWithStock: 80 });
   });
 
   it('defaults to zeros when no row comes back', async () => {
     const em = makeEm([]);
-    const out = await catalog().stockMetrics(em, SLUG, q({}));
-    expect(out).toEqual({
-      total: 0,
-      ownWithStock: 0,
-      competitorsWithStock: [
-        { origin: 'DROGAL', withStock: 0 },
-        { origin: 'DROGASIL', withStock: 0 },
-        { origin: 'MICHELASSI', withStock: 0 },
-      ],
-    });
+    const out = await catalog().stockMetrics(em, q({}));
+    expect(out).toEqual({ total: 0, ownWithStock: 0 });
   });
 });

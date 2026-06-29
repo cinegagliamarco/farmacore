@@ -24,9 +24,7 @@ const TIMEOUT_MS = 30_000;
 
 /**
  * Drogaria Pacheco scraper — VTEX catalog_system, single search-by-EAN
- * call (grupo DPSP, mesmo backend de Drogaria São Paulo). Products-only:
- * availability is the inline `IsAvailable` boolean (kept in metadata), so
- * there's no separate stock step for this origin.
+ * call (grupo DPSP, mesmo backend de Drogaria São Paulo).
  */
 @Injectable()
 export class PachecoScraper implements ProductScraper {
@@ -72,7 +70,6 @@ export function mapProduct(ean: string, p: PachecoProduct): ScrapedProduct {
       description: stripHtml(p.description),
       image: p.items?.[0]?.images?.[0]?.imageUrl,
       observation: offer.PromotionTeasers?.[0]?.Name,
-      availableStock: offer.IsAvailable ?? false,
     },
   };
 }

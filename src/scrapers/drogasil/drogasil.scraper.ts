@@ -1,29 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
-import {
-  ProductScraper,
-  ScrapedProduct,
-  ScrapedStock,
-  StockScraper,
-} from '../types';
+import { ProductScraper, ScrapedProduct } from '../types';
 import {
   DrogasilCustomAttribute,
   DrogasilProductBySku,
   DrogasilProductResponse,
-  DrogasilStockResponse,
 } from './types';
 
 const SEARCH_URL = (ean: string) =>
   `https://www.drogasil.com.br/search?w=${ean}&facets=filters.Vendido+por%3ADrogasil&p=1`;
 const GRAPHQL_PRODUCT_URL =
   'https://www.drogaraia.com.br/api/next/middlewareGraphql';
-const GRAPHQL_STOCK_URL =
-  'https://www.drogasil.com.br/api/next/cesta-checkout/graphql';
 const SKU_PATTERN = /<article[^>]*data-item-id="([^"]+)"[^>]*>/;
 const TIMEOUT_MS = 30_000;
 const MAX_CONTENT_BYTES = 5 * 1024 * 1024;
 const BUFFER_TAIL_BYTES = 50 * 1024;
-const DEFAULT_ZIPCODE = '17250075';
 
 // The storefront search page sits behind Akamai bot-manager, which 403s
 // requests by their TLS fingerprint: axios (node:https) is blocked even
@@ -46,16 +37,6 @@ const COMMON_HEADERS = {
   'user-agent': USER_AGENT,
 } as const;
 
-const STOCK_HEADERS = {
-  accept: '*/*',
-  'accept-language': 'pt-BR,pt;q=0.9',
-  'content-type': 'application/json',
-  origin: 'https://www.drogasil.com.br',
-  referer: 'https://www.drogasil.com.br/checkout/cart',
-  'user-agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-} as const;
-
 const PRODUCT_QUERY = `query getProduct($sku: String!) {
   productBySku(sku: $sku) {
     id sku name price weight
@@ -67,29 +48,15 @@ const PRODUCT_QUERY = `query getProduct($sku: String!) {
   }
 }`;
 
-const STOCK_QUERY = `query GET_STOCK($zipcode: String!, $products: [StockNearbyBtZipCodeTypeInput!]!, $logotype: String!, $maxQuantityBranchSearch: String) {
-  getNearbyStockByZipCode(products: $products, zipcode: $zipcode, logotype: $logotype, maxQuantityBranchSearch: $maxQuantityBranchSearch) {
-    stocks { sku quantity }
-  }
-}`;
-
-export interface DrogasilStockOptions {
-  zipcode?: string;
-}
-
 /**
  * Drogasil scraper. Two-step product fetch:
  *  1. Search page HTML — stream-parsed for `data-item-id="SKU"` so the
  *     5MB response doesn't blow up memory.
  *  2. GraphQL `productBySku` (hosted under drogaraia.com.br) for the
  *     full product metadata.
- *
- * Stock comes from a separate GraphQL `getNearbyStockByZipCode`; the
- * zipcode is per-tenant config in the new model (defaults to the
- * legacy hardcoded value when not provided).
  */
 @Injectable()
-export class DrogasilScraper implements ProductScraper, StockScraper {
+export class DrogasilScraper implements ProductScraper {
   public readonly origin = CompetitorOrigin.DROGASIL;
   private readonly logger = new Logger(DrogasilScraper.name);
 
@@ -104,52 +71,6 @@ export class DrogasilScraper implements ProductScraper, StockScraper {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`scrapeProduct ean=${ean} failed: ${message}`);
       return { ean, origin: this.origin, found: false, error: message };
-    }
-  }
-
-  public async scrapeStock(
-    items: Array<{ ean: string; sku: string }>,
-    options: DrogasilStockOptions = {},
-  ): Promise<ScrapedStock[]> {
-    if (items.length === 0) return [];
-    const capturedAt = new Date();
-    const zipcode = options.zipcode ?? DEFAULT_ZIPCODE;
-    try {
-      const res = await fetch(GRAPHQL_STOCK_URL, {
-        method: 'POST',
-        headers: STOCK_HEADERS,
-        body: JSON.stringify({
-          query: STOCK_QUERY,
-          variables: {
-            zipcode,
-            products: items.map((i) => ({ sku: i.sku })),
-            logotype: 'RD',
-            maxQuantityBranchSearch: '1',
-          },
-        }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      if (!res.ok) throw new Error(`stock HTTP ${res.status}`);
-      const data = (await res.json()) as DrogasilStockResponse;
-      const bySku = buildStockMap(data);
-      return items.map((i) => ({
-        ean: i.ean,
-        origin: this.origin,
-        quantity: bySku.get(i.sku) ?? 0,
-        capturedAt,
-      }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(
-        `scrapeStock for ${items.length} SKUs failed: ${message}`,
-      );
-      return items.map((i) => ({
-        ean: i.ean,
-        origin: this.origin,
-        quantity: 0,
-        capturedAt,
-        error: message,
-      }));
     }
   }
 
@@ -278,18 +199,6 @@ export function detectPbm(p: DrogasilProductBySku): {
     }
   }
   return { isPbm: false, pbmPrice: 0 };
-}
-
-export function buildStockMap(
-  data: DrogasilStockResponse | undefined,
-): Map<string, number> {
-  const out = new Map<string, number>();
-  if (!data?.data || data.errors) return out;
-  const first = data.data.getNearbyStockByZipCode?.[0];
-  for (const s of first?.stocks ?? []) {
-    if (s.sku != null) out.set(String(s.sku), s.quantity ?? 0);
-  }
-  return out;
 }
 
 function attrFor(

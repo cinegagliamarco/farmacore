@@ -2,7 +2,6 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import {
   buildCompetitorCrossJoins,
-  buildCompetitorStockLaterals,
   mapCompetitorsFromRow,
   safeOrigins,
   stripCompetitorRowKeys,
@@ -25,7 +24,6 @@ export interface Paginated<T> {
 export interface StockMetrics {
   total: number;
   ownWithStock: number;
-  competitorsWithStock: Array<{ origin: string; withStock: number }>;
 }
 
 const DEFAULT_PER_PAGE = 50;
@@ -41,7 +39,7 @@ export interface DecisionInput {
   combate: { price: number; cost: number | null } | null;
   /** Lowest cost in the whole group, regardless of price/stock. */
   lowestCost: number | null;
-  /** Cheapest stocked competitor across the group, or null. */
+  /** Cheapest competitor across the group, or null. */
   competitorPrice: number | null;
   /** % the user wants to ignore vs the competitor (the "ok" band). */
   tolerance: number;
@@ -315,9 +313,9 @@ export class CatalogService {
   }
 
   /** Products grouped by active ingredient for a store, each with its combate
-   *  (cheapest in-stock variant), lowest-cost variant, cheapest stocked
-   *  competitor, and the derived decision (see deriveDecision). Optional
-   *  `decision` filters the groups server-side; targetPrice/variants kept. */
+   *  (cheapest in-stock variant), lowest-cost variant, cheapest competitor,
+   *  and the derived decision (see deriveDecision). Optional `decision`
+   *  filters the groups server-side; targetPrice/variants kept. */
   public async activeIngredientsCrossed(
     em: EntityManager,
     slug: string,
@@ -383,12 +381,7 @@ export class CatalogService {
          LEFT JOIN LATERAL (
            SELECT sp.origin, sp.price
              FROM shared_catalog.product sp
-             JOIN LATERAL (
-               SELECT st.quantity FROM shared_catalog.product_stock st
-                WHERE st.product_id = sp.id
-                ORDER BY st.captured_at DESC LIMIT 1
-             ) s ON true
-            WHERE sp.ean = p.ean AND sp.deleted_at IS NULL AND s.quantity > 0
+            WHERE sp.ean = p.ean AND sp.deleted_at IS NULL AND sp.price > 0
             ORDER BY sp.price ASC NULLS LAST LIMIT 1
          ) cc ON true
         WHERE p.active_ingredient IS NOT NULL ${aiFilter}
@@ -565,27 +558,19 @@ export class CatalogService {
     return lines.join('\n');
   }
 
-  /** Per-product stock: the tenant's own stock (by subsidiary) vs each
-   *  competitor's latest stock snapshot, with a derived stock status. */
+  /** Per-product stock: the tenant's own ERP stock, by subsidiary. */
   public async stock(
     em: EntityManager,
-    slug: string,
     q: ListProductsQueryDto,
   ): Promise<Paginated<Record<string, unknown>>> {
-    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const { page, perPage, offset } = this.paginate(q);
     const f = this.buildFilters(q);
     const order = this.orderBy(q);
     const count = await this.count(em, f);
-    const { joins } = buildCompetitorStockLaterals(origins);
-    const stockSelects = safeOrigins(origins)
-      .map((origin, i) => `o_${i}.q AS "${origin}__stock"`)
-      .join(', ');
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, c.name AS classification,
               COALESCE(own.total, 0) AS "ownStock",
               own.by_sub AS "ownBySubsidiary"
-              ${stockSelects ? `,\n              ${stockSelects}` : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          LEFT JOIN LATERAL (
@@ -593,7 +578,6 @@ export class CatalogService {
                   jsonb_object_agg(subsidiary_external_id, quantity) AS by_sub
              FROM product_stock ps WHERE ps.ean = p.ean
          ) own ON true
-         ${joins}
         ${f.where}
         ORDER BY ${order}
         LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
@@ -602,18 +586,9 @@ export class CatalogService {
     return {
       rows: rows.map((r) => {
         const own = Number(r.ownStock) || 0;
-        const competitors = mapCompetitorsFromRow(r, origins, { stock: true });
-        const comp = competitors.filter((c) => (c.stock ?? 0) > 0).length;
-        const stockStatus =
-          own === 0 && comp >= 2
-            ? 'ANALYZE_INCLUSION'
-            : own === 0 && comp >= 1
-              ? 'POTENTIAL'
-              : 'OK';
         return {
-          ...this.normalize(stripCompetitorRowKeys(r, origins)),
-          competitors,
-          stockStatus,
+          ...this.normalize(r),
+          stockStatus: own > 0 ? 'OK' : 'OUT_OF_STOCK',
         };
       }),
       count,
@@ -622,25 +597,20 @@ export class CatalogService {
     };
   }
 
-  /** Aggregate stock coverage over the filtered set. */
+  /** Aggregate own-stock coverage over the filtered set. */
   public async stockMetrics(
     em: EntityManager,
-    slug: string,
     q: ListProductsQueryDto,
   ): Promise<StockMetrics> {
-    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const f = this.buildFilters(q);
-    const { joins, countFilters } = buildCompetitorStockLaterals(origins);
     const rows: Array<Record<string, string>> = await em.query(
       `SELECT count(*)::int AS total,
               count(*) FILTER (WHERE COALESCE(own.total,0) > 0)::int AS "ownWithStock"
-              ${countFilters.length ? `,\n              ${countFilters.join(',\n              ')}` : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          LEFT JOIN LATERAL (
            SELECT SUM(quantity)::int AS total FROM product_stock ps WHERE ps.ean = p.ean
          ) own ON true
-         ${joins}
         ${f.where}`,
       f.params,
     );
@@ -648,10 +618,6 @@ export class CatalogService {
     return {
       total: Number(r.total ?? 0),
       ownWithStock: Number(r.ownWithStock ?? 0),
-      competitorsWithStock: safeOrigins(origins).map((origin) => ({
-        origin,
-        withStock: Number(r[`${origin}__withStock`] ?? 0),
-      })),
     };
   }
 

@@ -2,7 +2,6 @@ import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from '../base.entity';
 import { CompetitorOrigin } from '../../enums/competitor-origin.enum';
 import { ProductImageEntity } from './product-image.entity';
-import { ProductStockEntity } from './product-stock.entity';
 
 @Entity({ schema: 'shared_catalog', name: 'product' })
 @Index('IX_PRODUCT_EAN_ORIGIN', ['ean', 'origin'])
@@ -57,7 +56,4 @@ export class ProductEntity extends BaseEntity {
 
   @OneToMany(() => ProductImageEntity, (image) => image.product)
   public images?: ProductImageEntity[];
-
-  @OneToMany(() => ProductStockEntity, (stock) => stock.product)
-  public stocks?: ProductStockEntity[];
 }
