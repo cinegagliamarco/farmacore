@@ -1,4 +1,5 @@
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
+import { buildClassificationIndex } from '../classification/classification-index';
 import {
   applyPriceRounding,
   computeSuggestion,
@@ -15,6 +16,18 @@ const DG = CompetitorOrigin.DROGAL;
 const DS = CompetitorOrigin.DROGASIL;
 const MI = CompetitorOrigin.MICHELASSI;
 
+const MED = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const GEN = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+const DOR = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+const OTHER = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+
+const IDX = buildClassificationIndex([
+  { id: MED, name: 'MEDICAMENTOS', parentId: null },
+  { id: GEN, name: 'GENÉRICOS', parentId: MED },
+  { id: DOR, name: 'DOR', parentId: GEN },
+  { id: OTHER, name: 'OUTROS', parentId: null },
+]);
+
 const product = (
   over: Partial<SuggestionProduct> & {
     competitorPrices?: Partial<Record<CompetitorOrigin, number>>;
@@ -24,6 +37,7 @@ const product = (
   ean: '7891234567890',
   nome: 'Dipirona 500mg',
   fabricante: 'Lab X',
+  classificationId: DOR,
   classificacao: 'MEDICAMENTOS > GENÉRICOS > DOR',
   cadernoOferta: '',
   custo: 6,
@@ -295,11 +309,11 @@ describe('computeSuggestion — alvo oferta/venda e motivos', () => {
   });
 });
 
-describe('findRuleForProduct — classificação por prefixo', () => {
+describe('findRuleForProduct — classificação por id', () => {
   const specific: SuggestionRule = {
     ...margemRule,
     id: 'spec',
-    classifications: ['MEDICAMENTOS > GENÉRICOS'],
+    classifications: [GEN],
   };
   const catchAll: SuggestionRule = {
     ...margemRule,
@@ -308,21 +322,24 @@ describe('findRuleForProduct — classificação por prefixo', () => {
   };
 
   it('mais específico vence o catch-all', () => {
-    const r = findRuleForProduct(product(), [catchAll, specific]);
+    const r = findRuleForProduct(product(), [catchAll, specific], [], IDX);
     expect(r?.id).toBe('spec');
   });
 
-  it('prefixo sem delimitador não casa (MED ⊄ MEDICAMENTOS)', () => {
-    const r = findRuleForProduct(product(), [
-      { ...margemRule, id: 'x', classifications: ['MED'] },
-    ]);
+  it('id de outra árvore não casa', () => {
+    const r = findRuleForProduct(
+      product(),
+      [{ ...margemRule, id: 'x', classifications: [OTHER] }],
+      [],
+      IDX,
+    );
     expect(r).toBeNull();
   });
 
   it('desempate por createdAt asc → id asc', () => {
     const a = { ...specific, id: 'a', createdAt: '2026-01-01T00:00:00.000Z' };
     const b = { ...specific, id: 'b', createdAt: '2026-02-01T00:00:00.000Z' };
-    expect(findRuleForProduct(product(), [b, a])?.id).toBe('a');
+    expect(findRuleForProduct(product(), [b, a], [], IDX)?.id).toBe('a');
   });
 });
 
@@ -330,7 +347,7 @@ describe('cluster — precedência e exclusão', () => {
   const classRule: SuggestionRule = {
     ...margemRule,
     id: 'class',
-    classifications: ['MEDICAMENTOS > GENÉRICOS'],
+    classifications: [GEN],
   };
   const clusterRule: SuggestionRule = {
     ...concorrenciaRule,
@@ -341,7 +358,7 @@ describe('cluster — precedência e exclusão', () => {
 
   it('regra de cluster vence a de classificação (resolveWinner)', () => {
     const clu = findClusterRuleForProduct([clusterRule], ['c1']);
-    const cls = findRuleForProduct(product(), [classRule], ['c1']);
+    const cls = findRuleForProduct(product(), [classRule], ['c1'], IDX);
     const { winner, overrodeRule } = resolveWinner(clu, cls);
     expect(winner?.id).toBe('clu');
     expect(overrodeRule?.id).toBe('class');
@@ -349,7 +366,7 @@ describe('cluster — precedência e exclusão', () => {
 
   it('excludeClusterIds tira o produto da regra', () => {
     const excluding = { ...classRule, excludeClusterIds: ['c1'] };
-    const r = findRuleForProduct(product(), [excluding], ['c1']);
+    const r = findRuleForProduct(product(), [excluding], ['c1'], IDX);
     expect(r).toBeNull();
   });
 

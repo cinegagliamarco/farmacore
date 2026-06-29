@@ -10,6 +10,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   Min,
@@ -60,7 +61,8 @@ function IsValidRange(
 export class CreatePricingRuleDto {
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
+  @ArrayMaxSize(200)
+  @IsUUID('4', { each: true })
   public classifications?: string[];
 
   @IsOptional()
@@ -102,7 +104,8 @@ export class CreatePricingRuleDto {
 export class CreatePriceLockDto {
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
+  @ArrayMaxSize(200)
+  @IsUUID('4', { each: true })
   public classifications?: string[];
 
   // 0–99.99: minMargin >= 100 makes the floor `cost / (1 - minMargin/100)`
@@ -138,11 +141,11 @@ export class PreviewOfferBookRulesDto {
   @Matches(/^\d+$/, { each: true })
   public eans?: string[];
 
-  /** Classification path prefixes to preview. Mutually exclusive with `eans`. */
+  /** Classification IDs to preview (subtree). Mutually exclusive with `eans`. */
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(500)
-  @IsString({ each: true })
+  @IsUUID('4', { each: true })
   public classifications?: string[];
 
   @IsArray()

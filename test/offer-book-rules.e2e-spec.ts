@@ -19,8 +19,9 @@ import { IntegrationConnectionService } from '../src/integration/integration-con
  */
 const SLUG = 'e2eobr';
 const SCHEMA = 'tenant_e2eobr';
-const ROOT_ID = '33333333-3333-3333-3333-333333333333';
-const CHILD_ID = '44444444-4444-4444-4444-444444444444';
+// Must be UUID v4 — PreviewOfferBookRulesDto uses @IsUUID('4').
+const ROOT_ID = '33333333-3333-4333-8333-333333333333';
+const CHILD_ID = '44444444-4444-4444-8444-444444444444';
 const EAN_A = '7893333333333';
 const EAN_B = '7894444444444';
 
@@ -165,11 +166,11 @@ describe('Offer book rules preview (e2e)', () => {
     expect(row.finalPrice).toBeLessThan(row.currentPrice);
   });
 
-  it('matches by classification prefix (recursive path CTE) as an operator', async () => {
+  it('matches by classification id subtree as an operator', async () => {
     const res = await post('/offer-book-rules/preview', operatorToken)
       .send({
         calculationBaseType: 'SALE_PRICE',
-        classifications: ['Genéricos'],
+        classifications: [ROOT_ID],
         pricingRules: [{ actionType: 'DISCOUNT', percentageValue: 10 }],
         priceLocks: [],
       })
@@ -187,7 +188,7 @@ describe('Offer book rules preview (e2e)', () => {
       .send({
         calculationBaseType: 'SALE_PRICE',
         eans: [EAN_A],
-        classifications: ['Genéricos'],
+        classifications: [ROOT_ID],
         pricingRules: [{ actionType: 'DISCOUNT', percentageValue: 10 }],
         priceLocks: [],
       })

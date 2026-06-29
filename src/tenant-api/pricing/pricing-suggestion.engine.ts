@@ -3,6 +3,7 @@ import {
   CompetitorMode,
   SuggestionStrategy,
 } from '../../database/entities/tenant/pricing-suggestion-rule.entity';
+import type { ClassificationIndex } from '../classification/classification-index';
 
 /**
  * Motor de sugestão de preços — TS puro, sem dependências (port quase-verbatim
@@ -21,6 +22,7 @@ export interface SuggestionProduct {
   ean: string;
   nome: string;
   fabricante: string;
+  classificationId: string | null;
   classificacao: string;
   cadernoOferta: string;
   custo: number;
@@ -93,7 +95,6 @@ export type SuggestionResult =
   | { kind: 'suggestion'; suggestion: PriceSuggestion }
   | { kind: 'none'; reason: NoSuggestionReason; rule?: SuggestionRule };
 
-const CLASSIFICATION_DELIMITERS = [' > ', ' / ', ' - '];
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -114,17 +115,6 @@ const competitorPrice = (
 ): number =>
   Number(product.competitorPrices[competitor as CompetitorOrigin] ?? 0);
 
-function classificationMatches(
-  productClass: string,
-  ruleClass: string,
-): boolean {
-  const p = productClass.trim().toUpperCase();
-  const r = ruleClass.trim().toUpperCase();
-  if (!p || !r) return false;
-  if (p === r) return true;
-  return CLASSIFICATION_DELIMITERS.some((d) => p.startsWith(r + d));
-}
-
 /** Regra subtrai os clusters em `excludeClusterIds`: produto em qualquer um fica fora. */
 function isExcluded(
   rule: SuggestionRule,
@@ -140,37 +130,35 @@ export function findRuleForProduct(
   product: SuggestionProduct,
   rules: SuggestionRule[],
   productClusterIds: string[] = [],
+  classificationIndex?: ClassificationIndex,
 ): SuggestionRule | null {
   let best: SuggestionRule | null = null;
-  let bestLen = -1;
+  let bestSpecificity = -1;
   for (const rule of rules) {
     if (!rule.active) continue;
     if (isExcluded(rule, productClusterIds)) continue;
-    let matchLen = -1;
+    let matchSpecificity = -1;
     const classifications = Array.isArray(rule.classifications)
       ? rule.classifications
       : [];
     if (classifications.length === 0) {
-      matchLen = 0;
-    } else {
+      matchSpecificity = 0;
+    } else if (product.classificationId && classificationIndex) {
       for (const c of classifications) {
-        if (
-          c.length > matchLen &&
-          classificationMatches(product.classificacao, c)
-        ) {
-          matchLen = c.length;
-        }
+        if (!classificationIndex.isUnder(product.classificationId, c)) continue;
+        const depth = classificationIndex.depthById.get(c) ?? 0;
+        if (depth > matchSpecificity) matchSpecificity = depth;
       }
     }
-    if (matchLen < 0) continue;
+    if (matchSpecificity < 0) continue;
     const winsTie =
-      matchLen === bestLen &&
+      matchSpecificity === bestSpecificity &&
       best !== null &&
       (rule.createdAt < best.createdAt ||
         (rule.createdAt === best.createdAt && rule.id < best.id));
-    if (matchLen > bestLen || winsTie) {
+    if (matchSpecificity > bestSpecificity || winsTie) {
       best = rule;
-      bestLen = matchLen;
+      bestSpecificity = matchSpecificity;
     }
   }
   return best;

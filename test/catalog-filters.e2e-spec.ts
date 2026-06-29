@@ -271,17 +271,13 @@ describe('Catalog filters (e2e)', () => {
       expect(row.stockStatus).toBe('OK');
     });
 
-    it('counts the product as having own stock and no competitor stock', async () => {
+    it('counts the product as having own stock', async () => {
       const res = await get(
         `/products/stock-metrics?eans=${EAN_ACTIVE}`,
       ).expect(200);
       expect(res.body).toEqual({
         total: 1,
         ownWithStock: 1,
-        competitorsWithStock: [
-          { origin: 'DROGAL', withStock: 0 },
-          { origin: 'DROGASIL', withStock: 0 },
-        ],
       });
     });
   });

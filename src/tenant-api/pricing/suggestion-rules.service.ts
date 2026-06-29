@@ -214,10 +214,8 @@ export class SuggestionRulesService {
         (dto.classifications ?? []).map((c) => c.trim()).filter(Boolean),
       ),
     ];
-    if (classifications.some((c) => c.length > 200)) {
-      throw new BadRequestException(
-        'Classificação inválida (máximo 200 caracteres).',
-      );
+    if (classifications.some((c) => !/^[0-9a-f-]{36}$/i.test(c))) {
+      throw new BadRequestException('Classificação inválida (UUID esperado).');
     }
 
     const clusterId = dto.clusterId ? dto.clusterId.trim() : null;
