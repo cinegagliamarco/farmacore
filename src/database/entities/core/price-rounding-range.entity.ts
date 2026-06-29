@@ -1,4 +1,11 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+} from 'typeorm';
 import { BaseEntity } from '../base.entity';
 import { TenantEntity } from './tenant.entity';
 import { PriceRoundingRuleEntity } from './price-rounding-rule.entity';

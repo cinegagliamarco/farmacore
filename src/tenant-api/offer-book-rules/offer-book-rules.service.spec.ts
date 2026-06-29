@@ -405,7 +405,13 @@ describe('OfferBookRulesService overlap validation', () => {
   it('rejects an all-classifications lock coexisting with another', () => {
     expect(() =>
       service.validateNonOverlappingPriceLocks(
-        [{ minMargin: 10 }, { classifications: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'], minMargin: 20 }],
+        [
+          { minMargin: 10 },
+          {
+            classifications: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+            minMargin: 20,
+          },
+        ],
         IDX,
       ),
     ).toThrow(BadRequestException);

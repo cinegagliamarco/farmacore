@@ -11,7 +11,9 @@ export class OfferBookInfoEntity extends BaseEntity {
   @Column({ type: 'jsonb', default: {} })
   public data!: Record<string, unknown>;
 
-  @ManyToOne(() => OfferBookEntity, (book) => book.infos, { onDelete: 'CASCADE' })
+  @ManyToOne(() => OfferBookEntity, (book) => book.infos, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'offer_book_id' })
   public offerBook?: OfferBookEntity;
 }

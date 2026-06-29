@@ -13,12 +13,12 @@ const makeEm = (opts: {
   settingsRow?: StatusSettingsEntity | null;
 }): { em: EntityManager; findOne: jest.Mock; save: jest.Mock } => {
   let stored = opts.settingsRow ?? null;
-  const findOne = jest.fn(async ({ where }: { where: { tenantId?: string } }) => {
+  const findOne = jest.fn(({ where }: { where: { tenantId?: string } }) => {
     if (where.tenantId === 't1') return stored;
     return null;
   });
-  const save = jest.fn(async (row: StatusSettingsEntity) => {
-    stored = { ...(stored ?? {}), ...row } as StatusSettingsEntity;
+  const save = jest.fn((row: StatusSettingsEntity) => {
+    stored = { ...(stored ?? {}), ...row };
     return stored;
   });
   const em = {

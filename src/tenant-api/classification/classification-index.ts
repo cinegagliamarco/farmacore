@@ -61,15 +61,20 @@ export function buildClassificationIndex(
     return out;
   };
 
+  const isUnder = (
+    nodeId: string | null | undefined,
+    ancestorId: string,
+  ): boolean => {
+    if (!nodeId || !byId.has(ancestorId)) return false;
+    return ancestorsOf(nodeId).includes(ancestorId);
+  };
+
   return {
     depthById,
-    isUnder(nodeId, ancestorId) {
-      if (!nodeId || !byId.has(ancestorId)) return false;
-      return ancestorsOf(nodeId).includes(ancestorId);
-    },
+    isUnder,
     idsOverlap(a, b) {
       if (a === b) return true;
-      return this.isUnder(a, b) || this.isUnder(b, a);
+      return isUnder(a, b) || isUnder(b, a);
     },
     expandSubtree,
   };
