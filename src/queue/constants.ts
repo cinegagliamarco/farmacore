@@ -11,6 +11,7 @@ export const DLX_NAME = `${EXCHANGE_NAME}.dlx`;
  */
 export const STEP_QUEUES: ReadonlyArray<PipelineStep> = [
   PipelineStep.SYNC_OFFER_BOOKS_INFO,
+  PipelineStep.SYNC_STORES,
 ];
 
 export const PIPELINE_START_QUEUE = 'pipeline.start';
@@ -27,6 +28,7 @@ export const BATCHED_STEPS: ReadonlyArray<PipelineStep> = [
   PipelineStep.CALC_BASE_PRODUCT_METRICS,
   PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES,
   PipelineStep.APPLY_PRICE,
+  PipelineStep.SYNC_PRODUCT_ITEMS,
 ];
 
 /**
@@ -88,16 +90,19 @@ export const allStepQueueNames = (): string[] => {
  */
 export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [PipelineStep.SYNC_OFFER_BOOKS_INFO]: 1,
+  [PipelineStep.SYNC_STORES]: 1,
 
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 1,
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 1,
   [dispatchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 1,
   [dispatchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 1,
   [dispatchStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS)]: 1,
+  [dispatchStep(PipelineStep.SYNC_PRODUCT_ITEMS)]: 1,
   [batchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 1,
   [batchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 1,
   [batchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS)]: 1,
   [batchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES)]: 1,
+  [batchStep(PipelineStep.SYNC_PRODUCT_ITEMS)]: 1,
 
   // apply em massa: escrita no ERP é serial (prefetch 1) por segurança.
   [dispatchStep(PipelineStep.APPLY_PRICE)]: 1,

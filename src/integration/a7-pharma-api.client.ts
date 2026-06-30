@@ -22,10 +22,16 @@ export class A7PharmaApiClient {
 
   constructor(private readonly http: HttpService) {}
 
-  /** POST /webapi/api/preco/ — set a product's sell price by idEmbalagem. */
+  /** POST /webapi/api/preco/ — set a product's sell price by idEmbalagem.
+   *  `idUnidadeNegocioPreco` targets one store (= tenant_store.external_id);
+   *  omitted, the ERP applies the price to the base/default unit. */
   public async changePrices(
     creds: A7PharmaCredentials,
-    items: Array<{ idEmbalagem: number; precoVendaNovo: number }>,
+    items: Array<{
+      idEmbalagem: number;
+      precoVendaNovo: number;
+      idUnidadeNegocioPreco?: number;
+    }>,
   ): Promise<void> {
     const url = `${creds.baseUrl}/webapi/api/preco/?alterarIrmas=false`;
     await this.post(url, items, creds.apiKey, 'changePrices');

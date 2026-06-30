@@ -126,7 +126,7 @@ describe('CatalogMutationService.updatePrice', () => {
     );
   });
 
-  it('pushes to the ERP then mirrors the price locally', async () => {
+  it('pushes to the ERP then mirrors the price locally (no store)', async () => {
     const { service, em, product, a7 } = build();
     product.findOne.mockResolvedValue({ monitored: false, externalId: '55' });
     const out = await service.updatePrice(em, 't', '789', 19.9);
@@ -137,7 +137,73 @@ describe('CatalogMutationService.updatePrice', () => {
       { ean: '789' },
       { price: '19.9' },
     );
-    expect(out).toEqual({ ean: '789', price: 19.9 });
+    expect(out).toEqual({ ean: '789', price: 19.9, storeId: undefined });
+  });
+
+  it('targets the store and mirrors product_item when storeId is given', async () => {
+    const product = makeRepo();
+    const store = { findOne: jest.fn() };
+    const productItem = { upsert: jest.fn() };
+    product.findOne.mockResolvedValue({
+      id: 'p-uuid',
+      monitored: false,
+      externalId: '55',
+    });
+    store.findOne.mockResolvedValue({ id: 's1', externalId: '9' });
+    const em = {
+      query: jest.fn().mockResolvedValue([{ id: 'tenant-1' }]),
+      getRepository: jest.fn((entity: { name?: string }) => {
+        if (entity === TenantProductEntity) return product;
+        if (entity?.name === 'TenantStoreEntity') return store;
+        if (entity?.name === 'ProductItemEntity') return productItem;
+        return makeRepo();
+      }),
+    } as unknown as EntityManager;
+    const integration = {
+      getApiCredentials: jest.fn().mockResolvedValue(creds),
+    } as unknown as IntegrationConnectionService;
+    const a7 = {
+      changePrices: jest.fn().mockResolvedValue(undefined),
+    } as unknown as A7PharmaApiClient;
+    const service = new CatalogMutationService(integration, a7);
+
+    const out = await service.updatePrice(em, 't', '789', 19.9, 's1');
+
+    expect(a7.changePrices).toHaveBeenCalledWith(creds, [
+      { idEmbalagem: 55, precoVendaNovo: 19.9, idUnidadeNegocioPreco: 9 },
+    ]);
+    expect(productItem.upsert).toHaveBeenCalledWith(
+      { productId: 'p-uuid', storeId: 's1', price: '19.9' },
+      ['productId', 'storeId'],
+    );
+    expect(product.update).not.toHaveBeenCalled();
+    expect(out).toEqual({ ean: '789', price: 19.9, storeId: 's1' });
+  });
+
+  it('404s when the given store is unknown', async () => {
+    const product = makeRepo();
+    product.findOne.mockResolvedValue({
+      id: 'p-uuid',
+      monitored: false,
+      externalId: '55',
+    });
+    const em = {
+      query: jest.fn().mockResolvedValue([{ id: 'tenant-1' }]),
+      getRepository: jest.fn((entity: { name?: string }) =>
+        entity === TenantProductEntity
+          ? product
+          : { findOne: jest.fn().mockResolvedValue(null) },
+      ),
+    } as unknown as EntityManager;
+    const service = new CatalogMutationService(
+      {
+        getApiCredentials: jest.fn().mockResolvedValue(creds),
+      } as unknown as IntegrationConnectionService,
+      { changePrices: jest.fn() } as unknown as A7PharmaApiClient,
+    );
+    await expect(
+      service.updatePrice(em, 't', '789', 19.9, 's-missing'),
+    ).rejects.toThrow(NotFoundException);
   });
 });
 

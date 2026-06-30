@@ -118,7 +118,7 @@ export class ListProductsQueryDto {
   // Active-ingredient decision-by-store feature (see active-ingredients/crossed).
   @IsOptional()
   @IsString()
-  public subsidiary?: string; // store external id; required by the decision endpoints
+  public store?: string; // store external id; required by the decision endpoints
 
   @IsOptional()
   @Type(() => Number)

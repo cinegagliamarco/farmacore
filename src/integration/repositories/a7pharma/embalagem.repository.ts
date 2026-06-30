@@ -53,6 +53,23 @@ export class EmbalagemRepository {
       .getMany();
   }
 
+  /** Lean (embalagemid → produtoid) pairs for a slice, used by the
+   *  product-item sync to look up per-store cost (keyed by produtoid). */
+  public async findProdutoIdsByIds(
+    ids: number[],
+  ): Promise<Array<{ id: number; produtoid: number }>> {
+    if (ids.length === 0) return [];
+    const rows = await this.repository
+      .createQueryBuilder('e')
+      .select(['e.id AS id', 'e.produtoid AS produtoid'])
+      .where('e.id IN (:...ids)', { ids })
+      .getRawMany<{ id: string; produtoid: string }>();
+    return rows.map((r) => ({
+      id: Number(r.id),
+      produtoid: Number(r.produtoid),
+    }));
+  }
+
   private validQuery(): SelectQueryBuilder<EmbalagemEntity> {
     return this.repository
       .createQueryBuilder('e')

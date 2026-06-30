@@ -6,9 +6,12 @@ import {
 } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { OfferBookEntity } from '../../database/entities/tenant/offer-book.entity';
+import { ProductItemEntity } from '../../database/entities/tenant/product-item.entity';
 import { ProductEntity as TenantProductEntity } from '../../database/entities/tenant/product.entity';
+import { TenantStoreEntity } from '../../database/entities/core/tenant-store.entity';
 import { A7PharmaApiClient } from '../../integration/a7-pharma-api.client';
 import { IntegrationConnectionService } from '../../integration/integration-connection.service';
+import { resolveTenantId } from '../../tenant/tenant-lookup';
 import { UpdateProductDto, UpsertOfferDto } from './dto/update-product.dto';
 
 const EDITABLE: ReadonlyArray<keyof UpdateProductDto> = [
@@ -57,14 +60,19 @@ export class CatalogMutationService {
   }
 
   /** Push the new sell price to the ERP (source of truth), then mirror it
-   *  locally. 409 if the product is monitored, lacks an ERP id, or the
-   *  tenant has no A7Pharma API configured. */
+   *  locally. With `storeId`, the price targets that store
+   *  (idUnidadeNegocioPreco = its external_id) and mirrors into product_item;
+   *  without it (bulk apply path, out of per-store scope), it keeps the legacy
+   *  global behavior and mirrors product.price. 409 if the product is
+   *  monitored, lacks an ERP id, the store is unknown, or the tenant has no
+   *  A7Pharma API configured. */
   public async updatePrice(
     em: EntityManager,
     tenantSlug: string,
     ean: string,
     newPrice: number,
-  ): Promise<{ ean: string; price: number }> {
+    storeId?: string,
+  ): Promise<{ ean: string; price: number; storeId?: string }> {
     const repo = em.getRepository(TenantProductEntity);
     const product = await repo.findOne({ where: { ean } });
     if (!product) throw new NotFoundException(`product ${ean} not found`);
@@ -74,6 +82,14 @@ export class CatalogMutationService {
     if (!product.externalId) {
       throw new ConflictException('product has no ERP external_id');
     }
+    let store: TenantStoreEntity | null = null;
+    if (storeId) {
+      const tenantId = await resolveTenantId(em, tenantSlug);
+      store = await em
+        .getRepository(TenantStoreEntity)
+        .findOne({ where: { id: storeId, tenantId } });
+      if (!store) throw new NotFoundException(`store ${storeId} not found`);
+    }
     const creds = await this.integration.getApiCredentials(tenantSlug);
     if (!creds) {
       throw new ConflictException(
@@ -81,10 +97,23 @@ export class CatalogMutationService {
       );
     }
     await this.a7.changePrices(creds, [
-      { idEmbalagem: Number(product.externalId), precoVendaNovo: newPrice },
+      {
+        idEmbalagem: Number(product.externalId),
+        precoVendaNovo: newPrice,
+        ...(store && { idUnidadeNegocioPreco: Number(store.externalId) }),
+      },
     ]);
-    await repo.update({ ean }, { price: String(newPrice) });
-    return { ean, price: newPrice };
+    if (store) {
+      await em
+        .getRepository(ProductItemEntity)
+        .upsert({ productId: product.id, storeId, price: String(newPrice) }, [
+          'productId',
+          'storeId',
+        ]);
+    } else {
+      await repo.update({ ean }, { price: String(newPrice) });
+    }
+    return { ean, price: newPrice, storeId };
   }
 
   /** Upsert an offer (precoOferta) into the product's caderno on the ERP,

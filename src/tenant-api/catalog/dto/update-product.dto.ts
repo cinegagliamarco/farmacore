@@ -29,6 +29,11 @@ export class UpdatePriceDto {
   @IsNumber()
   @Min(0)
   public newPrice!: number;
+
+  /** Target store (core.tenant_store id). Resolved to its external_id and
+   *  sent to the ERP as idUnidadeNegocioPreco. */
+  @IsUUID()
+  public storeId!: string;
 }
 
 export class UpsertOfferDto {

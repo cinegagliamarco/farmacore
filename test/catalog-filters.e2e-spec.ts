@@ -103,7 +103,7 @@ describe('Catalog filters (e2e)', () => {
     );
     // Own stock for P_ACTIVE so GET /products/stock returns own-stock numbers.
     await ds.query(
-      `INSERT INTO ${SCHEMA}.product_stock (ean, subsidiary_external_id, quantity)
+      `INSERT INTO ${SCHEMA}.product_stock (ean, store_external_id, quantity)
        VALUES (${EAN_ACTIVE}, 1, 7)`,
     );
     // shared_catalog is cross-tenant; clear any leftover competitor rows for

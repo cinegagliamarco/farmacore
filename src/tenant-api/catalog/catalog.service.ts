@@ -81,7 +81,7 @@ interface VariantRow {
   price: string | null;
   cost: string | null;
   margin: string | null;
-  stockInSubsidiary: number;
+  stockInStore: number;
   competitorOrigin: string | null;
   competitorPrice: string | null;
   priceOffer: string | null;
@@ -294,19 +294,19 @@ export class CatalogService {
     return rows.map((r) => r.active_ingredient);
   }
 
-  /** Distinct stores that have stock, labelled from core.tenant_subsidiary
+  /** Distinct stores that have stock, labelled from core.tenant_store
    *  (falling back to the id) — the UI's store selector. */
-  public async subsidiaries(
+  public async stores(
     em: EntityManager,
     slug: string,
-  ): Promise<Array<{ subsidiaryExternalId: string; label: string }>> {
+  ): Promise<Array<{ storeExternalId: string; label: string }>> {
     const tenantId = await resolveTenantId(em, slug);
     return em.query(
-      `SELECT DISTINCT ps.subsidiary_external_id::text AS "subsidiaryExternalId",
-              COALESCE(ts.name, ps.subsidiary_external_id::text) AS label
+      `SELECT DISTINCT ps.store_external_id::text AS "storeExternalId",
+              COALESCE(ts.name, ps.store_external_id::text) AS label
          FROM product_stock ps
-         LEFT JOIN core.tenant_subsidiary ts
-           ON ts.external_id = ps.subsidiary_external_id AND ts.tenant_id = $1
+         LEFT JOIN core.tenant_store ts
+           ON ts.external_id = ps.store_external_id AND ts.tenant_id = $1
         ORDER BY 1`,
       [tenantId],
     );
@@ -360,16 +360,16 @@ export class CatalogService {
     q: ListProductsQueryDto,
   ): Promise<IngredientGroup[]> {
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
-    const subsidiary = this.requireSubsidiary(q);
+    const store = this.requireStore(q);
     const tolerance = q.tolerance ?? 0;
-    const params: unknown[] = [subsidiary];
+    const params: unknown[] = [store];
     const aiFilter = q.activeIngredient
       ? `AND p.active_ingredient ILIKE $${params.push(`%${q.activeIngredient}%`)}`
       : '';
     const { joins, selects } = buildCompetitorCrossJoins(origins);
     const rows: VariantRow[] = await em.query(
       `SELECT p.active_ingredient AS ai, p.ean, p.name, p.price, p.cost, p.margin,
-              COALESCE(ps.quantity, 0) AS "stockInSubsidiary",
+              COALESCE(ps.quantity, 0) AS "stockInStore",
               cc.origin AS "competitorOrigin", cc.price AS "competitorPrice",
               ${PRICE_OFFER_EXPR} AS "priceOffer"
               ${selects ? `,\n              ${selects}` : ''}
@@ -377,7 +377,7 @@ export class CatalogService {
          ${joins}
          ${OFFER_BOOK_JOINS}
          LEFT JOIN product_stock ps
-           ON ps.ean = p.ean AND ps.subsidiary_external_id = $1::bigint
+           ON ps.ean = p.ean AND ps.store_external_id = $1::bigint
          LEFT JOIN LATERAL (
            SELECT sp.origin, sp.price
              FROM shared_catalog.product sp
@@ -413,7 +413,7 @@ export class CatalogService {
       // a zero-price variant must not become the combate or a competitor.
       const price = num(v.price);
       const cost = num(v.cost);
-      if (price !== null && price > 0 && Number(v.stockInSubsidiary) > 0)
+      if (price !== null && price > 0 && Number(v.stockInStore) > 0)
         if (!combate || price < (num(combate.price) ?? Infinity)) combate = v;
       if (cost !== null)
         if (!lowestCost || cost < (num(lowestCost.cost) ?? Infinity))
@@ -461,21 +461,19 @@ export class CatalogService {
         cost: num(v.cost),
         margin: num(v.margin),
         priceOffer: num(v.priceOffer),
-        stockInSubsidiary: Number(v.stockInSubsidiary) || 0,
+        stockInStore: Number(v.stockInStore) || 0,
         isCombate: combate?.ean === v.ean,
         competitors: mapCompetitorsFromRow(v, origins, { price: true }),
       })),
     };
   }
 
-  private requireSubsidiary(q: ListProductsQueryDto): string {
+  private requireStore(q: ListProductsQueryDto): string {
     // up to 18 digits stays within Postgres bigint, so the `::bigint` cast
     // can't overflow into a 500.
-    if (!q.subsidiary || !/^\d{1,18}$/.test(q.subsidiary))
-      throw new BadRequestException(
-        'subsidiary is required (numeric store id)',
-      );
-    return q.subsidiary;
+    if (!q.store || !/^\d{1,18}$/.test(q.store))
+      throw new BadRequestException('store is required (numeric store id)');
+    return q.store;
   }
 
   /** Generic products still missing an active ingredient (need manual fill). */
@@ -558,7 +556,7 @@ export class CatalogService {
     return lines.join('\n');
   }
 
-  /** Per-product stock: the tenant's own ERP stock, by subsidiary. */
+  /** Per-product stock: the tenant's own ERP stock, by store. */
   public async stock(
     em: EntityManager,
     q: ListProductsQueryDto,
@@ -570,12 +568,12 @@ export class CatalogService {
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, c.name AS classification,
               COALESCE(own.total, 0) AS "ownStock",
-              own.by_sub AS "ownBySubsidiary"
+              own.by_sub AS "ownByStore"
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          LEFT JOIN LATERAL (
            SELECT SUM(quantity)::int AS total,
-                  jsonb_object_agg(subsidiary_external_id, quantity) AS by_sub
+                  jsonb_object_agg(store_external_id, quantity) AS by_sub
              FROM product_stock ps WHERE ps.ean = p.ean
          ) own ON true
         ${f.where}

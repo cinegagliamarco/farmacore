@@ -105,7 +105,7 @@ describe('Tenant API (e2e)', () => {
       [ROOT_ID],
     );
     await ds.query(
-      `INSERT INTO ${SCHEMA}.product_stock (ean, subsidiary_external_id, quantity) VALUES
+      `INSERT INTO ${SCHEMA}.product_stock (ean, store_external_id, quantity) VALUES
         (${EAN_A}, 1, 3), (${EAN_B}, 1, 5)`,
     );
     await ds.query(
@@ -197,7 +197,7 @@ describe('Tenant API (e2e)', () => {
   describe('GET /products/active-ingredients/crossed (cross-schema + decision)', () => {
     it('groups by ingredient, picks the cheapest in-stock combate', async () => {
       const res = await get(
-        '/products/active-ingredients/crossed?subsidiary=1&tolerance=0',
+        '/products/active-ingredients/crossed?store=1&tolerance=0',
       ).expect(200);
       expect(res.body.count).toBe(1);
       const g = res.body.rows[0];
@@ -209,7 +209,7 @@ describe('Tenant API (e2e)', () => {
       expect(g.decision).toBe('ok'); // no competitor in shared_catalog
     });
 
-    it('400s without a subsidiary', async () => {
+    it('400s without a store', async () => {
       await get('/products/active-ingredients/crossed').expect(400);
     });
   });

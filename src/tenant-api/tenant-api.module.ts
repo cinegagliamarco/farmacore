@@ -29,6 +29,11 @@ import { PricingSuggestionsController } from './pricing/pricing-suggestions.cont
 import { PricingSuggestionsService } from './pricing/pricing-suggestions.service';
 import { SuggestionRulesController } from './pricing/suggestion-rules.controller';
 import { SuggestionRulesService } from './pricing/suggestion-rules.service';
+import {
+  StoreClustersController,
+  StoresController,
+} from './stores/stores.controller';
+import { StoresService } from './stores/stores.service';
 
 /**
  * Tenant-user-facing API (the FE's surface). Every route is tenant-scoped
@@ -51,6 +56,8 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
     PricingApplyController,
     PricingScheduleController,
     AuditController,
+    StoresController,
+    StoreClustersController,
   ],
   providers: [
     CatalogService,
@@ -69,6 +76,7 @@ import { SuggestionRulesService } from './pricing/suggestion-rules.service';
     PricingScheduleCron,
     PricingRetentionCron,
     AuditService,
+    StoresService,
   ],
 })
 export class TenantApiModule {}

@@ -162,7 +162,7 @@ const INGREDIENT_ROWS = [
     margin: '50',
     DROGAL__price: '12',
     DROGASIL__price: null,
-    stockInSubsidiary: 3,
+    stockInStore: 3,
     competitorOrigin: 'DROGAL',
     competitorPrice: '12',
     priceOffer: '9.50',
@@ -176,7 +176,7 @@ const INGREDIENT_ROWS = [
     margin: '40',
     DROGAL__price: null,
     DROGASIL__price: null,
-    stockInSubsidiary: 5,
+    stockInStore: 5,
     competitorOrigin: null,
     competitorPrice: null,
     priceOffer: '7.25',
@@ -189,7 +189,7 @@ describe('CatalogService.activeIngredientsCrossed', () => {
     const out = await catalog().activeIngredientsCrossed(
       em,
       SLUG,
-      q({ subsidiary: '1', tolerance: 0 }),
+      q({ store: '1', tolerance: 0 }),
     );
     expect(out.count).toBe(1);
     const g = out.rows[0];
@@ -207,7 +207,7 @@ describe('CatalogService.activeIngredientsCrossed', () => {
     expect(g.decision).toBe('subir'); // combate 8 < competitor 12, tolerance 0
   });
 
-  it('requires a numeric subsidiary', async () => {
+  it('requires a numeric store', async () => {
     await expect(
       catalog().activeIngredientsCrossed(makeEm([]), SLUG, q({})),
     ).rejects.toThrow(BadRequestException);
@@ -217,11 +217,7 @@ describe('CatalogService.activeIngredientsCrossed', () => {
 describe('CatalogService.decisionCounts', () => {
   it('tallies the groups by decision with a total', async () => {
     const em = makeEm([['p.active_ingredient AS ai', INGREDIENT_ROWS]]);
-    const counts = await catalog().decisionCounts(
-      em,
-      SLUG,
-      q({ subsidiary: '1' }),
-    );
+    const counts = await catalog().decisionCounts(em, SLUG, q({ store: '1' }));
     expect(counts).toEqual({
       total: 1,
       subir: 1,
