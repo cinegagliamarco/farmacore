@@ -96,11 +96,29 @@ export class UpdateBaseProductPropertiesDispatchConsumer extends DispatchPipelin
       }
     }
 
-    if (batches.length === 0) return { batches: [] };
+    // Tail: products are fully synced, so kick off the per-store data
+    // foundation. Emit it on BOTH paths — the last batch's successors()
+    // when there are batches, and emptySuccessors here when there are none
+    // (a fully-enriched tenant has zero candidate EANs, so without this the
+    // store/product_item sync would never run).
+    if (batches.length === 0) {
+      return { batches: [], emptySuccessors: [this.syncStoresMessage(ctx)] };
+    }
 
     this.logger.log(
       `update-base-product-properties dispatch: ${batches.length} batch(es) across 4 passes`,
     );
     return { batches };
+  }
+
+  private syncStoresMessage(
+    ctx: DispatchHandleContext,
+  ): PipelineMessage<unknown> {
+    return newPipelineMessage({
+      pipelineRunId: ctx.message.pipelineRunId,
+      tenantId: ctx.message.tenantId,
+      step: PipelineStep.SYNC_STORES,
+      payload: {},
+    });
   }
 }

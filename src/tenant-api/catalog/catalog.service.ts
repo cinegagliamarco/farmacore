@@ -472,9 +472,7 @@ export class CatalogService {
     // up to 18 digits stays within Postgres bigint, so the `::bigint` cast
     // can't overflow into a 500.
     if (!q.store || !/^\d{1,18}$/.test(q.store))
-      throw new BadRequestException(
-        'store is required (numeric store id)',
-      );
+      throw new BadRequestException('store is required (numeric store id)');
     return q.store;
   }
 

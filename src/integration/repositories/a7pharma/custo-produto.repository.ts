@@ -24,4 +24,18 @@ export class CustoProdutoRepository {
       )
       .getMany();
   }
+
+  /** Per-store cost rows for a slice of products in one store. The
+   *  (produtoid, unidadenegocioid) unique index yields at most one row each. */
+  public findByProdutoIdsAndUnidade(
+    produtoIds: number[],
+    unidadeNegocioId: number,
+  ): Promise<CustoProdutoEntity[]> {
+    if (produtoIds.length === 0) return Promise.resolve([]);
+    return this.repository
+      .createQueryBuilder('cp')
+      .where('cp.produtoid IN (:...produtoIds)', { produtoIds })
+      .andWhere('cp.unidadenegocioid = :unidadeNegocioId', { unidadeNegocioId })
+      .getMany();
+  }
 }

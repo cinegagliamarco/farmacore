@@ -7,6 +7,8 @@ import { EstoqueEntity } from '../../entities/a7pharma/estoque.entity';
 import { ItemCadernoOfertaEntity } from '../../entities/a7pharma/item-caderno-oferta.entity';
 import { ItemCadernoOfertaQuantidadeEntity } from '../../entities/a7pharma/item-caderno-oferta-quantidade.entity';
 import { ItemRecebimentoFisicoEntity } from '../../entities/a7pharma/item-recebimento-fisico.entity';
+import { PrecoEmbalagemUnidadeNegocioEntity } from '../../entities/a7pharma/preco-embalagem-unidade-negocio.entity';
+import { UnidadeNegocioEntity } from '../../entities/a7pharma/unidade-negocio.entity';
 
 import { CadernoOfertaRepository } from './caderno-oferta.repository';
 import { ClassificacaoProdutoRepository } from './classificacao-produto.repository';
@@ -16,6 +18,8 @@ import { EstoqueRepository } from './estoque.repository';
 import { ItemCadernoOfertaRepository } from './item-caderno-oferta.repository';
 import { ItemCadernoOfertaQuantidadeRepository } from './item-caderno-oferta-quantidade.repository';
 import { ItemRecebimentoFisicoRepository } from './item-recebimento-fisico.repository';
+import { PrecoEmbalagemUnidadeNegocioRepository } from './preco-embalagem-unidade-negocio.repository';
+import { UnidadeNegocioRepository } from './unidade-negocio.repository';
 
 export {
   CadernoOfertaRepository,
@@ -26,6 +30,8 @@ export {
   ItemCadernoOfertaRepository,
   ItemCadernoOfertaQuantidadeRepository,
   ItemRecebimentoFisicoRepository,
+  PrecoEmbalagemUnidadeNegocioRepository,
+  UnidadeNegocioRepository,
 };
 export type { ItemCadernoOfertaWithPrice } from './item-caderno-oferta.repository';
 export type { LatestReceiptDate } from './item-recebimento-fisico.repository';
@@ -46,6 +52,8 @@ export class A7PharmaRepositories {
   public readonly itemCadernoOferta: ItemCadernoOfertaRepository;
   public readonly itemCadernoOfertaQuantidade: ItemCadernoOfertaQuantidadeRepository;
   public readonly itemRecebimentoFisico: ItemRecebimentoFisicoRepository;
+  public readonly unidadeNegocio: UnidadeNegocioRepository;
+  public readonly precoEmbalagemUnidadeNegocio: PrecoEmbalagemUnidadeNegocioRepository;
 
   constructor(ds: DataSource) {
     this.cadernoOferta = new CadernoOfertaRepository(
@@ -69,5 +77,12 @@ export class A7PharmaRepositories {
     this.itemRecebimentoFisico = new ItemRecebimentoFisicoRepository(
       ds.getRepository(ItemRecebimentoFisicoEntity),
     );
+    this.unidadeNegocio = new UnidadeNegocioRepository(
+      ds.getRepository(UnidadeNegocioEntity),
+    );
+    this.precoEmbalagemUnidadeNegocio =
+      new PrecoEmbalagemUnidadeNegocioRepository(
+        ds.getRepository(PrecoEmbalagemUnidadeNegocioEntity),
+      );
   }
 }

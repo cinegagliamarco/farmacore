@@ -217,11 +217,7 @@ describe('CatalogService.activeIngredientsCrossed', () => {
 describe('CatalogService.decisionCounts', () => {
   it('tallies the groups by decision with a total', async () => {
     const em = makeEm([['p.active_ingredient AS ai', INGREDIENT_ROWS]]);
-    const counts = await catalog().decisionCounts(
-      em,
-      SLUG,
-      q({ store: '1' }),
-    );
+    const counts = await catalog().decisionCounts(em, SLUG, q({ store: '1' }));
     expect(counts).toEqual({
       total: 1,
       subir: 1,

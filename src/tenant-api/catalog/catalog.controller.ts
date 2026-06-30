@@ -155,9 +155,15 @@ export class CatalogController {
     @CurrentUser() user: JwtPayload,
     @Param('ean') ean: string,
     @Body() dto: UpdatePriceDto,
-  ): Promise<{ ean: string; price: number }> {
+  ): Promise<{ ean: string; price: number; storeId?: string }> {
     this.assertEan(ean);
-    return this.mutations.updatePrice(em, user.tenantId, ean, dto.newPrice);
+    return this.mutations.updatePrice(
+      em,
+      user.tenantId,
+      ean,
+      dto.newPrice,
+      dto.storeId,
+    );
   }
 
   @Post(':ean/offer')

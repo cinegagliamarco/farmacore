@@ -9,9 +9,11 @@ import { ItemCadernoOfertaEntity } from './item-caderno-oferta.entity';
 import { ItemCadernoOfertaQuantidadeEntity } from './item-caderno-oferta-quantidade.entity';
 import { ItemRecebimentoFisicoEntity } from './item-recebimento-fisico.entity';
 import { PessoaEntity } from './pessoa.entity';
+import { PrecoEmbalagemUnidadeNegocioEntity } from './preco-embalagem-unidade-negocio.entity';
 import { PrincipioAtivoEntity } from './principio-ativo.entity';
 import { ProdutoEntity } from './produto.entity';
 import { RecebimentoFisicoEntity } from './recebimento-fisico.entity';
+import { UnidadeNegocioEntity } from './unidade-negocio.entity';
 
 export {
   CadernoOfertaEntity,
@@ -25,9 +27,11 @@ export {
   ItemCadernoOfertaQuantidadeEntity,
   ItemRecebimentoFisicoEntity,
   PessoaEntity,
+  PrecoEmbalagemUnidadeNegocioEntity,
   PrincipioAtivoEntity,
   ProdutoEntity,
   RecebimentoFisicoEntity,
+  UnidadeNegocioEntity,
 };
 
 export const A7PHARMA_ENTITIES = [
@@ -42,7 +46,9 @@ export const A7PHARMA_ENTITIES = [
   ItemCadernoOfertaQuantidadeEntity,
   ItemRecebimentoFisicoEntity,
   PessoaEntity,
+  PrecoEmbalagemUnidadeNegocioEntity,
   PrincipioAtivoEntity,
   ProdutoEntity,
   RecebimentoFisicoEntity,
+  UnidadeNegocioEntity,
 ];

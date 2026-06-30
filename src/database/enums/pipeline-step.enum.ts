@@ -5,6 +5,10 @@ export enum PipelineStep {
   IMPORT_COMPETITOR_PRODUCTS = 'import-competitor-products',
   CALC_BASE_PRODUCT_METRICS = 'calc-base-product-metrics',
   UPDATE_BASE_PRODUCT_PROPERTIES = 'update-base-product-properties',
+  // Per-store data foundation (stores + product_item), runs as a linear
+  // tail after the base-product DAG so products are fully synced first.
+  SYNC_STORES = 'sync-stores',
+  SYNC_PRODUCT_ITEMS = 'sync-product-items',
   // Aplicação de preço em massa (Fase 3 da sugestão de preços) — escreve no
   // ERP via CatalogMutationService. Disparado sob demanda (POST /pricing/apply),
   // fora do DAG diário (standalone).
