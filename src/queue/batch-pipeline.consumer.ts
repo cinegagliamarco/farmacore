@@ -109,9 +109,10 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
             return;
           }
           if (outcome === 'in-progress') {
-            throw new Error(
-              `In-progress lock held for ${this.logicalStep}#${batchSeq} run ${message.pipelineRunId}`,
+            this.logger.debug(
+              `Deferring ${this.logicalStep}#${batchSeq} for run ${message.pipelineRunId}: duplicate delivery while batch is active`,
             );
+            return;
           }
 
           const tenant = await this.tenants.findActive(message.tenantId);

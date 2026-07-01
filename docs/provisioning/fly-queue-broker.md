@@ -120,6 +120,7 @@ For replay at scale: `POST /admin/dlq/:queue/replay`.
 | Queue topology / prefetch | `src/queue/constants.ts`, `queue.module.ts` | api + worker (not broker) |
 | Broker password | `fly secrets set` on broker + api + worker | all three apps |
 | Volume size | `fly volumes extend` | broker restart |
+| AMQP heartbeat / scrape prefetch | `rabbitmq.conf` + `constants.ts` `AMQP_HEARTBEAT_*` / `STEP_PREFETCH` | broker + api/worker deploy |
 
 ---
 

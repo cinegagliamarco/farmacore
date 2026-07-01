@@ -58,7 +58,10 @@ describe('PipelineRunService', () => {
   });
 
   it('start: returns "in-progress" when a running row exists', async () => {
-    repo.findOne.mockResolvedValue({ status: 'running' });
+    repo.findOne.mockResolvedValue({
+      status: 'running',
+      startedAt: new Date(),
+    });
     const result = await svc.start(
       'run1',
       'tid',
@@ -66,6 +69,45 @@ describe('PipelineRunService', () => {
       1,
     );
     expect(result).toBe('in-progress');
+  });
+
+  it('start: reclaims a stale running row after broker disconnect', async () => {
+    repo.findOne.mockResolvedValue({
+      status: 'running',
+      startedAt: new Date(Date.now() - 6 * 60 * 1000),
+    });
+    repo.update.mockResolvedValue({});
+    const result = await svc.start(
+      'run1',
+      'tid',
+      PipelineStep.SYNC_BASE_PRODUCT,
+      1,
+      3,
+    );
+    expect(result).toBe('started');
+    expect(repo.update).toHaveBeenCalledWith(
+      expect.objectContaining({ batchSeq: 3 }),
+      expect.objectContaining({ status: 'running', error: null }),
+    );
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('start: resets a failed row for DLQ replay / redelivery', async () => {
+    repo.findOne.mockResolvedValue({ status: 'failed', startedAt: new Date() });
+    repo.update.mockResolvedValue({});
+    const result = await svc.start(
+      'run1',
+      'tid',
+      PipelineStep.SYNC_BASE_PRODUCT,
+      1,
+      4,
+    );
+    expect(result).toBe('started');
+    expect(repo.update).toHaveBeenCalledWith(
+      expect.objectContaining({ batchSeq: 4 }),
+      expect.objectContaining({ status: 'running', error: null }),
+    );
+    expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('start: writes the provided batchSeq', async () => {

@@ -4,6 +4,12 @@ import { PipelineStep } from '../database/enums/pipeline-step.enum';
 export const EXCHANGE_NAME = `pipeline.${process.env.NODE_ENV ?? 'development'}`;
 export const DLX_NAME = `${EXCHANGE_NAME}.dlx`;
 
+/** amqp-connection-manager default is 5s — too aggressive for long scrapes. */
+export const AMQP_HEARTBEAT_INTERVAL_SECONDS = 120;
+
+/** Block duplicate delivery only while a batch is actively running (ms). */
+export const ACTIVE_BATCH_LOCK_MS = 5 * 60 * 1000;
+
 /**
  * v1 single-queue steps — those that still ship one queue per logical
  * step. Steps migrated to the v2 dispatcher/batch shape leave this
@@ -108,16 +114,17 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [dispatchStep(PipelineStep.APPLY_PRICE)]: 1,
   [batchStep(PipelineStep.APPLY_PRICE)]: 1,
 
-  // per-origin scrape consumers: one message per EAN, prefetch = legacy
-  // per-origin parallel request count.
+  // per-origin scrape consumers: one message per EAN. Prefetch is capped for
+  // the Fly worker (single Node event loop) — sum across origins must stay low
+  // or AMQP heartbeats stall during long HTTP scrapes.
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.DROGAL,
-  )]: 20,
+  )]: 2,
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.DROGASIL,
-  )]: 10,
+  )]: 2,
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.MICHELASSI,
@@ -125,25 +132,25 @@ export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.PAGUE_MENOS,
-  )]: 8,
+  )]: 1,
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.IKESAKI,
-  )]: 8,
+  )]: 1,
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.PACHECO,
-  )]: 8,
+  )]: 1,
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.SAO_PAULO,
-  )]: 8,
+  )]: 1,
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.VENANCIO,
-  )]: 8,
+  )]: 1,
   [originStep(
     PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
     CompetitorOrigin.INDIANA,
-  )]: 8,
+  )]: 1,
 };

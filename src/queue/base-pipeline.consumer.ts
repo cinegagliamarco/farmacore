@@ -60,9 +60,10 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
             return;
           }
           if (outcome === 'in-progress') {
-            throw new Error(
-              `In-progress lock held for ${this.step} run ${message.pipelineRunId}`,
+            this.logger.debug(
+              `Deferring ${this.step} for run ${message.pipelineRunId}: duplicate delivery while step is active`,
             );
+            return;
           }
 
           const tenant = await this.tenants.findActive(message.tenantId);
