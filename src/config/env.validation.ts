@@ -81,6 +81,18 @@ class EnvVars {
 
   @IsOptional()
   @IsString()
+  AMQP_MGMT_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  AMQP_MGMT_USER?: string;
+
+  @IsOptional()
+  @IsString()
+  AMQP_MGMT_PASS?: string;
+
+  @IsOptional()
+  @IsString()
   CLOUDAMQP_API_URL?: string;
 
   @IsOptional()

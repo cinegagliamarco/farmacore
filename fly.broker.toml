@@ -1,0 +1,43 @@
+# farmacore-broker — RabbitMQ + management UI. AMQP is private (.internal only).
+# Management UI: https://farmacore-broker.fly.dev/ (RabbitMQ user/password).
+
+app = "farmacore-broker"
+primary_region = "gru"
+
+[build]
+  dockerfile = "docker/rabbitmq/Dockerfile.broker"
+
+[env]
+  # RABBITMQ_DEFAULT_USER / RABBITMQ_DEFAULT_PASS come from Fly secrets.
+
+[mounts]
+  source = "rabbitmq_data"
+  destination = "/var/lib/rabbitmq"
+
+# Management UI — public HTTPS. AMQP (5672) is NOT listed here; reachable via .internal only.
+[[services]]
+  internal_port = 15672
+  protocol = "tcp"
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+    force_https = true
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  # Management plugin exposes /api/healthchecks/node (requires auth — use tcp or skip http check).
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "30s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 2
+  memory_mb = 2048

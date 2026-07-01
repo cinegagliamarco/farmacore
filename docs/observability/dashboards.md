@@ -67,6 +67,6 @@ emits two observable gauges per queue:
 - `pipeline.queue.depth` (number of messages, label `queue`)
 - `pipeline.queue.oldest_age_seconds` (label `queue`)
 
-Polling is a no-op when `CLOUDAMQP_API_URL` / `CLOUDAMQP_API_USER` /
-`CLOUDAMQP_API_PASS` aren't all set, so dev/local doesn't need
+Polling is a no-op when `AMQP_MGMT_URL` / `AMQP_MGMT_USER` /
+`AMQP_MGMT_PASS` (or legacy `CLOUDAMQP_API_*`) aren't all set, so dev/local doesn't need
 broker management credentials.

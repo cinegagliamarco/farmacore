@@ -62,11 +62,17 @@ export class AppConfigService {
   get otelHeaders(): string | undefined {
     return this.config.get('OTEL_EXPORTER_OTLP_HEADERS');
   }
-  get cloudamqp(): { apiUrl?: string; user?: string; pass?: string } {
+  get amqpMgmt(): { apiUrl?: string; user?: string; pass?: string } {
     return {
-      apiUrl: this.config.get('CLOUDAMQP_API_URL'),
-      user: this.config.get('CLOUDAMQP_API_USER'),
-      pass: this.config.get('CLOUDAMQP_API_PASS'),
+      apiUrl:
+        this.config.get('AMQP_MGMT_URL') ??
+        this.config.get('CLOUDAMQP_API_URL'),
+      user:
+        this.config.get('AMQP_MGMT_USER') ??
+        this.config.get('CLOUDAMQP_API_USER'),
+      pass:
+        this.config.get('AMQP_MGMT_PASS') ??
+        this.config.get('CLOUDAMQP_API_PASS'),
     };
   }
 }

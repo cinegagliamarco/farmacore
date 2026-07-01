@@ -1,0 +1,4 @@
+FROM rabbitmq:3.13-management-alpine
+COPY docker/rabbitmq/rabbitmq.conf /etc/rabbitmq/rabbitmq.conf
+COPY docker/rabbitmq/enabled_plugins /etc/rabbitmq/enabled_plugins
+# Data dir is mounted at /var/lib/rabbitmq via Fly volume
