@@ -4,6 +4,7 @@ import { EntityManager, Repository } from 'typeorm';
 import { PipelineRunEntity } from '../database/entities/core/pipeline-run.entity';
 import { PipelineRunStatus } from '../database/enums/pipeline-run-status.enum';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
+import { ACTIVE_BATCH_LOCK_MS } from './constants';
 
 export type StartOutcome = 'started' | 'already-completed' | 'in-progress';
 
@@ -34,7 +35,24 @@ export class PipelineRunService {
     });
     if (existing?.status === PipelineRunStatus.COMPLETED)
       return 'already-completed';
-    if (existing?.status === PipelineRunStatus.RUNNING) return 'in-progress';
+    if (existing?.status === PipelineRunStatus.RUNNING) {
+      const ageMs = Date.now() - new Date(existing.startedAt).getTime();
+      if (ageMs < ACTIVE_BATCH_LOCK_MS) return 'in-progress';
+    }
+    if (existing) {
+      await this.repo.update(
+        { pipelineRunId, step: step as PipelineStep, batchSeq },
+        {
+          tenantId,
+          attempt,
+          status: PipelineRunStatus.RUNNING,
+          startedAt: new Date(),
+          finishedAt: null,
+          error: null,
+        },
+      );
+      return 'started';
+    }
     await this.repo.save({
       pipelineRunId,
       tenantId,

@@ -7,6 +7,7 @@ import { PipelineOutboxEntity } from '../database/entities/core/pipeline-outbox.
 import { PipelineRunEntity } from '../database/entities/core/pipeline-run.entity';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 import {
+  AMQP_HEARTBEAT_INTERVAL_SECONDS,
   BATCHED_STEPS,
   DLX_NAME,
   EXCHANGE_NAME,
@@ -78,6 +79,12 @@ const perOriginQueueNames = (): string[] => {
         // amqp-connection-manager re-declares topology and re-attaches
         // consumers on reconnect.
         connectionInitOptions: { wait: false },
+        // amqp-connection-manager defaults to 5s; long scrapes block the event
+        // loop and the broker drops the connection. Match rabbitmq.conf (120s).
+        connectionManagerOptions: {
+          heartbeatIntervalInSeconds: AMQP_HEARTBEAT_INTERVAL_SECONDS,
+          reconnectTimeInSeconds: 10,
+        },
         // Without a timeout, publishes buffer forever while the broker is
         // down: admin routes that publish directly would hang and the
         // outbox/retry buffer would grow unbounded. This is a confirm
