@@ -126,6 +126,7 @@ const SORTABLE: Record<SortableColumn, string> = {
   name: 'p.name',
   supplier: 'p.supplier',
   classification: 'c.name',
+  book: 'ob.description',
   cost: 'p.cost',
   price: 'p.price',
   margin: 'p.margin',
@@ -197,6 +198,7 @@ export class CatalogService {
     const count = await this.count(em, f);
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
+              ob.description AS book,
               p.cost, p.price, ${PRICE_OFFER_EXPR} AS "priceOffer",
               p.margin, p.average_variation AS "averageVariation", p.status,
               p.active, p.monitored, p.receipt_date AS "receiptDate"

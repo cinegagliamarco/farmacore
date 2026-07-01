@@ -451,6 +451,7 @@ describe('CatalogService.crossed', () => {
     const [sql] = dataCall(query);
     expect(sql).toContain('p.active');
     expect(sql).toContain(`AS "priceOffer"`);
+    expect(sql).toContain(`ob.description AS book`);
     expect(sql).toContain('tenant_offer_campaign toc');
     expect(sql).not.toContain(`dg.price AS "drogalPrice"`);
     expect(sql).toContain(`"DROGAL__price"`);

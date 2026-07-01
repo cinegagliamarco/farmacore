@@ -23,6 +23,7 @@ export const SORTABLE_COLUMNS = [
   'name',
   'supplier',
   'classification',
+  'book',
   'cost',
   'price',
   'margin',
