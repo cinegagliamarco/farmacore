@@ -11,6 +11,7 @@ import type { PipelineMessage } from '../../queue/types';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import { ProductRepository } from '../../database/repositories/tenant/product.repository';
+import { SharedProductRepository } from '../../database/repositories/shared-catalog/product.repository';
 import { TenantCompetitorOriginEntity } from '../../database/entities/core/tenant-competitor-origin.entity';
 import { PipelineRunService } from '../../queue/pipeline-run.service';
 import { RetryService } from '../../queue/retry.service';
@@ -81,14 +82,22 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
       return { batches: [], emptySuccessors: await this.markStockB(ctx) };
     }
 
+    // Never re-scrape an EAN already known to be absent from an origin's
+    // catalog (found = false) — that decision is permanent.
+    const notFound = await new SharedProductRepository(
+      ctx.em,
+    ).findNotFoundEansByOrigins(enabledOrigins);
+
     // One message per EAN per origin — prefetch on each per-origin queue
     // is the rate limit (see STEP_PREFETCH). Mirrors legacy's per-origin
     // parallelism without an in-process batch loop.
     const batches: PipelineMessage<ImportCompetitorProductsBatchPayload>[] = [];
     let seq = 1;
     for (const origin of enabledOrigins) {
+      const skip = notFound.get(origin);
       const queue = originStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS, origin);
       for (const ean of eans) {
+        if (skip?.has(ean)) continue;
         batches.push(
           newPipelineMessage<ImportCompetitorProductsBatchPayload>({
             pipelineRunId: ctx.message.pipelineRunId,
@@ -100,6 +109,12 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
           }),
         );
       }
+    }
+
+    // Everything filtered out (all EANs already resolved as not-found):
+    // close the competitor-stock branch so CALC can still fire.
+    if (batches.length === 0) {
+      return { batches: [], emptySuccessors: await this.markStockB(ctx) };
     }
 
     this.logger.log(

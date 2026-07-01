@@ -51,6 +51,11 @@ export class ProductEntity extends BaseEntity {
   @Column({ type: 'numeric', precision: 10, scale: 4, nullable: true })
   public width?: string | null;
 
+  // false = the EAN isn't sold on this origin. The daily import skips
+  // these (ean, origin) pairs permanently instead of re-scraping them.
+  @Column({ type: 'boolean', default: true })
+  public found!: boolean;
+
   @Column({ type: 'jsonb', default: {} })
   public metadata!: Record<string, unknown>;
 
