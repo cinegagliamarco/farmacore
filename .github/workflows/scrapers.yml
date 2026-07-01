@@ -1,0 +1,27 @@
+name: Scrapers
+
+# Runs the live scraper integration suite against each competitor's real
+# API/storefront after a PR merges to main (and on demand). Fails if any
+# scraper stops returning a priced product — an early signal that a store
+# changed its API/markup and the scraper needs attention.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: scrapers
+  cancel-in-progress: true
+
+jobs:
+  scrapers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run test:scrapers
