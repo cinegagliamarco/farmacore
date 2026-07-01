@@ -5,11 +5,11 @@ import { AppConfigService } from '../config/app-config.service';
 describe('QueueMetricsPoller', () => {
   let poller: QueueMetricsPoller;
   let configValue: {
-    cloudamqp: { apiUrl?: string; user?: string; pass?: string };
+    amqpMgmt: { apiUrl?: string; user?: string; pass?: string };
   };
 
   beforeEach(async () => {
-    configValue = { cloudamqp: {} };
+    configValue = { amqpMgmt: {} };
     const mod = await Test.createTestingModule({
       providers: [
         QueueMetricsPoller,
@@ -19,12 +19,37 @@ describe('QueueMetricsPoller', () => {
     poller = mod.get(QueueMetricsPoller);
   });
 
-  it('does nothing when CLOUDAMQP_API_URL is not set', async () => {
+  it('does nothing when all mgmt vars are empty', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch' as never);
     await expect(poller.poll()).resolves.toBeUndefined();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 
-  it('parses queue list into this.last', async () => {
-    configValue.cloudamqp = { apiUrl: 'https://x/api', user: 'u', pass: 'p' };
+  it('polls with AMQP_MGMT_* vars', async () => {
+    configValue.amqpMgmt = {
+      apiUrl: 'https://broker/api',
+      user: 'farmacore',
+      pass: 'secret',
+    };
+    const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve([{ name: 'sync-base-product', messages: 3 }]),
+    } as never);
+    await poller.poll();
+    expect(fetchSpy).toHaveBeenCalledWith('https://broker/api/queues', {
+      headers: { authorization: expect.stringMatching(/^Basic /) },
+    });
+    fetchSpy.mockRestore();
+  });
+
+  it('polls with legacy CLOUDAMQP_API_* vars via amqpMgmt fallback', async () => {
+    configValue.amqpMgmt = {
+      apiUrl: 'https://x/api',
+      user: 'u',
+      pass: 'p',
+    };
     const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
       ok: true,
       json: () =>
@@ -41,7 +66,7 @@ describe('QueueMetricsPoller', () => {
   });
 
   it('swallows fetch errors and logs a warning', async () => {
-    configValue.cloudamqp = { apiUrl: 'https://x/api', user: 'u', pass: 'p' };
+    configValue.amqpMgmt = { apiUrl: 'https://x/api', user: 'u', pass: 'p' };
     const fetchSpy = jest
       .spyOn(global, 'fetch' as never)
       .mockRejectedValue(new Error('network down') as never);

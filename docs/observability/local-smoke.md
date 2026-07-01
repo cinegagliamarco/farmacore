@@ -64,13 +64,14 @@ docker rm -f otel-collector
 ## 3. Queue metrics against local RabbitMQ
 
 The `rabbitmq:management` image in the dev compose stack exposes the
-management API on port 15672 with `guest:guest`. The
-`QueueMetricsPoller` works against it identically to CloudAMQP:
+management API on port **15673** (host) with `guest:guest`. The
+`QueueMetricsPoller` works against it identically to the Fly broker or
+CloudAMQP:
 
 ```bash
-CLOUDAMQP_API_URL=http://localhost:15672/api \
-CLOUDAMQP_API_USER=guest \
-CLOUDAMQP_API_PASS=guest \
+AMQP_MGMT_URL=http://localhost:15673/api \
+AMQP_MGMT_USER=guest \
+AMQP_MGMT_PASS=guest \
 OTEL_DISABLED=0 \
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
 OTEL_SERVICE_NAME=farmacore-worker \

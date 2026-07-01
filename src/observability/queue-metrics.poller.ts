@@ -21,9 +21,9 @@ interface QueueInfo {
 /**
  * Polls the RabbitMQ management API every 30s and exposes per-queue
  * depth + oldest-message age as OTel observable gauges. No-op when
- * CLOUDAMQP_API_URL / USER / PASS aren't all set (dev default).
- * Works against the same management API path on both CloudAMQP and
- * the local `rabbitmq:management` image on port 15672.
+ * AMQP_MGMT_URL / USER / PASS (or legacy CLOUDAMQP_API_*) aren't all
+ * set (dev default). Works against the same management API path on
+ * Fly broker, CloudAMQP, and local `rabbitmq:management` on :15673.
  */
 @Injectable()
 export class QueueMetricsPoller {
@@ -50,7 +50,7 @@ export class QueueMetricsPoller {
 
   @Interval(30_000)
   public async poll(): Promise<void> {
-    const { apiUrl, user, pass } = this.config.cloudamqp;
+    const { apiUrl, user, pass } = this.config.amqpMgmt;
     if (!apiUrl || !user || !pass) return;
 
     try {
