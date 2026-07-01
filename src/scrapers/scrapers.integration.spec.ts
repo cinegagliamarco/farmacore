@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { INestApplicationContext, Type } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { CompetitorOrigin } from '../database/enums/competitor-origin.enum';
