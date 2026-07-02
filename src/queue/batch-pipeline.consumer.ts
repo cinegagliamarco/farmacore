@@ -9,6 +9,7 @@ import { TenantService } from '../tenant/tenant.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
 import { IntegrationDataSourceFactory } from '../integration/integration-data-source.factory';
 import { withPipelineSpan } from '../observability/pipeline-span.helper';
+import { PipelineMetricsRegistry } from '../observability/pipeline-metrics.registry';
 import { PipelineMessage } from './types';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 import { TenantEntity } from '../database/entities/core/tenant.entity';
@@ -52,6 +53,9 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
   @Inject(OutboxRepository)
   protected readonly outbox!: OutboxRepository;
 
+  @Inject(PipelineMetricsRegistry)
+  protected readonly metrics!: PipelineMetricsRegistry;
+
   constructor(
     protected readonly runs: PipelineRunService,
     protected readonly retry: RetryService,
@@ -80,6 +84,7 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
 
   public async process(message: PipelineMessage<TPayload>): Promise<void> {
     const batchSeq = message.batchSeq ?? 0;
+    const queue = message.queue ?? this.logicalStep;
     await withPipelineSpan(
       {
         tenantId: message.tenantId,
@@ -106,6 +111,7 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
             this.logger.debug(
               `Skipping ${this.logicalStep}#${batchSeq} for run ${message.pipelineRunId}: already completed`,
             );
+            this.metrics.onConsumeEnd(message.tenantId, queue, 'skip', 0);
             return;
           }
           if (outcome === 'in-progress') {
@@ -114,6 +120,9 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
             );
             return;
           }
+
+          this.metrics.onConsumeStart(message.tenantId, queue);
+          const t0 = Date.now();
 
           const tenant = await this.tenants.findActive(message.tenantId);
           const integrationDs = await this.integrationFactory.forTenantSlug(
@@ -169,11 +178,18 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
               `${this.logicalStep}#${batchSeq} done (${inc.done}/${inc.planned})`,
             );
           }
+          this.metrics.onConsumeEnd(
+            message.tenantId,
+            queue,
+            'ok',
+            (Date.now() - t0) / 1000,
+          );
         } catch (err) {
           const errMessage = (err as Error).message || String(err);
           this.logger.error(
             `${this.logicalStep}#${batchSeq} failed for run ${message.pipelineRunId}: ${errMessage}`,
           );
+          this.metrics.onConsumeEnd(message.tenantId, queue, 'fail', 0);
           const outcome = await this.retry.republishOnFailure(message);
           await this.runs.fail(
             message.pipelineRunId,

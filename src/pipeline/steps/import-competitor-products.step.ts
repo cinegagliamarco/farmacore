@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { SharedProductRepository } from '../../database/repositories/shared-catalog/product.repository';
+import { PipelineMetricsRegistry } from '../../observability/pipeline-metrics.registry';
 import { DrogalScraper } from '../../scrapers/drogal/drogal.scraper';
 import { DrogasilScraper } from '../../scrapers/drogasil/drogasil.scraper';
 import { MichelassiScraper } from '../../scrapers/michelassi/michelassi.scraper';
@@ -38,10 +39,12 @@ export class ImportCompetitorProductsStep {
     private readonly venancio: VenancioScraper,
     private readonly indiana: IndianaScraper,
     private readonly images: CompetitorImageService,
+    private readonly metrics: PipelineMetricsRegistry,
   ) {}
 
   public async run(
     em: EntityManager,
+    tenantId: string,
     origin: CompetitorOrigin,
     eans: string[],
   ): Promise<void> {
@@ -51,6 +54,8 @@ export class ImportCompetitorProductsStep {
     await new SharedProductRepository(em).upsertScrapes(scrapes);
     await this.images.project(em, scrapes);
     const found = scrapes.filter((s) => s.found).length;
+    const errors = scrapes.filter((s) => s.error).length;
+    this.metrics.onScrapeBatch(tenantId, origin, eans.length, found, errors);
     this.logger.debug(
       `import-competitor-products[${origin}]: ${eans.length} scraped, ${found} found`,
     );

@@ -15,10 +15,14 @@ export class AdminPipelineService {
     userId: string,
   ): Promise<{ pipelineRunId: string }> {
     await this.tenants.findActive(tenantSlug);
-    const pipelineRunId = await this.publisher.publishStart(tenantSlug, {
-      reason: 'manual',
-      startedBy: userId,
-    });
+    const pipelineRunId = await this.publisher.publishStart(
+      tenantSlug,
+      {
+        reason: 'manual',
+        startedBy: userId,
+      },
+      { producer: 'admin:pipeline-start' },
+    );
     return { pipelineRunId };
   }
 
@@ -31,6 +35,7 @@ export class AdminPipelineService {
     const pipelineRunId = await this.publisher.publishSingleStep(
       tenantSlug,
       step,
+      { producer: 'admin:trigger-step' },
     );
     return { pipelineRunId, step };
   }

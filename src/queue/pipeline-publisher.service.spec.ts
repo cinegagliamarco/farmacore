@@ -1,5 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
+import { noopPipelineMetrics } from '../observability/pipeline-metrics.test-utils';
+import { PipelineMetricsRegistry } from '../observability/pipeline-metrics.registry';
 import { PipelinePublisher } from './pipeline-publisher.service';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 
@@ -13,6 +15,7 @@ describe('PipelinePublisher', () => {
       providers: [
         PipelinePublisher,
         { provide: AmqpConnection, useValue: amqp },
+        { provide: PipelineMetricsRegistry, useValue: noopPipelineMetrics() },
       ],
     }).compile();
     svc = mod.get(PipelinePublisher);

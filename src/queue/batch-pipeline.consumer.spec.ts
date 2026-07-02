@@ -10,6 +10,8 @@ import { IntegrationDataSourceFactory } from '../integration/integration-data-so
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 import { PipelinePublisher } from './pipeline-publisher.service';
 import { PipelineMessage } from './types';
+import { noopPipelineMetrics } from '../observability/pipeline-metrics.test-utils';
+import { PipelineMetricsRegistry } from '../observability/pipeline-metrics.registry';
 
 class TestBatchConsumer extends BatchPipelineConsumer<{ ids: number[] }> {
   protected logicalStep = PipelineStep.SYNC_BASE_PRODUCT;
@@ -89,6 +91,7 @@ describe('BatchPipelineConsumer', () => {
         { provide: IntegrationDataSourceFactory, useValue: factory },
         { provide: PipelinePublisher, useValue: publisher },
         { provide: OutboxRepository, useValue: outbox },
+        { provide: PipelineMetricsRegistry, useValue: noopPipelineMetrics() },
       ],
     }).compile();
     consumer = mod.get(TestBatchConsumer);

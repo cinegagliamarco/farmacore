@@ -20,6 +20,10 @@ primary_region = "gru"
 # No [deploy] release_command — migrations only run from the API app to
 # avoid races. The worker comes up after the API release_command finishes.
 
+[metrics]
+  port = 9091
+  path = "/metrics"
+
 # No [[services]] block — workers don't accept HTTP.
 
 [[vm]]

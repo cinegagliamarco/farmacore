@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, IsNull, Repository } from 'typeorm';
-import { PipelineOutboxEntity, PipelineOutboxMessage } from '../database/entities/core/pipeline-outbox.entity';
+import {
+  PipelineOutboxEntity,
+  PipelineOutboxMessage,
+} from '../database/entities/core/pipeline-outbox.entity';
 import { PipelineMessage } from './types';
 
 interface PipelineOutboxRow {

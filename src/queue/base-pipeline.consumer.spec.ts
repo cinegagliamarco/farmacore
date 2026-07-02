@@ -8,6 +8,8 @@ import { TenantService } from '../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../integration/integration-data-source.factory';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 import { PipelinePublisher } from './pipeline-publisher.service';
+import { noopPipelineMetrics } from '../observability/pipeline-metrics.test-utils';
+import { PipelineMetricsRegistry } from '../observability/pipeline-metrics.registry';
 
 class TestConsumer extends BasePipelineConsumer<{ value: number }> {
   protected step = PipelineStep.SYNC_BASE_PRODUCT;
@@ -62,6 +64,7 @@ describe('BasePipelineConsumer', () => {
         { provide: TenantService, useValue: tenants },
         { provide: IntegrationDataSourceFactory, useValue: factory },
         { provide: PipelinePublisher, useValue: publisher },
+        { provide: PipelineMetricsRegistry, useValue: noopPipelineMetrics() },
       ],
     }).compile();
     consumer = mod.get(TestConsumer);
@@ -115,6 +118,8 @@ describe('BasePipelineConsumer', () => {
     (consumer as unknown as { handle: () => Promise<HandleResult> }).handle =
       () => Promise.resolve({ successors: [successor] });
     await consumer.process(msg);
-    expect(publisher.publishStep).toHaveBeenCalledWith(successor);
+    expect(publisher.publishStep).toHaveBeenCalledWith(successor, undefined, {
+      producer: 'consumer:successor',
+    });
   });
 });

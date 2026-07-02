@@ -2,6 +2,7 @@ import type { EntityManager } from 'typeorm';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { SharedProductRepository } from '../../database/repositories/shared-catalog/product.repository';
 import type { CompetitorImageService } from '../../storage/competitor-image.service';
+import type { PipelineMetricsRegistry } from '../../observability/pipeline-metrics.registry';
 import type { ProductScraper, ScrapedProduct } from '../../scrapers/types';
 import { ImportCompetitorProductsStep } from './import-competitor-products.step';
 
@@ -41,6 +42,9 @@ const build = () => {
     indiana: productScraper(CompetitorOrigin.INDIANA),
   };
   const images = { project: jest.fn() } as unknown as CompetitorImageService;
+  const metrics = {
+    onScrapeBatch: jest.fn(),
+  } as unknown as PipelineMetricsRegistry;
   const step = new ImportCompetitorProductsStep(
     scrapers.drogal,
     scrapers.drogasil,
@@ -52,6 +56,7 @@ const build = () => {
     scrapers.venancio,
     scrapers.indiana,
     images,
+    metrics,
   );
   return { step, scrapers, images, em: {} as EntityManager };
 };
@@ -61,7 +66,7 @@ beforeEach(() => jest.clearAllMocks());
 describe('ImportCompetitorProductsStep.run', () => {
   it('does nothing for an empty EAN slice', async () => {
     const { step, scrapers, em } = build();
-    await step.run(em, CompetitorOrigin.PACHECO, []);
+    await step.run(em, 'acme', CompetitorOrigin.PACHECO, []);
     expect(scrapers.pacheco.scrapeProducts).not.toHaveBeenCalled();
     expect(SharedProductRepository).not.toHaveBeenCalled();
   });
@@ -74,14 +79,14 @@ describe('ImportCompetitorProductsStep.run', () => {
     ['indiana', CompetitorOrigin.INDIANA],
   ] as const)('routes %s EANs to its scraper', async (key, origin) => {
     const { step, scrapers, em } = build();
-    await step.run(em, origin, ['789']);
+    await step.run(em, 'acme', origin, ['789']);
     expect(scrapers[key].scrapeProducts).toHaveBeenCalledWith(['789']);
     expect(SharedProductRepository).toHaveBeenCalledTimes(1);
   });
 
   it('persists scrapes and re-hosts images for every origin', async () => {
     const { step, images, em } = build();
-    await step.run(em, CompetitorOrigin.INDIANA, ['789']);
+    await step.run(em, 'acme', CompetitorOrigin.INDIANA, ['789']);
     expect(SharedProductRepository).toHaveBeenCalledTimes(1);
     expect(images.project).toHaveBeenCalledTimes(1);
   });

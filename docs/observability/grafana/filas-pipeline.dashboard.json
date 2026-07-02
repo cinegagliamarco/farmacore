@@ -1,0 +1,381 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "A — Resumo operacional",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "decimals": 0 }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "pipeline_next_daily_run_timestamp_seconds - time()", "refId": "A" }],
+      "title": "Próxima execução diária",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "time() - pipeline_daily_last_published_timestamp_seconds", "refId": "A" }],
+      "title": "Último pipeline.start",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "targets": [{ "expr": "sum(pipeline_queue_run_in_progress)", "refId": "A" }],
+      "title": "Filas com run ativo",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "targets": [{ "expr": "sum(pipeline_producer_active)", "refId": "A" }],
+      "title": "Producers ativos",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "targets": [{ "expr": "pipeline_outbox_pending", "refId": "A" }],
+      "title": "Outbox pendente",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "targets": [{ "expr": "sum(pipeline_queue_depth{queue=~\".+\\\\.dlq\"})", "refId": "A" }],
+      "title": "DLQ total",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "B — Saúde das filas",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 10,
+      "targets": [{ "expr": "pipeline_queue_depth{queue=~\"$queue\"}", "legendFormat": "{{queue}}", "refId": "A" }],
+      "title": "Profundidade",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 11,
+      "targets": [{ "expr": "pipeline_queue_oldest_age_seconds{queue=~\"$queue\"}", "legendFormat": "{{queue}}", "refId": "A" }],
+      "title": "Idade mensagem mais antiga",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "title": "C — Duração da última execução por fila",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Duração" },
+            "properties": [{ "id": "unit", "value": "dtdurations" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Terminou em" },
+            "properties": [{ "id": "unit", "value": "dateTimeAsIso" }]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 15 },
+      "id": 20,
+      "options": { "showHeader": true },
+      "targets": [
+        { "expr": "pipeline_queue_last_duration_seconds{tenant=~\"$tenant\",queue=~\"$queue\"}", "format": "table", "instant": true, "refId": "duration" },
+        { "expr": "pipeline_queue_last_finished_timestamp_seconds{tenant=~\"$tenant\",queue=~\"$queue\"}", "format": "table", "instant": true, "refId": "finished" },
+        { "expr": "pipeline_queue_run_in_progress{tenant=~\"$tenant\",queue=~\"$queue\"}", "format": "table", "instant": true, "refId": "running" },
+        { "expr": "pipeline_queue_batches_last_done{tenant=~\"$tenant\",queue=~\"$queue\"}", "format": "table", "instant": true, "refId": "done" },
+        { "expr": "pipeline_queue_batches_last_total{tenant=~\"$tenant\",queue=~\"$queue\"}", "format": "table", "instant": true, "refId": "total" }
+      ],
+      "title": "Última execução por fila",
+      "transformations": [
+        { "id": "seriesToColumns", "options": { "byField": "queue" } },
+        { "id": "organize", "options": { "renameByName": { "Value #duration": "Duração", "Value #finished": "Terminou em", "Value #running": "Em curso", "Value #done": "Batches done", "Value #total": "Batches total" } } }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 15 },
+      "id": 21,
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "topk_max(10, pipeline_queue_last_duration_seconds{tenant=~\"$tenant\"})", "legendFormat": "{{queue}}", "refId": "A" }],
+      "title": "Top 10 filas mais lentas",
+      "type": "bargauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+      "id": 103,
+      "title": "D — Producers",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "id": 30,
+      "targets": [{ "expr": "sum by (producer) (rate(pipeline_producer_messages_published_total[1m]))", "legendFormat": "{{producer}}", "refId": "A" }],
+      "title": "Taxa publish por producer",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "id": 31,
+      "targets": [{ "expr": "pipeline_producer_active{producer=~\"$producer\"} == 1", "format": "table", "instant": true, "refId": "A" }],
+      "title": "Producers ativos",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 104,
+      "title": "E — Throughput",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "id": 40,
+      "targets": [
+        { "expr": "pipeline_queue_publish_rate{queue=~\"$queue\"}", "legendFormat": "publish {{queue}}", "refId": "A" },
+        { "expr": "pipeline_queue_deliver_rate{queue=~\"$queue\"}", "legendFormat": "deliver {{queue}}", "refId": "B" }
+      ],
+      "title": "Publish vs Deliver rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 35 },
+      "id": 41,
+      "targets": [{ "expr": "pipeline_queue_depth{queue=~\"$queue\"} / pipeline_queue_deliver_rate{queue=~\"$queue\"}", "legendFormat": "{{queue}}", "refId": "A" }],
+      "title": "ETA esvaziar fila",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 35 },
+      "id": 42,
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, queue) (rate(pipeline_consumer_batch_duration_seconds_bucket[5m])))", "legendFormat": "{{queue}} p95", "refId": "A" }],
+      "title": "Consumer p95 batch",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 },
+      "id": 105,
+      "title": "F — Scrape concorrentes",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 44 },
+      "id": 50,
+      "targets": [{ "expr": "pipeline_scrape_last_eans{tenant=~\"$tenant\",origin=~\"$origin\"}", "format": "table", "instant": true, "refId": "A" }],
+      "title": "EANs procurados (última onda)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 44 },
+      "id": 51,
+      "targets": [{ "expr": "pipeline_scrape_last_found{tenant=~\"$tenant\",origin=~\"$origin\"}", "format": "table", "instant": true, "refId": "A" }],
+      "title": "EANs encontrados",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 44 },
+      "id": 52,
+      "targets": [{ "expr": "pipeline_scrape_wave_duration_seconds{tenant=~\"$tenant\",origin=~\"$origin\"}", "format": "table", "instant": true, "refId": "A" }],
+      "title": "Duração por origem",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 },
+      "id": 106,
+      "title": "G — Steps lógicos (Postgres)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 53 },
+      "id": 60,
+      "targets": [
+        { "expr": "pipeline_step_last_duration_seconds{tenant=~\"$tenant\"}", "format": "table", "instant": true, "refId": "dur" },
+        { "expr": "pipeline_step_last_batches_done{tenant=~\"$tenant\"}", "format": "table", "instant": true, "refId": "done" },
+        { "expr": "pipeline_step_last_batches_planned{tenant=~\"$tenant\"}", "format": "table", "instant": true, "refId": "planned" },
+        { "expr": "pipeline_step_running{tenant=~\"$tenant\"} == 1", "format": "table", "instant": true, "refId": "running" }
+      ],
+      "title": "Steps por tenant",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 53 },
+      "id": 61,
+      "targets": [
+        { "expr": "pipeline_outbox_max_attempts", "refId": "A" },
+        { "expr": "pipeline_outbox_oldest_pending_age_seconds", "refId": "B" }
+      ],
+      "title": "Outbox preso",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 63 },
+      "id": 107,
+      "title": "H — Consumer health",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 64 },
+      "id": 70,
+      "targets": [
+        { "expr": "sum by (queue) (rate(pipeline_consumer_messages_total{result=\"ok\"}[1m]))", "legendFormat": "{{queue}} ok", "refId": "A" },
+        { "expr": "sum by (queue) (rate(pipeline_consumer_messages_total{result=\"fail\"}[1m]))", "legendFormat": "{{queue}} fail", "refId": "B" }
+      ],
+      "title": "Msgs processadas / falhas por min",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 64 },
+      "id": 71,
+      "targets": [{ "expr": "sum by (queue) (rate(pipeline_consumer_messages_total{result=\"skip\"}[1m]))", "legendFormat": "{{queue}}", "refId": "A" }],
+      "title": "Skips (idempotência)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["farmacore", "pipeline", "queues"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(pipeline_queue_last_duration_seconds, tenant)",
+        "includeAll": true,
+        "multi": true,
+        "name": "tenant",
+        "query": { "query": "label_values(pipeline_queue_last_duration_seconds, tenant)", "refId": "A" },
+        "refresh": 2,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(pipeline_queue_depth, queue)",
+        "includeAll": true,
+        "multi": true,
+        "name": "queue",
+        "query": { "query": "label_values(pipeline_queue_depth, queue)", "refId": "A" },
+        "refresh": 2,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "multi": true,
+        "name": "origin",
+        "options": [
+          { "selected": true, "text": "All", "value": "$__all" },
+          { "selected": false, "text": "drogal", "value": "drogal" },
+          { "selected": false, "text": "drogasil", "value": "drogasil" },
+          { "selected": false, "text": "ikesaki", "value": "ikesaki" },
+          { "selected": false, "text": "michelassi", "value": "michelassi" },
+          { "selected": false, "text": "pague-menos", "value": "pague-menos" },
+          { "selected": false, "text": "pacheco", "value": "pacheco" },
+          { "selected": false, "text": "sao-paulo", "value": "sao-paulo" },
+          { "selected": false, "text": "venancio", "value": "venancio" },
+          { "selected": false, "text": "indiana", "value": "indiana" }
+        ],
+        "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(pipeline_producer_messages_published_total, producer)",
+        "includeAll": true,
+        "multi": true,
+        "name": "producer",
+        "query": { "query": "label_values(pipeline_producer_messages_published_total, producer)", "refId": "A" },
+        "refresh": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Farmacore · Filas & Pipeline",
+  "uid": "farmacore-filas-pipeline",
+  "version": 1
+}

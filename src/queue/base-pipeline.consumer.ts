@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { EntityManager, DataSource } from 'typeorm';
 import { PipelineRunService } from './pipeline-run.service';
@@ -8,6 +8,7 @@ import { TenantService } from '../tenant/tenant.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
 import { IntegrationDataSourceFactory } from '../integration/integration-data-source.factory';
 import { withPipelineSpan } from '../observability/pipeline-span.helper';
+import { PipelineMetricsRegistry } from '../observability/pipeline-metrics.registry';
 import { PipelineMessage } from './types';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 
@@ -26,6 +27,9 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
   protected abstract readonly step: PipelineStep;
   protected readonly logger = new Logger(this.constructor.name);
 
+  @Inject(PipelineMetricsRegistry)
+  protected readonly metrics!: PipelineMetricsRegistry;
+
   constructor(
     protected readonly runs: PipelineRunService,
     protected readonly retry: RetryService,
@@ -38,6 +42,7 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
   protected abstract handle(ctx: HandleContext): Promise<HandleResult>;
 
   public async process(message: PipelineMessage<TPayload>): Promise<void> {
+    const queue = message.queue ?? this.step;
     await withPipelineSpan(
       {
         tenantId: message.tenantId,
@@ -57,6 +62,7 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
             this.logger.debug(
               `Skipping ${this.step} for run ${message.pipelineRunId}: already completed`,
             );
+            this.metrics.onConsumeEnd(message.tenantId, queue, 'skip', 0);
             return;
           }
           if (outcome === 'in-progress') {
@@ -65,6 +71,9 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
             );
             return;
           }
+
+          this.metrics.onConsumeStart(message.tenantId, queue);
+          const t0 = Date.now();
 
           const tenant = await this.tenants.findActive(message.tenantId);
           const integrationDs = await this.integrationFactory.forTenantSlug(
@@ -83,13 +92,22 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
 
           const successors = message.standalone ? [] : result.successors;
           for (const successor of successors) {
-            await this.publisher.publishStep(successor);
+            await this.publisher.publishStep(successor, undefined, {
+              producer: 'consumer:successor',
+            });
           }
+          this.metrics.onConsumeEnd(
+            message.tenantId,
+            queue,
+            'ok',
+            (Date.now() - t0) / 1000,
+          );
         } catch (err) {
           const errMessage = (err as Error).message || String(err);
           this.logger.error(
             `${this.step} failed for run ${message.pipelineRunId}: ${errMessage}`,
           );
+          this.metrics.onConsumeEnd(message.tenantId, queue, 'fail', 0);
           const outcome = await this.retry.republishOnFailure(message);
           await this.runs.fail(
             message.pipelineRunId,
