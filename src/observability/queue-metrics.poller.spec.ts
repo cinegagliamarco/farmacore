@@ -34,8 +34,7 @@ describe('QueueMetricsPoller', () => {
     };
     const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
       ok: true,
-      json: () =>
-        Promise.resolve([{ name: 'sync-base-product', messages: 3 }]),
+      json: () => Promise.resolve([{ name: 'sync-base-product', messages: 3 }]),
     } as never);
     await poller.poll();
     expect(fetchSpy).toHaveBeenCalledWith('https://broker/api/queues', {

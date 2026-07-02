@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
-import { ProductScraper, ScrapedProduct, scrapeProductsSequential } from '../types';
+import {
+  ProductScraper,
+  ScrapedProduct,
+  scrapeProductsSequential,
+} from '../types';
 import {
   DrogasilCustomAttribute,
   DrogasilProductBySku,

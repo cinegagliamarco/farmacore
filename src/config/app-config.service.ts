@@ -66,7 +66,9 @@ export class AppConfigService {
     return Number(this.config.get('PIPELINE_IMPORT_VTEX_EAN_BATCH_SIZE') ?? 25);
   }
   get importNonVtexEanBatchSize(): number {
-    return Number(this.config.get('PIPELINE_IMPORT_NON_VTEX_EAN_BATCH_SIZE') ?? 1);
+    return Number(
+      this.config.get('PIPELINE_IMPORT_NON_VTEX_EAN_BATCH_SIZE') ?? 1,
+    );
   }
   get pipelineDispatchPublishCheckpoint(): number {
     return Number(
@@ -78,12 +80,16 @@ export class AppConfigService {
   }
   /** 0 = no confirm timeout (dispatch/outbox drain paths). */
   get pipelinePublishTimeoutMs(): number {
-    const raw = this.config.get('PIPELINE_PUBLISH_TIMEOUT_MS');
+    const raw = this.config.get<string | undefined>(
+      'PIPELINE_PUBLISH_TIMEOUT_MS',
+    );
     if (raw === undefined || raw === '') return 0;
     return Number(raw);
   }
   get outboxPublisherBatchSize(): number {
-    return Number(this.config.get('PIPELINE_OUTBOX_PUBLISHER_BATCH_SIZE') ?? 500);
+    return Number(
+      this.config.get('PIPELINE_OUTBOX_PUBLISHER_BATCH_SIZE') ?? 500,
+    );
   }
 
   get amqpMgmt(): { apiUrl?: string; user?: string; pass?: string } {
