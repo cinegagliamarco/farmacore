@@ -1,4 +1,5 @@
 import { consumeForPattern, detectPbm, mapProduct } from './drogasil.scraper';
+import type { DrogasilProductBySku } from './types';
 
 const SKU_PATTERN = /<article[^>]*data-item-id="([^"]+)"[^>]*>/;
 
@@ -43,6 +44,14 @@ describe('detectPbm', () => {
       isPbm: false,
       pbmPrice: 0,
     });
+  });
+
+  it('accepts pbm as a single object (not array)', () => {
+    expect(
+      detectPbm({
+        pbm: { products: [{ valueSalePbm: 4.2 }] },
+      } as unknown as DrogasilProductBySku),
+    ).toEqual({ isPbm: true, pbmPrice: 4.2 });
   });
 });
 
@@ -122,6 +131,15 @@ describe('mapProduct', () => {
     expect(out.name).toBe('Aspirina');
     expect(out.price).toBe('10');
     expect(out.weight).toBe('0.05');
+  });
+
+  it('accepts description value_string as plain string', () => {
+    const out = mapProduct('7891', {
+      custom_attributes: [
+        { attribute_code: 'description', value_string: '<p>Texto</p>' },
+      ],
+    });
+    expect(out.metadata?.description).toBe('Texto');
   });
 
   it('prefers price_aux.value_to over price', () => {

@@ -165,6 +165,70 @@ export class PipelineRunService {
     return 'started';
   }
 
+  public async completedBatchSeqs(
+    pipelineRunId: string,
+    step: PipelineStep | string,
+  ): Promise<Set<number>> {
+    const rows = await this.repo.find({
+      where: {
+        pipelineRunId,
+        step: step as PipelineStep,
+        status: PipelineRunStatus.COMPLETED,
+      },
+      select: { batchSeq: true },
+    });
+    return new Set(
+      rows.map((r) => r.batchSeq).filter((seq) => seq > DISPATCH_BATCH_SEQ),
+    );
+  }
+
+  public async lastPublishedBatchSeq(
+    pipelineRunId: string,
+    step: PipelineStep | string,
+  ): Promise<number> {
+    const row = await this.repo.findOne({
+      where: {
+        pipelineRunId,
+        step: step as PipelineStep,
+        batchSeq: DISPATCH_BATCH_SEQ,
+      },
+      select: { lastPublishedBatchSeq: true },
+    });
+    return row?.lastPublishedBatchSeq ?? 0;
+  }
+
+  public async updateLastPublishedBatchSeq(
+    pipelineRunId: string,
+    step: PipelineStep | string,
+    batchSeq: number,
+  ): Promise<void> {
+    await this.repo.update(
+      {
+        pipelineRunId,
+        step: step as PipelineStep,
+        batchSeq: DISPATCH_BATCH_SEQ,
+      },
+      { lastPublishedBatchSeq: batchSeq },
+    );
+  }
+
+  public async isBatchCompleted(
+    pipelineRunId: string,
+    step: PipelineStep | string,
+    batchSeq: number,
+  ): Promise<boolean> {
+    const row = await this.repo.findOne({
+      where: {
+        pipelineRunId,
+        step: step as PipelineStep,
+        batchSeq,
+        status: PipelineRunStatus.COMPLETED,
+      },
+      select: { id: true },
+    });
+    return row != null;
+  }
+
   /**
    * Atomic batch completion + fan-in increment in one SQL CTE.
    *

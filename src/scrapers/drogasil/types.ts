@@ -1,6 +1,6 @@
 export interface DrogasilCustomAttribute {
   attribute_code: string;
-  value_string?: string[];
+  value_string?: string[] | string;
   value?: Array<{ id?: string | number; label?: string }>;
 }
 

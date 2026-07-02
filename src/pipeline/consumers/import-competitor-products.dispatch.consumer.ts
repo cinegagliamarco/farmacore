@@ -19,6 +19,7 @@ import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
 import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
 import { PipelineJoinService } from '../pipeline-join.service';
+import { chunkSizeForOrigin } from '../import-batch-size';
 
 const DISPATCH_QUEUE = dispatchStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS);
 
@@ -31,8 +32,8 @@ export interface ImportCompetitorProductsBatchPayload {
  * Dispatcher for per-origin product scrape. Reads enabled origins
  * from tenant_competitor_origin (only origins the tenant has opted
  * into get scraped), reads the EAN universe from product, and
- * for each enabled origin × every PER_ORIGIN_BATCH_SIZE-EAN slice
- * publishes one batch message to that origin's queue.
+ * for each enabled origin × EAN slice publishes one batch message
+ * to that origin's queue.
  *
  * All per-origin batches share ONE dispatch row's fan-in counter.
  * Stock + image are scraped inline per product (see the step), so this
@@ -81,14 +82,16 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
       return { batches: [], emptySuccessors: await this.markStockB(ctx) };
     }
 
-    // One message per EAN per origin — prefetch on each per-origin queue
-    // is the rate limit (see STEP_PREFETCH). Mirrors legacy's per-origin
-    // parallelism without an in-process batch loop.
     const batches: PipelineMessage<ImportCompetitorProductsBatchPayload>[] = [];
     let seq = 1;
     for (const origin of enabledOrigins) {
+      const batchSize = chunkSizeForOrigin(
+        origin,
+        this.config.importVtexEanBatchSize,
+        this.config.importNonVtexEanBatchSize,
+      );
       const queue = originStep(PipelineStep.IMPORT_COMPETITOR_PRODUCTS, origin);
-      for (const ean of eans) {
+      for (let i = 0; i < eans.length; i += batchSize) {
         batches.push(
           newPipelineMessage<ImportCompetitorProductsBatchPayload>({
             pipelineRunId: ctx.message.pipelineRunId,
@@ -96,14 +99,14 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
             step: PipelineStep.IMPORT_COMPETITOR_PRODUCTS,
             queue,
             batchSeq: seq++,
-            payload: { origin, eans: [ean] },
+            payload: { origin, eans: eans.slice(i, i + batchSize) },
           }),
         );
       }
     }
 
     this.logger.log(
-      `import-competitor-products dispatch: ${batches.length} message(s) (1/EAN) across ${enabledOrigins.length} origins`,
+      `import-competitor-products dispatch: ${batches.length} message(s) (${eans.length} EANs × ${enabledOrigins.length} origins, vtexBatch=${this.config.importVtexEanBatchSize})`,
     );
     return { batches };
   }

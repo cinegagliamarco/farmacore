@@ -47,10 +47,7 @@ export class ImportCompetitorProductsStep {
   ): Promise<void> {
     if (eans.length === 0) return;
     const scraper = this.scraperFor(origin);
-    const scrapes: ScrapedProduct[] = [];
-    for (const ean of eans) {
-      scrapes.push(await scraper.scrapeProduct(ean));
-    }
+    const scrapes = await scraper.scrapeProducts(eans);
     await new SharedProductRepository(em).upsertScrapes(scrapes);
     await this.images.project(em, scrapes);
     const found = scrapes.filter((s) => s.found).length;

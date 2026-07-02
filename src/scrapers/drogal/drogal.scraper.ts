@@ -1,7 +1,7 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
-import { ProductScraper, ScrapedProduct } from '../types';
+import { ProductScraper, ScrapedProduct, scrapeProductsSequential } from '../types';
 import {
   DrogalCustomData,
   DrogalMeasures,
@@ -54,6 +54,10 @@ export class DrogalScraper implements ProductScraper {
       this.logger.error(`scrapeProduct ean=${ean} failed: ${message}`);
       return { ean, origin: this.origin, found: false, error: message };
     }
+  }
+
+  public scrapeProducts(eans: string[]): Promise<ScrapedProduct[]> {
+    return scrapeProductsSequential(this, eans);
   }
 
   private async fetchProductByEan(ean: string): Promise<DrogalProduct | null> {

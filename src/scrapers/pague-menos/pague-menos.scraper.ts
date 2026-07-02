@@ -2,25 +2,11 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { ProductScraper, ScrapedProduct } from '../types';
+import { scrapeVtexCatalogProducts } from '../vtex-catalog-search';
 import { PagueMenosProduct } from './types';
 
-const SEARCH_URL = (ean: string) =>
-  `https://www.paguemenos.com.br/api/catalog_system/pub/products/search?fq=alternateIds_Ean:${ean}`;
-
-const HEADERS = {
-  'User-Agent': 'Mozilla/5.0',
-  accept: '*/*',
-  'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-  'cache-control': 'no-cache',
-  'content-type': 'application/json',
-  'sec-ch-ua':
-    '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
-  'sec-ch-ua-mobile': '?0',
-  'sec-ch-ua-platform': '"macOS"',
-  'sec-fetch-dest': 'empty',
-} as const;
-
-const TIMEOUT_MS = 30_000;
+const CATALOG_SEARCH_BASE =
+  'https://www.paguemenos.com.br/api/catalog_system/pub/products/search';
 
 /**
  * Pague Menos scraper — VTEX catalog_system, single search-by-EAN call
@@ -33,20 +19,20 @@ export class PagueMenosScraper implements ProductScraper {
 
   constructor(private readonly http: HttpService) {}
 
-  public async scrapeProduct(ean: string): Promise<ScrapedProduct> {
-    try {
-      const { data } = await this.http.axiosRef.get<PagueMenosProduct[]>(
-        SEARCH_URL(ean),
-        { headers: HEADERS, timeout: TIMEOUT_MS },
-      );
-      const product = data?.length ? data[0] : null;
-      if (!product) return { ean, origin: this.origin, found: false };
-      return mapProduct(ean, product);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`scrapeProduct ean=${ean} failed: ${message}`);
-      return { ean, origin: this.origin, found: false, error: message };
-    }
+  public scrapeProduct(ean: string): Promise<ScrapedProduct> {
+    return this.scrapeProducts([ean]).then((rows) => rows[0]);
+  }
+
+  public scrapeProducts(eans: string[]): Promise<ScrapedProduct[]> {
+    return scrapeVtexCatalogProducts(
+      this.http,
+      CATALOG_SEARCH_BASE,
+      eans,
+      this.origin,
+      mapProduct,
+      this.logger,
+      'PagueMenosScraper',
+    );
   }
 }
 

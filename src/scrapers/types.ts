@@ -31,4 +31,16 @@ export interface ScrapedProduct {
 export interface ProductScraper {
   readonly origin: CompetitorOrigin;
   scrapeProduct(ean: string): Promise<ScrapedProduct>;
+  scrapeProducts(eans: string[]): Promise<ScrapedProduct[]>;
+}
+
+export async function scrapeProductsSequential(
+  scraper: ProductScraper,
+  eans: string[],
+): Promise<ScrapedProduct[]> {
+  const scrapes: ScrapedProduct[] = [];
+  for (const ean of eans) {
+    scrapes.push(await scraper.scrapeProduct(ean));
+  }
+  return scrapes;
 }
