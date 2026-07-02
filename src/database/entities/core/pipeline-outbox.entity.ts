@@ -1,5 +1,19 @@
 import { Column, Entity, Index } from 'typeorm';
+import { PipelineStep } from '../../enums/pipeline-step.enum';
 import { BaseEntity } from '../base.entity';
+
+/** Wire shape stored in pipeline_outbox.message (jsonb). */
+export interface PipelineOutboxMessage {
+  pipelineRunId: string;
+  tenantId: string;
+  step: PipelineStep;
+  queue?: string;
+  attempt: number;
+  publishedAt: string;
+  payload: object;
+  batchSeq?: number;
+  standalone?: boolean;
+}
 
 /**
  * Successor messages staged inside the consumer's tenant transaction.
@@ -23,7 +37,7 @@ export class PipelineOutboxEntity extends BaseEntity {
   public routingKey!: string;
 
   @Column({ type: 'jsonb' })
-  public message!: Record<string, unknown>;
+  public message!: PipelineOutboxMessage;
 
   @Column({ type: 'int', default: 0 })
   public attempts!: number;

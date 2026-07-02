@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, IsNull, Repository } from 'typeorm';
-import { PipelineOutboxEntity } from '../database/entities/core/pipeline-outbox.entity';
+import { PipelineOutboxEntity, PipelineOutboxMessage } from '../database/entities/core/pipeline-outbox.entity';
 import { PipelineMessage } from './types';
 
 interface PipelineOutboxRow {
@@ -9,7 +9,7 @@ interface PipelineOutboxRow {
   pipeline_run_id: string;
   tenant_id: string;
   routing_key: string;
-  message: Record<string, unknown>;
+  message: PipelineOutboxMessage;
   attempts: number;
   claimed_at: Date | null;
   published_at: Date | null;
@@ -67,7 +67,7 @@ export class OutboxRepository {
       pipelineRunId,
       tenantId,
       routingKey: `${m.tenantId}.${m.queue ?? m.step}`,
-      message: m as unknown as Record<string, unknown>,
+      message: m as PipelineOutboxMessage,
     }));
     await em.getRepository(PipelineOutboxEntity).insert(rows);
   }
@@ -83,7 +83,7 @@ export class OutboxRepository {
       pipelineRunId,
       tenantId,
       routingKey: `${m.tenantId}.${m.queue ?? m.step}`,
-      message: m as unknown as Record<string, unknown>,
+      message: m as PipelineOutboxMessage,
     }));
     await this.repo.insert(rows);
   }
