@@ -26,7 +26,7 @@ Auto-populated from OTel traces. Should show:
 | Success rate per step per tenant | from spans: `count(span_status='OK' && span_name=~'pipeline.*') / count(span_name=~'pipeline.*')` grouped by `tenant.id`, `pipeline.step` |
 | p50/p99 step duration | duration histograms from the auto-instrumentation, grouped by `pipeline.step` |
 | DLQ size per step | `sum by (queue) (pipeline_queue_depth{queue=~'.+\\.dlq'})` |
-| Outbox pending | direct Postgres query (no metric yet): `SELECT count(*) FROM core.pipeline_outbox WHERE published_at IS NULL` |
+| Outbox pending | `pipeline_outbox_pending` (Prometheus poller) |
 
 ## Alerts
 
@@ -59,13 +59,21 @@ from log entry to trace.
 | `messaging.system` | `amqplib` auto-instrumentation | `rabbitmq` |
 | `messaging.destination.name` | `amqplib` | queue name |
 
-## Queue metrics (`pipeline.queue.*`)
+## Queue metrics (`pipeline_*`)
 
-`QueueMetricsPoller` reads the RabbitMQ management API every 30s and
-emits two observable gauges per queue:
+Fly Grafana scrapes `:9091/metrics` from `farmacore-api` and
+`farmacore-worker` (see `[metrics]` in `fly.api.toml` / `fly.worker.toml`).
+`QueueMetricsPoller` reads the RabbitMQ management API every 30s; Postgres
+pollers expose `pipeline_step_*` and `pipeline_outbox_*` via read-only
+queries. Consumer/publisher hooks populate wave duration, producers and scrape
+stats in-memory.
 
-- `pipeline.queue.depth` (number of messages, label `queue`)
-- `pipeline.queue.oldest_age_seconds` (label `queue`)
+Dashboard JSON: [`grafana/filas-pipeline.dashboard.json`](./grafana/filas-pipeline.dashboard.json).
+Full metric catalog: [`grafana-filas-pipeline.md`](./grafana-filas-pipeline.md).
+
+Legacy OTLP gauges (`pipeline.queue.depth`, `pipeline.queue.oldest_age_seconds`)
+remain when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; prefer `pipeline_queue_*` on
+Fly Grafana.
 
 Polling is a no-op when `AMQP_MGMT_URL` / `AMQP_MGMT_USER` /
 `AMQP_MGMT_PASS` (or legacy `CLOUDAMQP_API_*`) aren't all set, so dev/local doesn't need

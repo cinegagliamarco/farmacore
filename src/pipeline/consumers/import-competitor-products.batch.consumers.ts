@@ -91,6 +91,7 @@ abstract class CompetitorProductsBatchBase extends BatchPipelineConsumer<ImportC
   ): Promise<void> {
     return this.stepImpl.run(
       ctx.em,
+      ctx.message.tenantId,
       ctx.message.payload.origin,
       ctx.message.payload.eans,
     );

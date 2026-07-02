@@ -14,6 +14,8 @@ import { PipelineStep } from '../database/enums/pipeline-step.enum';
 import { PipelinePublisher } from './pipeline-publisher.service';
 import { PipelineMessage } from './types';
 import { AppConfigService } from '../config/app-config.service';
+import { noopPipelineMetrics } from '../observability/pipeline-metrics.test-utils';
+import { PipelineMetricsRegistry } from '../observability/pipeline-metrics.registry';
 
 class TestDispatchConsumer extends DispatchPipelineConsumer<{ total: number }> {
   protected logicalStep = PipelineStep.SYNC_BASE_PRODUCT;
@@ -123,6 +125,7 @@ describe('DispatchPipelineConsumer', () => {
         { provide: PipelinePublisher, useValue: publisher },
         { provide: OutboxRepository, useValue: outbox },
         { provide: AppConfigService, useValue: config },
+        { provide: PipelineMetricsRegistry, useValue: noopPipelineMetrics() },
       ],
     }).compile();
     consumer = mod.get(TestDispatchConsumer);
@@ -156,10 +159,12 @@ describe('DispatchPipelineConsumer', () => {
     expect(publisher.publishStep).toHaveBeenCalledWith(
       expect.objectContaining({ batchSeq: 3 }),
       0,
+      { producer: 'dispatch:sync-base-product', count: 1 },
     );
     expect(publisher.publishStep).toHaveBeenCalledWith(
       expect.objectContaining({ batchSeq: 4 }),
       0,
+      { producer: 'dispatch:sync-base-product', count: 1 },
     );
   });
 

@@ -3,6 +3,7 @@ import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import type { Options } from 'amqplib';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AppConfigService } from '../config/app-config.service';
+import { PipelineMetricsRegistry } from '../observability/pipeline-metrics.registry';
 import { EXCHANGE_NAME } from './constants';
 import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService } from './pipeline-run.service';
@@ -30,6 +31,7 @@ export class OutboxPublisher {
     private readonly amqp: AmqpConnection,
     private readonly runs: PipelineRunService,
     private readonly config: AppConfigService,
+    private readonly metrics: PipelineMetricsRegistry,
   ) {}
 
   @Cron(CronExpression.EVERY_5_SECONDS)
@@ -58,6 +60,12 @@ export class OutboxPublisher {
           persistent: true,
           timeout: publishTimeoutMs,
         } as Options.Publish & { timeout: number });
+        const targetQueue = row.routingKey.split('.').slice(1).join('.');
+        this.metrics.onPublish(
+          'outbox',
+          row.tenantId,
+          targetQueue || row.routingKey,
+        );
         await this.outbox.markPublished(row.id);
       } catch (err) {
         this.logger.error(
@@ -65,6 +73,7 @@ export class OutboxPublisher {
         );
       }
     }
+    this.metrics.setOutboxDrainBatchSize(rows.length);
     this.logger.debug(`outbox tick: ${rows.length} messages drained`);
   }
 }

@@ -18,7 +18,7 @@ export class AdminPipelineService {
     const pipelineRunId = await this.publisher.publishStart(tenantSlug, {
       reason: 'manual',
       startedBy: userId,
-    });
+    }, { producer: 'admin:pipeline-start' });
     return { pipelineRunId };
   }
 
@@ -31,6 +31,7 @@ export class AdminPipelineService {
     const pipelineRunId = await this.publisher.publishSingleStep(
       tenantSlug,
       step,
+      { producer: 'admin:trigger-step' },
     );
     return { pipelineRunId, step };
   }

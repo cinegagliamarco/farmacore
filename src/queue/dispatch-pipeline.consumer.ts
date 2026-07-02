@@ -9,6 +9,7 @@ import { TenantService } from '../tenant/tenant.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
 import { IntegrationDataSourceFactory } from '../integration/integration-data-source.factory';
 import { withPipelineSpan } from '../observability/pipeline-span.helper';
+import { PipelineMetricsRegistry } from '../observability/pipeline-metrics.registry';
 import { PipelineMessage } from './types';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 import { TenantEntity } from '../database/entities/core/tenant.entity';
@@ -66,6 +67,9 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
   @Inject(AppConfigService)
   protected readonly config!: AppConfigService;
 
+  @Inject(PipelineMetricsRegistry)
+  protected readonly metrics!: PipelineMetricsRegistry;
+
   constructor(
     protected readonly runs: PipelineRunService,
     protected readonly retry: RetryService,
@@ -80,6 +84,7 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
   ): Promise<DispatchHandleResult>;
 
   public async process(message: PipelineMessage<TPayload>): Promise<void> {
+    const queue = `${this.logicalStep}.dispatch`;
     await withPipelineSpan(
       {
         tenantId: message.tenantId,
@@ -99,8 +104,12 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
             this.logger.debug(
               `Skipping ${this.logicalStep}.dispatch for run ${message.pipelineRunId}: already completed`,
             );
+            this.metrics.onConsumeEnd(message.tenantId, queue, 'skip', 0);
             return;
           }
+
+          this.metrics.onConsumeStart(message.tenantId, queue);
+          const t0 = Date.now();
 
           const tenant = await this.tenants.findActive(message.tenantId);
           const integrationDs = await this.integrationFactory.forTenantSlug(
@@ -149,7 +158,35 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
             this.logger.log(
               `${this.logicalStep}.dispatch: no batches; ${(result.emptySuccessors ?? []).length} empty-successor(s) staged to outbox`,
             );
+            this.metrics.onConsumeEnd(
+              message.tenantId,
+              queue,
+              'ok',
+              (Date.now() - t0) / 1000,
+            );
             return;
+          }
+
+          const countsPerQueue: Record<string, number> = {};
+          for (const b of result.batches) {
+            const q = b.queue ?? `${this.logicalStep}.batch`;
+            countsPerQueue[q] = (countsPerQueue[q] ?? 0) + 1;
+          }
+          this.metrics.onDispatchBatches(
+            message.tenantId,
+            this.logicalStep,
+            countsPerQueue,
+          );
+          if (this.logicalStep === PipelineStep.IMPORT_COMPETITOR_PRODUCTS) {
+            const eansPerOrigin: Record<string, number> = {};
+            for (const b of result.batches) {
+              const p = b.payload as { origin?: string; eans?: string[] };
+              if (p.origin && p.eans) {
+                eansPerOrigin[p.origin] =
+                  (eansPerOrigin[p.origin] ?? 0) + p.eans.length;
+              }
+            }
+            this.metrics.onScrapeDispatch(message.tenantId, eansPerOrigin);
           }
 
           await this.runs.recordDispatch(
@@ -165,11 +202,18 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
           this.logger.log(
             `${this.logicalStep}.dispatch: ${mode} ${published}/${result.batches.length} batches`,
           );
+          this.metrics.onConsumeEnd(
+            message.tenantId,
+            queue,
+            'ok',
+            (Date.now() - t0) / 1000,
+          );
         } catch (err) {
           const errMessage = (err as Error).message || String(err);
           this.logger.error(
             `${this.logicalStep}.dispatch failed for run ${message.pipelineRunId}: ${errMessage}`,
           );
+          this.metrics.onConsumeEnd(message.tenantId, queue, 'fail', 0);
           const outcome = await this.retry.republishOnFailure(message);
           await this.runs.fail(
             message.pipelineRunId,
@@ -238,6 +282,7 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
       await this.publisher.publishStep(
         { ...batch, standalone: message.standalone },
         publishTimeoutMs,
+        { producer: `dispatch:${this.logicalStep}`, count: 1 },
       );
       emitted++;
       if (checkpoint > 0 && seq % checkpoint === 0) {

@@ -26,6 +26,7 @@ export class PipelineStartConsumer {
     this.logger.log(
       `pipeline.start for tenant=${message.tenantId} run=${message.pipelineRunId}`,
     );
+    const producer = 'pipeline-start';
     await this.publisher.publishStep(
       newPipelineMessage({
         pipelineRunId: message.pipelineRunId,
@@ -34,6 +35,8 @@ export class PipelineStartConsumer {
         queue: dispatchStep(PipelineStep.SYNC_BASE_PRODUCT),
         payload: {},
       }),
+      undefined,
+      { producer },
     );
     await this.publisher.publishStep(
       newPipelineMessage({
@@ -42,6 +45,8 @@ export class PipelineStartConsumer {
         step: PipelineStep.SYNC_OFFER_BOOKS_INFO,
         payload: {},
       }),
+      undefined,
+      { producer },
     );
   }
 }
