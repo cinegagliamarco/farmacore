@@ -2,8 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
 import { PipelineMetricsRegistry } from './pipeline-metrics.registry';
+import { queryRows } from './sql-query.util';
 
-interface PipelineRunRow {
+type PipelineRunRow = {
   tenant_id: string;
   step: string;
   status: string;
@@ -12,7 +13,7 @@ interface PipelineRunRow {
   started_ts: string | null;
   finished_ts: string | null;
   duration_seconds: string | null;
-}
+};
 
 const PIPELINE_RUN_QUERY = `
 SELECT DISTINCT ON (tenant_id, step)
@@ -46,7 +47,7 @@ export class PipelineRunMetricsPoller {
   @Interval(60_000)
   public async poll(): Promise<void> {
     try {
-      const rows = (await this.ds.query(PIPELINE_RUN_QUERY)) as PipelineRunRow[];
+      const rows = await queryRows<PipelineRunRow>(this.ds, PIPELINE_RUN_QUERY);
       this.metrics.updatePipelineRuns(
         rows.map((r) => ({
           tenant_id: r.tenant_id,

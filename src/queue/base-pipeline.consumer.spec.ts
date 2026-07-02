@@ -118,10 +118,8 @@ describe('BasePipelineConsumer', () => {
     (consumer as unknown as { handle: () => Promise<HandleResult> }).handle =
       () => Promise.resolve({ successors: [successor] });
     await consumer.process(msg);
-    expect(publisher.publishStep).toHaveBeenCalledWith(
-      successor,
-      undefined,
-      { producer: 'consumer:successor' },
-    );
+    expect(publisher.publishStep).toHaveBeenCalledWith(successor, undefined, {
+      producer: 'consumer:successor',
+    });
   });
 });

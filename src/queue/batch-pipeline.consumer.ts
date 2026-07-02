@@ -189,12 +189,7 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
           this.logger.error(
             `${this.logicalStep}#${batchSeq} failed for run ${message.pipelineRunId}: ${errMessage}`,
           );
-          this.metrics.onConsumeEnd(
-            message.tenantId,
-            queue,
-            'fail',
-            0,
-          );
+          this.metrics.onConsumeEnd(message.tenantId, queue, 'fail', 0);
           const outcome = await this.retry.republishOnFailure(message);
           await this.runs.fail(
             message.pipelineRunId,

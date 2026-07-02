@@ -2,12 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
 import { PipelineMetricsRegistry } from './pipeline-metrics.registry';
+import { queryRows } from './sql-query.util';
 
-interface OutboxMetricsRow {
+type OutboxMetricsRow = {
   pending: string;
   max_attempts: string;
   oldest_pending_age_seconds: string;
-}
+};
 
 const OUTBOX_QUERY = `
 SELECT
@@ -33,7 +34,8 @@ export class OutboxMetricsPoller {
   @Interval(30_000)
   public async poll(): Promise<void> {
     try {
-      const [row] = (await this.ds.query(OUTBOX_QUERY)) as OutboxMetricsRow[];
+      const rows = await queryRows<OutboxMetricsRow>(this.ds, OUTBOX_QUERY);
+      const row = rows[0];
       if (!row) return;
       this.metrics.updateOutboxMetrics({
         pending: Number(row.pending),
@@ -41,9 +43,7 @@ export class OutboxMetricsPoller {
         oldest_pending_age_seconds: Number(row.oldest_pending_age_seconds),
       });
     } catch (err) {
-      this.logger.warn(
-        `Outbox metrics poll failed: ${(err as Error).message}`,
-      );
+      this.logger.warn(`Outbox metrics poll failed: ${(err as Error).message}`);
     }
   }
 }

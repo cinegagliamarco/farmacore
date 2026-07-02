@@ -35,14 +35,9 @@ export class PipelinePublisher {
       payload,
     });
     const targetQueue = `${tenantSlug}.pipeline.start`;
-    await this.amqp.publish(
-      EXCHANGE_NAME,
-      targetQueue,
-      message,
-      {
-        persistent: true,
-      },
-    );
+    await this.amqp.publish(EXCHANGE_NAME, targetQueue, message, {
+      persistent: true,
+    });
     this.metrics.onPublish(
       meta?.producer ?? 'unknown',
       tenantSlug,

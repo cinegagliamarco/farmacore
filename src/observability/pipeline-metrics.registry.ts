@@ -367,13 +367,9 @@ export class PipelineMetricsRegistry implements OnModuleInit {
     const key = `${tenant}:${queue}`;
     const now = Date.now();
     const existing = this.queueWaves.get(key);
-    const gapSec = existing
-      ? (now - existing.lastActivityMs) / 1000
-      : Infinity;
+    const gapSec = existing ? (now - existing.lastActivityMs) / 1000 : Infinity;
     const startNew =
-      !existing ||
-      existing.status !== 'running' ||
-      gapSec > IDLE_GAP_SECONDS;
+      !existing || existing.status !== 'running' || gapSec > IDLE_GAP_SECONDS;
 
     if (startNew) {
       this.queueWaves.set(key, {
@@ -511,10 +507,7 @@ export class PipelineMetricsRegistry implements OnModuleInit {
         this.queueOldestAge.set({ queue: q.name }, 0);
       }
       this.queueConsumers.set({ queue: q.name }, q.consumers ?? 0);
-      this.queueUnacked.set(
-        { queue: q.name },
-        q.messages_unacknowledged ?? 0,
-      );
+      this.queueUnacked.set({ queue: q.name }, q.messages_unacknowledged ?? 0);
       const stats = q.message_stats;
       this.queuePublishRate.set(
         { queue: q.name },
@@ -603,13 +596,13 @@ export class PipelineMetricsRegistry implements OnModuleInit {
     }
 
     for (const wave of this.queueWaves.values()) {
-      if (wave.status === 'completed' && wave.queue.includes('import-competitor-products.')) {
+      if (
+        wave.status === 'completed' &&
+        wave.queue.includes('import-competitor-products.')
+      ) {
         const origin = wave.queue.split('.').pop()!;
         const duration = (wave.lastActivityMs - wave.startedAtMs) / 1000;
-        this.scrapeWaveDuration.set(
-          { tenant: wave.tenant, origin },
-          duration,
-        );
+        this.scrapeWaveDuration.set({ tenant: wave.tenant, origin }, duration);
       }
     }
   }
@@ -657,18 +650,11 @@ export class PipelineMetricsRegistry implements OnModuleInit {
 
     if (wave.queue.includes('import-competitor-products.')) {
       const origin = wave.queue.split('.').pop()!;
-      this.scrapeWaveDuration.set(
-        { tenant: wave.tenant, origin },
-        durationSec,
-      );
+      this.scrapeWaveDuration.set({ tenant: wave.tenant, origin }, durationSec);
     }
   }
 
-  private setQueueStatus(
-    tenant: string,
-    queue: string,
-    status: string,
-  ): void {
+  private setQueueStatus(tenant: string, queue: string, status: string): void {
     for (const s of QUEUE_STATUSES) {
       this.queueLastStatus.set(
         { tenant, queue, status: s },
