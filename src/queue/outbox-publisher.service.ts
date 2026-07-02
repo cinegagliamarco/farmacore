@@ -6,7 +6,6 @@ import { AppConfigService } from '../config/app-config.service';
 import { EXCHANGE_NAME } from './constants';
 import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService } from './pipeline-run.service';
-import { PipelineMessage } from './types';
 
 /**
  * Drains the pipeline_outbox table on a tick. Claims rows via the
@@ -42,7 +41,7 @@ export class OutboxPublisher {
     const publishTimeoutMs = this.config.pipelinePublishTimeoutMs;
     for (const row of rows) {
       try {
-        const msg = row.message as unknown as PipelineMessage;
+        const msg = row.message;
         if (
           msg.batchSeq != null &&
           msg.batchSeq > 0 &&
