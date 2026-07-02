@@ -12,6 +12,9 @@ import { withPipelineSpan } from '../observability/pipeline-span.helper';
 import { PipelineMessage } from './types';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
 import { TenantEntity } from '../database/entities/core/tenant.entity';
+import { AppConfigService } from '../config/app-config.service';
+
+const OUTBOX_INSERT_CHUNK = 1000;
 
 export interface DispatchHandleResult {
   /**
@@ -59,6 +62,9 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
   // OutboxRepository through their super() calls.
   @Inject(OutboxRepository)
   protected readonly outbox!: OutboxRepository;
+
+  @Inject(AppConfigService)
+  protected readonly config!: AppConfigService;
 
   constructor(
     protected readonly runs: PipelineRunService,
@@ -151,15 +157,13 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
             this.logicalStep,
             result.batches.length,
           );
-          for (const batch of result.batches) {
-            await this.publisher.publishStep({
-              ...batch,
-              standalone: message.standalone,
-            });
-          }
+          const published = await this.emitBatches(message, result.batches);
           await this.runs.complete(message.pipelineRunId, this.logicalStep);
+          const mode = this.config.pipelineDispatchOutboxPublish
+            ? 'outbox-staged'
+            : 'published';
           this.logger.log(
-            `${this.logicalStep}.dispatch: published ${result.batches.length} batches`,
+            `${this.logicalStep}.dispatch: ${mode} ${published}/${result.batches.length} batches`,
           );
         } catch (err) {
           const errMessage = (err as Error).message || String(err);
@@ -181,5 +185,77 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
         }
       },
     );
+  }
+
+  /**
+   * Publishes or outbox-stages batch messages, skipping batches already
+   * completed (fan-in) or already published/staged (checkpoint).
+   */
+  private async emitBatches(
+    message: PipelineMessage<TPayload>,
+    batches: PipelineMessage<unknown>[],
+  ): Promise<number> {
+    const [done, from] = await Promise.all([
+      this.runs.completedBatchSeqs(message.pipelineRunId, this.logicalStep),
+      this.runs.lastPublishedBatchSeq(message.pipelineRunId, this.logicalStep),
+    ]);
+    const pending = batches.filter((b) => {
+      const seq = b.batchSeq ?? 0;
+      return seq > from && !done.has(seq);
+    });
+    if (pending.length === 0) return 0;
+
+    const checkpoint = this.config.pipelineDispatchPublishCheckpoint;
+    const publishTimeoutMs = this.config.pipelinePublishTimeoutMs;
+
+    if (this.config.pipelineDispatchOutboxPublish) {
+      let emitted = 0;
+      for (let i = 0; i < pending.length; i += OUTBOX_INSERT_CHUNK) {
+        const slice = pending.slice(i, i + OUTBOX_INSERT_CHUNK);
+        const msgs = slice.map((b) => ({
+          ...b,
+          standalone: message.standalone,
+        }));
+        await this.outbox.insertBatchMessages(
+          message.pipelineRunId,
+          message.tenantId,
+          msgs,
+        );
+        emitted += slice.length;
+        const maxSeq = Math.max(...slice.map((b) => b.batchSeq ?? 0));
+        await this.runs.updateLastPublishedBatchSeq(
+          message.pipelineRunId,
+          this.logicalStep,
+          maxSeq,
+        );
+      }
+      return emitted;
+    }
+
+    let emitted = 0;
+    for (const batch of pending) {
+      const seq = batch.batchSeq ?? 0;
+      await this.publisher.publishStep(
+        { ...batch, standalone: message.standalone },
+        publishTimeoutMs,
+      );
+      emitted++;
+      if (checkpoint > 0 && seq % checkpoint === 0) {
+        await this.runs.updateLastPublishedBatchSeq(
+          message.pipelineRunId,
+          this.logicalStep,
+          seq,
+        );
+      }
+    }
+    const lastSeq = pending[pending.length - 1].batchSeq ?? 0;
+    if (lastSeq > from) {
+      await this.runs.updateLastPublishedBatchSeq(
+        message.pipelineRunId,
+        this.logicalStep,
+        lastSeq,
+      );
+    }
+    return emitted;
   }
 }

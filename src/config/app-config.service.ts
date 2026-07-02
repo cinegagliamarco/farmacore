@@ -62,6 +62,30 @@ export class AppConfigService {
   get otelHeaders(): string | undefined {
     return this.config.get('OTEL_EXPORTER_OTLP_HEADERS');
   }
+  get importVtexEanBatchSize(): number {
+    return Number(this.config.get('PIPELINE_IMPORT_VTEX_EAN_BATCH_SIZE') ?? 25);
+  }
+  get importNonVtexEanBatchSize(): number {
+    return Number(this.config.get('PIPELINE_IMPORT_NON_VTEX_EAN_BATCH_SIZE') ?? 1);
+  }
+  get pipelineDispatchPublishCheckpoint(): number {
+    return Number(
+      this.config.get('PIPELINE_DISPATCH_PUBLISH_CHECKPOINT') ?? 1000,
+    );
+  }
+  get pipelineDispatchOutboxPublish(): boolean {
+    return this.config.get('PIPELINE_DISPATCH_OUTBOX_PUBLISH') === '1';
+  }
+  /** 0 = no confirm timeout (dispatch/outbox drain paths). */
+  get pipelinePublishTimeoutMs(): number {
+    const raw = this.config.get('PIPELINE_PUBLISH_TIMEOUT_MS');
+    if (raw === undefined || raw === '') return 0;
+    return Number(raw);
+  }
+  get outboxPublisherBatchSize(): number {
+    return Number(this.config.get('PIPELINE_OUTBOX_PUBLISHER_BATCH_SIZE') ?? 500);
+  }
+
   get amqpMgmt(): { apiUrl?: string; user?: string; pass?: string } {
     return {
       apiUrl:

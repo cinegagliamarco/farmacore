@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
+import type { Options } from 'amqplib';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { AppConfigService } from '../config/app-config.service';
 import { EXCHANGE_NAME } from './constants';
 import { OutboxRepository } from './outbox.repository';
-
-const BATCH_SIZE = 100;
+import { PipelineRunService } from './pipeline-run.service';
+import { PipelineMessage } from './types';
 
 /**
  * Drains the pipeline_outbox table on a tick. Claims rows via the
@@ -27,23 +29,41 @@ export class OutboxPublisher {
   constructor(
     private readonly outbox: OutboxRepository,
     private readonly amqp: AmqpConnection,
+    private readonly runs: PipelineRunService,
+    private readonly config: AppConfigService,
   ) {}
 
   @Cron(CronExpression.EVERY_5_SECONDS)
   public async tick(): Promise<void> {
-    const rows = await this.outbox.claimPending(BATCH_SIZE);
+    const rows = await this.outbox.claimPending(
+      this.config.outboxPublisherBatchSize,
+    );
     if (rows.length === 0) return;
+    const publishTimeoutMs = this.config.pipelinePublishTimeoutMs;
     for (const row of rows) {
       try {
+        const msg = row.message as unknown as PipelineMessage;
+        if (
+          msg.batchSeq != null &&
+          msg.batchSeq > 0 &&
+          (await this.runs.isBatchCompleted(
+            row.pipelineRunId,
+            msg.step,
+            msg.batchSeq,
+          ))
+        ) {
+          await this.outbox.markPublished(row.id);
+          continue;
+        }
         await this.amqp.publish(EXCHANGE_NAME, row.routingKey, row.message, {
           persistent: true,
-        });
+          timeout: publishTimeoutMs,
+        } as Options.Publish & { timeout: number });
         await this.outbox.markPublished(row.id);
       } catch (err) {
         this.logger.error(
           `outbox publish failed for id=${row.id} (attempt ${row.attempts}): ${err instanceof Error ? err.message : err}`,
         );
-        // Leave published_at NULL; next tick reclaims and retries.
       }
     }
     this.logger.debug(`outbox tick: ${rows.length} messages drained`);

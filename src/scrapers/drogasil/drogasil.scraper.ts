@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
-import { ProductScraper, ScrapedProduct } from '../types';
+import { ProductScraper, ScrapedProduct, scrapeProductsSequential } from '../types';
 import {
   DrogasilCustomAttribute,
   DrogasilProductBySku,
@@ -72,6 +72,10 @@ export class DrogasilScraper implements ProductScraper {
       this.logger.error(`scrapeProduct ean=${ean} failed: ${message}`);
       return { ean, origin: this.origin, found: false, error: message };
     }
+  }
+
+  public scrapeProducts(eans: string[]): Promise<ScrapedProduct[]> {
+    return scrapeProductsSequential(this, eans);
   }
 
   /**
@@ -191,8 +195,9 @@ export function detectPbm(p: DrogasilProductBySku): {
   if (livePrice?.type === 'PBM') {
     return { isPbm: true, pbmPrice: livePrice.valueTo ?? 0 };
   }
-  for (const pbm of p.pbm ?? []) {
-    for (const item of pbm.products ?? []) {
+  for (const block of Array.isArray(p.pbm) ? p.pbm : p.pbm ? [p.pbm] : []) {
+    const products = block.products;
+    for (const item of Array.isArray(products) ? products : []) {
       if ((item.percentDiscountPbm ?? 0) > 0 || (item.valueSalePbm ?? 0) > 0) {
         return { isPbm: true, pbmPrice: item.valueSalePbm ?? 0 };
       }
@@ -211,8 +216,9 @@ function attrFor(
 function joinValueStrings(
   attr: DrogasilCustomAttribute | undefined,
 ): string | undefined {
-  if (!attr?.value_string?.length) return undefined;
-  const joined = attr.value_string.join(' ').trim();
+  const vs = attr?.value_string;
+  if (vs == null) return undefined;
+  const joined = (Array.isArray(vs) ? vs.join(' ') : String(vs)).trim();
   return joined || undefined;
 }
 

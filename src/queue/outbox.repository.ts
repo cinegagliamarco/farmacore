@@ -72,6 +72,22 @@ export class OutboxRepository {
     await em.getRepository(PipelineOutboxEntity).insert(rows as any);
   }
 
+  /** Stage batch messages from dispatch (core schema, no tenant tx). */
+  public async insertBatchMessages(
+    pipelineRunId: string,
+    tenantId: string,
+    messages: PipelineMessage<unknown>[],
+  ): Promise<void> {
+    if (messages.length === 0) return;
+    const rows = messages.map((m) => ({
+      pipelineRunId,
+      tenantId,
+      routingKey: `${m.tenantId}.${m.queue ?? m.step}`,
+      message: m,
+    }));
+    await this.repo.insert(rows as any);
+  }
+
   /**
    * Claim a batch of unpublished rows with a lease.
    *

@@ -7,13 +7,23 @@ import { ImportCompetitorProductsStep } from './import-competitor-products.step'
 
 jest.mock('../../database/repositories/shared-catalog/product.repository');
 
-type ProductMock = ProductScraper & { scrapeProduct: jest.Mock };
+type ProductMock = ProductScraper & {
+  scrapeProduct: jest.Mock;
+  scrapeProducts: jest.Mock;
+};
 
 const productScraper = (origin: CompetitorOrigin): ProductMock => ({
   origin,
   scrapeProduct: jest.fn(
     (ean: string): Promise<ScrapedProduct> =>
       Promise.resolve({ ean, origin, found: true, sku: 'SKU-1' }),
+  ),
+  scrapeProducts: jest.fn((eans: string[]): Promise<ScrapedProduct[]> =>
+    Promise.all(
+      eans.map((ean) =>
+        Promise.resolve({ ean, origin, found: true, sku: 'SKU-1' }),
+      ),
+    ),
   ),
 });
 
@@ -51,7 +61,7 @@ describe('ImportCompetitorProductsStep.run', () => {
   it('does nothing for an empty EAN slice', async () => {
     const { step, scrapers, em } = build();
     await step.run(em, CompetitorOrigin.PACHECO, []);
-    expect(scrapers.pacheco.scrapeProduct).not.toHaveBeenCalled();
+    expect(scrapers.pacheco.scrapeProducts).not.toHaveBeenCalled();
     expect(SharedProductRepository).not.toHaveBeenCalled();
   });
 
@@ -64,7 +74,7 @@ describe('ImportCompetitorProductsStep.run', () => {
   ] as const)('routes %s EANs to its scraper', async (key, origin) => {
     const { step, scrapers, em } = build();
     await step.run(em, origin, ['789']);
-    expect(scrapers[key].scrapeProduct).toHaveBeenCalledWith('789');
+    expect(scrapers[key].scrapeProducts).toHaveBeenCalledWith(['789']);
     expect(SharedProductRepository).toHaveBeenCalledTimes(1);
   });
 
