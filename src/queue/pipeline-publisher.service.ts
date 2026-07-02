@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
-import type { Options } from 'amqplib';
 import { randomUUID } from 'node:crypto';
 import { EXCHANGE_NAME, STEP_QUEUES, dispatchStep } from './constants';
 import {
@@ -74,7 +73,7 @@ export class PipelinePublisher {
       {
         persistent: true,
         ...(timeoutMs !== undefined ? { timeout: timeoutMs } : {}),
-      } as Options.Publish & { timeout?: number },
+      },
     );
   }
 }

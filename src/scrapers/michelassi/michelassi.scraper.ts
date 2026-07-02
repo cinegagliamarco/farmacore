@@ -2,7 +2,11 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { AxiosError } from 'axios';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
-import { ProductScraper, ScrapedProduct, scrapeProductsSequential } from '../types';
+import {
+  ProductScraper,
+  ScrapedProduct,
+  scrapeProductsSequential,
+} from '../types';
 import { MichelassiProduct, MichelassiSearchResponse } from './types';
 
 const SEARCH_URL = (ean: string) =>

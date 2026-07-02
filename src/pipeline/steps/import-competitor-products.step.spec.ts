@@ -18,12 +18,13 @@ const productScraper = (origin: CompetitorOrigin): ProductMock => ({
     (ean: string): Promise<ScrapedProduct> =>
       Promise.resolve({ ean, origin, found: true, sku: 'SKU-1' }),
   ),
-  scrapeProducts: jest.fn((eans: string[]): Promise<ScrapedProduct[]> =>
-    Promise.all(
-      eans.map((ean) =>
-        Promise.resolve({ ean, origin, found: true, sku: 'SKU-1' }),
+  scrapeProducts: jest.fn(
+    (eans: string[]): Promise<ScrapedProduct[]> =>
+      Promise.all(
+        eans.map((ean) =>
+          Promise.resolve({ ean, origin, found: true, sku: 'SKU-1' }),
+        ),
       ),
-    ),
   ),
 });
 

@@ -3,9 +3,7 @@ import { chunkSizeForOrigin } from './import-batch-size';
 
 describe('chunkSizeForOrigin', () => {
   it('uses VTEX batch size for VTEX simple origins', () => {
-    expect(
-      chunkSizeForOrigin(CompetitorOrigin.PAGUE_MENOS, 25, 1),
-    ).toBe(25);
+    expect(chunkSizeForOrigin(CompetitorOrigin.PAGUE_MENOS, 25, 1)).toBe(25);
     expect(chunkSizeForOrigin(CompetitorOrigin.INDIANA, 25, 1)).toBe(25);
   });
 

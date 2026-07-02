@@ -11,7 +11,7 @@ import { PachecoScraper } from '../../scrapers/pacheco/pacheco.scraper';
 import { SaoPauloScraper } from '../../scrapers/sao-paulo/sao-paulo.scraper';
 import { VenancioScraper } from '../../scrapers/venancio/venancio.scraper';
 import { IndianaScraper } from '../../scrapers/indiana/indiana.scraper';
-import { ProductScraper, ScrapedProduct } from '../../scrapers/types';
+import { ProductScraper } from '../../scrapers/types';
 import { CompetitorImageService } from '../../storage/competitor-image.service';
 
 /**

@@ -67,9 +67,9 @@ export class OutboxRepository {
       pipelineRunId,
       tenantId,
       routingKey: `${m.tenantId}.${m.queue ?? m.step}`,
-      message: m,
+      message: m as unknown as Record<string, unknown>,
     }));
-    await em.getRepository(PipelineOutboxEntity).insert(rows as any);
+    await em.getRepository(PipelineOutboxEntity).insert(rows);
   }
 
   /** Stage batch messages from dispatch (core schema, no tenant tx). */
@@ -83,9 +83,9 @@ export class OutboxRepository {
       pipelineRunId,
       tenantId,
       routingKey: `${m.tenantId}.${m.queue ?? m.step}`,
-      message: m,
+      message: m as unknown as Record<string, unknown>,
     }));
-    await this.repo.insert(rows as any);
+    await this.repo.insert(rows);
   }
 
   /**
