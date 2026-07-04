@@ -11,6 +11,14 @@
    "value": "http://localhost:3000"
   },
   {
+   "key": "storeId",
+   "value": ""
+  },
+  {
+   "key": "clusterId",
+   "value": ""
+  },
+  {
    "key": "tenantSlug",
    "value": "macfarma"
   },
@@ -1119,7 +1127,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"newPrice\": 29.9\n}"
+       "raw": "{\n  \"newPrice\": 29.9,\n  \"storeId\": \"{{storeId}}\"\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/products/{{ean}}/price",
@@ -1132,7 +1140,26 @@
         "price"
        ]
       },
-      "description": "Set sell price (operator/admin): pushes to A7Pharma (POST /webapi/api/preco/) then mirrors locally. 409 if monitored, no ERP external_id, or no A7Pharma API configured for the tenant."
+      "description": "Set sell price (operator/admin). With `storeId` (core.tenant_store id) it targets that store — resolved to its external_id and sent to A7Pharma as idUnidadeNegocioPreco — and mirrors into product_item. Without it, legacy global behavior (mirrors product.price). Pushes to A7Pharma POST /webapi/api/preco/. 409 if monitored, no ERP external_id, unknown store, or no A7Pharma API configured."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /products/stores",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/products/stores",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "products",
+        "stores"
+       ]
+      },
+      "description": "Store selector: distinct stores that have stock, labelled from core.tenant_store (falls back to the external id). Returns [{ storeExternalId, label }]."
      },
      "response": []
     },
@@ -1855,6 +1882,149 @@
        ]
       },
       "description": "Cancela um agendamento pendente. 409 se já disparado/cancelado."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "Tenant — Stores (admin)",
+   "item": [
+    {
+     "name": "GET /stores",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/stores",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "stores"
+       ]
+      },
+      "description": "List the tenant's stores (admin). Returns [{ id, externalId, name, cnpj, active, clusterId, clusterName }]. Stores are synced from the ERP with active=false; the admin opts them in."
+     },
+     "response": []
+    },
+    {
+     "name": "PUT /stores/:id",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"active\": true,\n  \"clusterId\": \"{{clusterId}}\"\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/stores/{{storeId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "stores",
+        "{{storeId}}"
+       ]
+      },
+      "description": "Update a store's active flag and/or cluster (admin). `clusterId: null` detaches; omit a field to leave it unchanged."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /store-clusters",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/store-clusters",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "store-clusters"
+       ]
+      },
+      "description": "List store clusters (admin). Returns [{ id, name, storeCount, createdAt, updatedAt }]."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /store-clusters",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Região Centro\"\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/store-clusters",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "store-clusters"
+       ]
+      },
+      "description": "Create a store cluster (admin)."
+     },
+     "response": []
+    },
+    {
+     "name": "PUT /store-clusters/:id",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Região Sul\"\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/store-clusters/{{clusterId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "store-clusters",
+        "{{clusterId}}"
+       ]
+      },
+      "description": "Rename a store cluster (admin)."
+     },
+     "response": []
+    },
+    {
+     "name": "DELETE /store-clusters/:id",
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/store-clusters/{{clusterId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "store-clusters",
+        "{{clusterId}}"
+       ]
+      },
+      "description": "Delete a store cluster (admin). Detaches its stores (cluster_id = null)."
      },
      "response": []
     }
