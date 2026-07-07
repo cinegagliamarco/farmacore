@@ -71,14 +71,31 @@ export class StoresService {
     if (dto.clusterId !== undefined) {
       sets.push(`cluster_id = $${params.push(dto.clusterId)}`);
     }
-    const res: Array<{ id: string }> = await em.query(
-      `UPDATE core.tenant_store
+    const res: Array<{ id: string; wasActive: boolean }> = await em.query(
+      `UPDATE core.tenant_store t
           SET ${sets.join(', ')}, updated_at = now()
-        WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-        RETURNING id`,
+         FROM core.tenant_store prev
+        WHERE prev.id = t.id
+          AND t.id = $1 AND t.tenant_id = $2 AND t.deleted_at IS NULL
+        RETURNING t.id, prev.active AS "wasActive"`,
       params,
     );
     if (!res.length) throw new NotFoundException(`store ${id} not found`);
+    // Re-activation invalidates the store's frozen product_item rows: the
+    // sync only maintains ACTIVE stores, so whatever is there predates the
+    // deactivation. Null price/cost — reads fall back to the live globals
+    // until the next sync repopulates the store. (product_item resolves via
+    // the tenant search_path of the request em.) Known bounded races: against
+    // a running nightly sync batch this full-store clear can deadlock (the
+    // loser retries; data converges either way), and it can null a manual
+    // price mirrored seconds earlier (ERP keeps it; next sync re-fills).
+    if (dto.active === true && !res[0].wasActive) {
+      await em.query(
+        `UPDATE product_item SET price = NULL, cost = NULL, updated_at = now()
+          WHERE store_id = $1`,
+        [id],
+      );
+    }
     const stores = await this.listStores(em, slug);
     return stores.find((s) => s.id === id)!;
   }
