@@ -260,22 +260,23 @@ TT=$(curl -sS -X POST http://localhost:3000/auth/login \
   | jq -r .accessToken)
 ```
 
-**Catalog reads** (any role). `crossed` is the headline — each tenant product crossed with `shared_catalog` competitor prices plus the stored margin/variation/status:
+**Catalog reads** (any role). `crossed` is the headline — each tenant product crossed with `shared_catalog` competitor prices plus margin/variation/status. The grids accept `?store=<storeExternalId>` to project that store's price/cost (from `product_item`) over the globals; `GET /products/stores` lists the selector options (`storeId`, `storeExternalId`, `label`, `active`):
 
 ```bash
 curl -sS "http://localhost:3000/products?page=1&perPage=50"   -H "Authorization: Bearer $TT" | jq
 curl -sS "http://localhost:3000/products/crossed?perPage=50"  -H "Authorization: Bearer $TT" | jq
+curl -sS "http://localhost:3000/products/stores"              -H "Authorization: Bearer $TT" | jq
 curl -sS "http://localhost:3000/products/strategic-price"     -H "Authorization: Bearer $TT" | jq
 curl -sS "http://localhost:3000/products/stock-metrics"       -H "Authorization: Bearer $TT" | jq
 curl -sS "http://localhost:3000/products/active-ingredients"  -H "Authorization: Bearer $TT" | jq
 curl -sS "http://localhost:3000/products/export"              -H "Authorization: Bearer $TT" -o catalog.csv
 ```
 
-**Mutations** (operator/admin). Price and offer write-back hit the tenant's A7Pharma REST API *first*, then mirror locally — so they return `409` unless the tenant has API creds configured (set them via `PUT /admin/tenants/:slug/integration` with `apiBaseUrl` + `apiKey`):
+**Mutations** (operator/admin). Price and offer write-back hit the tenant's A7Pharma REST API *first*, then mirror locally — `409` unless the tenant has API creds configured (set them via `PUT /admin/tenants/:slug/integration` with `apiBaseUrl` + `apiKey`), `502` when the ERP write fails. Price changes are per-store: `storeId` is the uuid from `GET /products/stores` (`409` if that store is inactive):
 
 ```bash
 curl -sS -X PATCH "http://localhost:3000/products/<ean>"       -H "Authorization: Bearer $TT" -H 'Content-Type: application/json' -d '{"supplier":"New supplier","monitored":false}'
-curl -sS -X POST  "http://localhost:3000/products/<ean>/price" -H "Authorization: Bearer $TT" -H 'Content-Type: application/json' -d '{"newPrice":19.90}'
+curl -sS -X POST  "http://localhost:3000/products/<ean>/price" -H "Authorization: Bearer $TT" -H 'Content-Type: application/json' -d '{"newPrice":19.90,"storeId":"<storeId>"}'
 curl -sS -X POST  "http://localhost:3000/products/<ean>/offer" -H "Authorization: Bearer $TT" -H 'Content-Type: application/json' -d '{"targetPrice":9.90,"cadernoId":123}'
 curl -sS -X DELETE "http://localhost:3000/products/<ean>/offer" -H "Authorization: Bearer $TT"
 ```
