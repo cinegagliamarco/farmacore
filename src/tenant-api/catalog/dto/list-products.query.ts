@@ -116,10 +116,12 @@ export class ListProductsQueryDto {
   @Transform(({ value }) => parseSortDirectionList(value))
   public sortDirection?: SortDirection[];
 
-  // Active-ingredient decision-by-store feature (see active-ingredients/crossed).
+  // Store external id. Required by the decision endpoints; optional on the
+  // grids (list/crossed/strategic-price/export), where it projects the
+  // store's product_item price/cost over the globals.
   @IsOptional()
   @IsString()
-  public store?: string; // store external id; required by the decision endpoints
+  public store?: string;
 
   @IsOptional()
   @Type(() => Number)

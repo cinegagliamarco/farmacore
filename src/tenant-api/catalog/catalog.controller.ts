@@ -23,6 +23,7 @@ import {
   IngredientGroup,
   Paginated,
   StockMetrics,
+  StoreOption,
 } from './catalog.service';
 import { CatalogMutationService } from './catalog-mutation.service';
 import { ListProductsQueryDto } from './dto/list-products.query';
@@ -47,9 +48,10 @@ export class CatalogController {
   @Get()
   public list(
     @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
     @Query() query: ListProductsQueryDto,
   ): Promise<Paginated<Record<string, unknown>>> {
-    return this.catalog.list(em, query);
+    return this.catalog.list(em, user.tenantId, query);
   }
 
   @Get('crossed')
@@ -76,7 +78,7 @@ export class CatalogController {
   public stores(
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
-  ): Promise<Array<{ storeExternalId: string; label: string }>> {
+  ): Promise<StoreOption[]> {
     return this.catalog.stores(em, user.tenantId);
   }
 

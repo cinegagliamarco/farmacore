@@ -26,6 +26,16 @@ export interface StockMetrics {
   ownWithStock: number;
 }
 
+/** One entry of the store selector (GET /products/stores). */
+export interface StoreOption {
+  /** core.tenant_store uuid — the storeId POST /products/:ean/price expects.
+   *  Null (with null `active`) when the tenant doesn't know the store. */
+  storeId: string | null;
+  storeExternalId: string;
+  label: string;
+  active: boolean | null;
+}
+
 const DEFAULT_PER_PAGE = 50;
 const MAX_PER_PAGE = 200;
 
@@ -119,6 +129,23 @@ const PRICE_OFFER_EXPR = `CASE
           ELSE NULL
         END`;
 
+/** Per-store price/cost: `product_item` overrides the product's global value
+ *  when the selected store has a row. Every grid query joins `pi` with
+ *  `store_id = $n::uuid` bound to the resolved store — null when no `?store=`
+ *  was given, so the join never matches and the global wins (one SQL shape,
+ *  no branching). Margin mirrors calc-base-product-metrics: the base is the
+ *  raw offer target when present, else the effective sell price. */
+const EFF_PRICE = `COALESCE(pi.price, p.price)`;
+const EFF_COST = `COALESCE(pi.cost, p.cost)`;
+const EFF_BASE = `COALESCE(NULLIF(ob.target_price, 0), ${EFF_PRICE})`;
+// ROUND(…, 4) keeps the wire format of the old stored p.margin (numeric(8,4)).
+const EFF_MARGIN = `CASE WHEN ${EFF_BASE} > 0
+          THEN ROUND(((${EFF_BASE} - COALESCE(${EFF_COST}, 0)) / ${EFF_BASE}) * 100, 4)
+          ELSE NULL END`;
+
+const productItemJoin = (param: number): string =>
+  `LEFT JOIN product_item pi ON pi.product_id = p.id AND pi.store_id = $${param}::uuid`;
+
 // sortBy → SQL expression. Keys must match SORTABLE_COLUMNS no DTO
 // (TypeScript garante via Record<SortableColumn, string>).
 const SORTABLE: Record<SortableColumn, string> = {
@@ -135,6 +162,21 @@ const SORTABLE: Record<SortableColumn, string> = {
   priceOffer: PRICE_OFFER_EXPR,
   receiptDate: 'p.receipt_date',
 };
+
+// Grid queries join pi + ob/toc, so price-ish sorts follow the per-store values.
+const SORTABLE_EFFECTIVE: Record<SortableColumn, string> = {
+  ...SORTABLE,
+  cost: EFF_COST,
+  price: EFF_PRICE,
+  margin: EFF_MARGIN,
+};
+
+// stock() joins neither offer_book nor tenant_offer_campaign; dropping the
+// offer-ish keys makes those sorts no-ops (buildMultiSortClause skips missing
+// keys) instead of a missing-alias 500.
+const SORTABLE_STOCK: Record<string, string> = { ...SORTABLE };
+delete SORTABLE_STOCK.book;
+delete SORTABLE_STOCK.priceOffer;
 
 interface Filters {
   where: string;
@@ -155,24 +197,29 @@ export class CatalogService {
   /** Plain tenant catalog list (no competitor cross). */
   public async list(
     em: EntityManager,
+    slug: string,
     q: ListProductsQueryDto,
   ): Promise<Paginated<Record<string, unknown>>> {
     const { page, perPage, offset } = this.paginate(q);
+    const storeUuid = await this.storeUuid(em, slug, q.store);
     const f = this.buildFilters(q);
-    const order = this.orderBy(q);
+    const order = this.orderBy(q, SORTABLE_EFFECTIVE);
 
     const count = await this.count(em, f);
     const rows: Array<Record<string, unknown>> = await em.query(
-      `SELECT p.ean, p.name, p.active, p.supplier, p.price, p.cost,
-              p.margin, p.average_variation AS "averageVariation", p.status,
+      `SELECT p.ean, p.name, p.active, p.supplier,
+              ${EFF_PRICE} AS price, ${EFF_COST} AS cost, ${EFF_MARGIN} AS margin,
+              p.average_variation AS "averageVariation", p.status,
               p.monitored, p.generic, p.receipt_date AS "receiptDate",
               c.name AS classification
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
+         ${OFFER_BOOK_JOINS}
+         ${productItemJoin(f.params.length + 1)}
         ${f.where}
         ORDER BY ${order}
-        LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
-      [...f.params, perPage, offset],
+        LIMIT $${f.params.length + 2} OFFSET $${f.params.length + 3}`,
+      [...f.params, storeUuid, perPage, offset],
     );
     return { rows: rows.map((r) => this.normalize(r)), count, page, perPage };
   }
@@ -191,26 +238,28 @@ export class CatalogService {
   ): Promise<Paginated<Record<string, unknown>> & { origins: string[] }> {
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const { page, perPage, offset } = this.paginate(q);
+    const storeUuid = await this.storeUuid(em, slug, q.store);
     const f = this.buildFilters(q);
-    const order = this.orderBy(q);
+    const order = this.orderBy(q, SORTABLE_EFFECTIVE);
     const { joins, selects } = buildCompetitorCrossJoins(origins);
 
     const count = await this.count(em, f);
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
               ob.description AS book,
-              p.cost, p.price, ${PRICE_OFFER_EXPR} AS "priceOffer",
-              p.margin, p.average_variation AS "averageVariation", p.status,
+              ${EFF_COST} AS cost, ${EFF_PRICE} AS price, ${PRICE_OFFER_EXPR} AS "priceOffer",
+              ${EFF_MARGIN} AS margin, p.average_variation AS "averageVariation", p.status,
               p.active, p.monitored, p.receipt_date AS "receiptDate"
               ${selects ? `,\n              ${selects}` : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          ${OFFER_BOOK_JOINS}
+         ${productItemJoin(f.params.length + 1)}
          ${joins}
         ${f.where}
         ORDER BY ${order}
-        LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
-      [...f.params, perPage, offset],
+        LIMIT $${f.params.length + 2} OFFSET $${f.params.length + 3}`,
+      [...f.params, storeUuid, perPage, offset],
     );
     return {
       rows: rows.map((r) =>
@@ -241,8 +290,9 @@ export class CatalogService {
   ): Promise<Paginated<Record<string, unknown>>> {
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const { page, perPage, offset } = this.paginate(q);
+    const storeUuid = await this.storeUuid(em, slug, q.store);
     const f = this.buildFilters(q);
-    const order = this.orderBy(q);
+    const order = this.orderBy(q, SORTABLE_EFFECTIVE);
     const { joins, selects } = buildCompetitorCrossJoins(origins);
     const observationChecks = safeOrigins(origins).map(
       (origin, i) => `o_${i}.metadata->>'observation' IS NOT NULL`,
@@ -255,20 +305,21 @@ export class CatalogService {
     const fromJoins = `FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          ${OFFER_BOOK_JOINS}
+         ${productItemJoin(f.params.length + 1)}
          ${joins}`;
     const countRows: Array<{ count: string }> = await em.query(
       `SELECT count(*)::int AS count ${fromJoins} ${where}`,
-      f.params,
+      [...f.params, storeUuid],
     );
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
-              p.cost, p.price, ${PRICE_OFFER_EXPR} AS "priceOffer", p.deals,
-              p.margin, p.average_variation AS "averageVariation", p.status
+              ${EFF_COST} AS cost, ${EFF_PRICE} AS price, ${PRICE_OFFER_EXPR} AS "priceOffer", p.deals,
+              ${EFF_MARGIN} AS margin, p.average_variation AS "averageVariation", p.status
               ${selects ? `,\n              ${selects}` : ''}
          ${fromJoins} ${where}
         ORDER BY ${order}
-        LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
-      [...f.params, perPage, offset],
+        LIMIT $${f.params.length + 2} OFFSET $${f.params.length + 3}`,
+      [...f.params, storeUuid, perPage, offset],
     );
     return {
       rows: rows.map((r) =>
@@ -297,19 +348,20 @@ export class CatalogService {
   }
 
   /** Distinct stores that have stock, labelled from core.tenant_store
-   *  (falling back to the id) — the UI's store selector. */
-  public async stores(
-    em: EntityManager,
-    slug: string,
-  ): Promise<Array<{ storeExternalId: string; label: string }>> {
+   *  (falling back to the id) — the UI's store selector. Deleted stores
+   *  don't match the join and come back with null storeId/active. */
+  public async stores(em: EntityManager, slug: string): Promise<StoreOption[]> {
     const tenantId = await resolveTenantId(em, slug);
     return em.query(
-      `SELECT DISTINCT ps.store_external_id::text AS "storeExternalId",
-              COALESCE(ts.name, ps.store_external_id::text) AS label
+      `SELECT DISTINCT ts.id AS "storeId",
+              ps.store_external_id::text AS "storeExternalId",
+              COALESCE(ts.name, ps.store_external_id::text) AS label,
+              ts.active
          FROM product_stock ps
          LEFT JOIN core.tenant_store ts
            ON ts.external_id = ps.store_external_id AND ts.tenant_id = $1
-        ORDER BY 1`,
+          AND ts.deleted_at IS NULL
+        ORDER BY label, "storeExternalId"`,
       [tenantId],
     );
   }
@@ -363,14 +415,16 @@ export class CatalogService {
   ): Promise<IngredientGroup[]> {
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const store = this.requireStore(q);
+    const storeUuid = await this.storeUuid(em, slug, store);
     const tolerance = q.tolerance ?? 0;
-    const params: unknown[] = [store];
+    const params: unknown[] = [store, storeUuid];
     const aiFilter = q.activeIngredient
       ? `AND p.active_ingredient ILIKE $${params.push(`%${q.activeIngredient}%`)}`
       : '';
     const { joins, selects } = buildCompetitorCrossJoins(origins);
     const rows: VariantRow[] = await em.query(
-      `SELECT p.active_ingredient AS ai, p.ean, p.name, p.price, p.cost, p.margin,
+      `SELECT p.active_ingredient AS ai, p.ean, p.name,
+              ${EFF_PRICE} AS price, ${EFF_COST} AS cost, ${EFF_MARGIN} AS margin,
               COALESCE(ps.quantity, 0) AS "stockInStore",
               cc.origin AS "competitorOrigin", cc.price AS "competitorPrice",
               ${PRICE_OFFER_EXPR} AS "priceOffer"
@@ -378,6 +432,7 @@ export class CatalogService {
          FROM product p
          ${joins}
          ${OFFER_BOOK_JOINS}
+         ${productItemJoin(2)}
          LEFT JOIN product_stock ps
            ON ps.ean = p.ean AND ps.store_external_id = $1::bigint
          LEFT JOIN LATERAL (
@@ -478,6 +533,29 @@ export class CatalogService {
     return q.store;
   }
 
+  /** Resolves a store external id to its core.tenant_store uuid — the pi
+   *  join key. Null when no store was asked or it is unknown, deleted or
+   *  inactive (the sync only maintains active stores, so an inactive store's
+   *  product_item rows are frozen — falling back to the live globals is the
+   *  honest read). */
+  private async storeUuid(
+    em: EntityManager,
+    slug: string,
+    store?: string,
+  ): Promise<string | null> {
+    if (!store) return null;
+    if (!/^\d{1,18}$/.test(store))
+      throw new BadRequestException('store must be a numeric store id');
+    const tenantId = await resolveTenantId(em, slug);
+    const rows: Array<{ id: string }> = await em.query(
+      `SELECT id FROM core.tenant_store
+        WHERE tenant_id = $1 AND external_id = $2::bigint
+          AND active = true AND deleted_at IS NULL`,
+      [tenantId, store],
+    );
+    return rows[0]?.id ?? null;
+  }
+
   /** Generic products still missing an active ingredient (need manual fill). */
   public async genericMissing(
     em: EntityManager,
@@ -514,18 +592,21 @@ export class CatalogService {
     q: ListProductsQueryDto,
   ): Promise<string> {
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
+    const storeUuid = await this.storeUuid(em, slug, q.store);
     const f = this.buildFilters(q);
     const { joins, selects } = buildCompetitorCrossJoins(origins);
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
-              p.cost, p.price, p.margin, p.status
+              ${EFF_COST} AS cost, ${EFF_PRICE} AS price, ${EFF_MARGIN} AS margin, p.status
               ${selects ? `,\n              ${selects}` : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
+         ${OFFER_BOOK_JOINS}
+         ${productItemJoin(f.params.length + 1)}
          ${joins}
         ${f.where}
         ORDER BY p.ean LIMIT 50000`,
-      f.params,
+      [...f.params, storeUuid],
     );
     const cols = [
       'ean',
@@ -565,7 +646,7 @@ export class CatalogService {
   ): Promise<Paginated<Record<string, unknown>>> {
     const { page, perPage, offset } = this.paginate(q);
     const f = this.buildFilters(q);
-    const order = this.orderBy(q);
+    const order = this.orderBy(q, SORTABLE_STOCK);
     const count = await this.count(em, f);
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, c.name AS classification,
@@ -660,13 +741,11 @@ export class CatalogService {
     };
   }
 
-  private orderBy(q: ListProductsQueryDto): string {
-    return buildMultiSortClause(
-      q.sortBy,
-      q.sortDirection,
-      SORTABLE,
-      'p.ean ASC',
-    );
+  private orderBy(
+    q: ListProductsQueryDto,
+    map: Record<string, string>,
+  ): string {
+    return buildMultiSortClause(q.sortBy, q.sortDirection, map, 'p.ean ASC');
   }
 
   private paginate(q: ListProductsQueryDto): {
