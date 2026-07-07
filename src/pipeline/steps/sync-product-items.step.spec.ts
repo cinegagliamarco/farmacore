@@ -66,7 +66,6 @@ const buildEm = (
     id: string;
     ean: string;
     externalId: string;
-    price: string | null;
   }>,
   capturedUpserts: unknown[],
 ): EntityManager =>
@@ -121,8 +120,8 @@ describe('SyncProductItemsStep.run', () => {
     const em = buildEm(
       [{ ean: '789', targetPrice: '4.50' }],
       [
-        { id: 'p1', ean: '789', externalId: '10', price: '10.00' },
-        { id: 'p2', ean: '790', externalId: '11', price: '20.00' },
+        { id: 'p1', ean: '789', externalId: '10' },
+        { id: 'p2', ean: '790', externalId: '11' },
       ],
       captured,
     );
@@ -131,7 +130,8 @@ describe('SyncProductItemsStep.run', () => {
         { id: 10, produtoid: 100 },
         { id: 11, produtoid: 101 },
       ],
-      // p1 (embalagem 10) has a per-store override; p2 falls back to global.
+      // p1 (embalagem 10) has a per-store price; p2 has none (stays NULL —
+      // reads COALESCE to the live global product.price).
       prices: [{ embalagemid: 10, precovenda: 9.5 }],
       costs: [{ produtoid: 100, custo: 3.87, customedio: 4 }],
     });
@@ -157,7 +157,7 @@ describe('SyncProductItemsStep.run', () => {
       {
         productId: 'p2',
         storeId: 'store-1',
-        price: '20.00', // fallback to product.price (no override)
+        price: null, // no per-store price — reads fall back to the global
         priceOffer: null, // no offer for ean 790
         cost: null, // no per-store cost for produto 101
       },
