@@ -9,8 +9,10 @@ import {
 } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { RequireModule } from '../../auth/decorators/require-module.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import type { JwtPayload } from '../../auth/jwt-payload.type';
+import { ModuleCode } from '../../database/enums/module-code.enum';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import {
@@ -19,7 +21,9 @@ import {
 } from './dto/config.dto';
 import { PriceRoundingService } from './price-rounding.service';
 
+// Arredondamento alimenta o motor de sugestão e o preview de caderno.
 @Controller('configurations/price-rounding')
+@RequireModule(ModuleCode.PRICING_RULES, ModuleCode.OFFER_BOOK_RULES)
 export class PriceRoundingController {
   constructor(private readonly rules: PriceRoundingService) {}
 

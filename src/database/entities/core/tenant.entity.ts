@@ -1,6 +1,7 @@
 import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '../base.entity';
 import { TenantStatus } from '../../enums/tenant-status.enum';
+import { ModuleCode } from '../../enums/module-code.enum';
 
 @Entity({ schema: 'core', name: 'tenant' })
 @Index('UQ_TENANT_SLUG', ['slug'], { unique: true })
@@ -17,4 +18,7 @@ export class TenantEntity extends BaseEntity {
 
   @Column({ type: 'enum', enum: TenantStatus, default: TenantStatus.ACTIVE })
   public status!: TenantStatus;
+
+  @Column({ type: 'text', array: true, default: '{}' })
+  public modules!: ModuleCode[];
 }

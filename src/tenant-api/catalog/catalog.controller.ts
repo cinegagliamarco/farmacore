@@ -12,8 +12,10 @@ import {
 } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { RequireModule } from '../../auth/decorators/require-module.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import type { JwtPayload } from '../../auth/jwt-payload.type';
+import { ModuleCode } from '../../database/enums/module-code.enum';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import {
@@ -51,6 +53,7 @@ export class CatalogController {
   }
 
   @Get('crossed')
+  @RequireModule(ModuleCode.CROSSED_PRODUCTS)
   public crossed(
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
@@ -60,6 +63,7 @@ export class CatalogController {
   }
 
   @Get('strategic-price')
+  @RequireModule(ModuleCode.STRATEGIC_PRICING)
   public strategicPrice(
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
@@ -77,6 +81,7 @@ export class CatalogController {
   }
 
   @Get('active-ingredients')
+  @RequireModule(ModuleCode.ACTIVE_INGREDIENT_ANALYSIS)
   public activeIngredients(
     @TenantEm() em: EntityManager,
   ): Promise<{ activeIngredients: string[] }> {
@@ -86,6 +91,7 @@ export class CatalogController {
   }
 
   @Get('active-ingredients/crossed')
+  @RequireModule(ModuleCode.ACTIVE_INGREDIENT_ANALYSIS)
   public activeIngredientsCrossed(
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
@@ -95,6 +101,7 @@ export class CatalogController {
   }
 
   @Get('active-ingredients/decision-counts')
+  @RequireModule(ModuleCode.ACTIVE_INGREDIENT_ANALYSIS)
   public decisionCounts(
     @TenantEm() em: EntityManager,
     @CurrentUser() user: JwtPayload,
@@ -104,6 +111,7 @@ export class CatalogController {
   }
 
   @Get('generic-missing-active-ingredients')
+  @RequireModule(ModuleCode.ACTIVE_INGREDIENT_ANALYSIS)
   public genericMissing(
     @TenantEm() em: EntityManager,
     @Query() query: ListProductsQueryDto,
@@ -111,7 +119,9 @@ export class CatalogController {
     return this.catalog.genericMissing(em, query);
   }
 
+  // O CSV é o catálogo CRUZADO (uma coluna de preço por concorrente).
   @Get('export')
+  @RequireModule(ModuleCode.CROSSED_PRODUCTS)
   @Header('Content-Type', 'text/csv')
   public export(
     @TenantEm() em: EntityManager,

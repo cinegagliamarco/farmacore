@@ -13,6 +13,7 @@ import { UserEntity } from '../../database/entities/core/user.entity';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantStatus } from '../../database/enums/tenant-status.enum';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
+import { ModuleCode } from '../../database/enums/module-code.enum';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
 import { PasswordService } from '../../auth/password.service';
 
@@ -55,11 +56,14 @@ export class TenantOnboardingService {
 
     const schemaName = `tenant_${dto.slug.replace(/-/g, '_')}`;
 
+    // Nasce com todos os módulos; restringir é ação explícita do admin
+    // via PUT /admin/tenants/:slug/modules.
     const tenant: TenantEntity = await this.tenants.save({
       slug: dto.slug,
       name: dto.name,
       schemaName,
       status: TenantStatus.ACTIVE,
+      modules: Object.values(ModuleCode),
     });
 
     try {

@@ -192,6 +192,27 @@ curl -sS -X PUT "http://localhost:3000/admin/tenants/acme/competitor-origins" \
   }'
 ```
 
+### 5.5b Grant module access
+
+Each tenant sees only the modules enabled on `core.tenant.modules` (all on by
+default at onboarding). Routes gated by `@RequireModule` return 403 when the
+module is off; the FE reads the enabled list from `GET /auth/me` (`modules`).
+
+```bash
+curl -sS -X PUT "http://localhost:3000/admin/tenants/acme/modules" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "modules": [
+      "crossed-products",
+      "active-ingredient-analysis",
+      "pricing-rules",
+      "offer-book-rules",
+      "strategic-pricing"
+    ]
+  }'
+```
+
 ### 5.6 Trigger a pipeline run
 
 ```bash

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { ModuleCode } from '../../database/enums/module-code.enum';
 import { TenantService } from '../../tenant/tenant.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { ScheduleItem } from '../../database/entities/tenant/pricing-schedule.entity';
@@ -33,7 +34,10 @@ export class PricingScheduleCron {
     if (process.env.WORKER_MODE === '1') return;
     const tenants = await this.tenants.listActive();
     for (const t of tenants) {
-      if (t.slug === 'system') continue;
+      // Módulo revogado pausa os agendamentos (ficam pending; voltam a
+      // disparar se o admin reabilitar).
+      if (t.slug === 'system' || !t.modules.includes(ModuleCode.PRICING_RULES))
+        continue;
       try {
         await this.fireForTenant(t.slug, t.schemaName);
       } catch (err) {

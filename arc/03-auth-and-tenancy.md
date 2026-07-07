@@ -135,6 +135,13 @@ The 30-day grace period is enforced by a scheduled job, not by the delete endpoi
 
 Implemented via a NestJS `@Roles(...)` decorator + guard. Endpoint-level only for v1; row-level permissions deferred.
 
+Beyond roles, access is also gated per tenant by **module entitlements**
+(`core.tenant.modules`, values in `ModuleCode`): routes marked with
+`@RequireModule(...)` return 403 unless the tenant has one of the listed
+modules enabled. Managed by the system admin via
+`PUT /admin/tenants/:slug/modules`; the FE reads the enabled list from
+`GET /auth/me` (`modules`).
+
 ## 9. The "System" Tenant
 
 A reserved tenant with slug `system` exists from day one. It owns:
