@@ -324,9 +324,9 @@ ignorado. Como o estado de loja é persistido em URL/localStorage (§3a), **purg
 `subsidiary` persistido na migração; nunca enviar os dois params.
 
 `tolerance`, `decision`, `activeIngredient`, paginação e a semântica das decisões **não
-mudaram**. A collection Postman do repo backend está stale (sem `storeId` e sem os endpoints
-de stores); a versão correta está no branch `chore/postman-store-endpoints` — não usar a do
-working tree como referência.
+mudaram**. A collection Postman do repo backend já traz o `storeId` no `POST
+/products/:ean/price`, mas ainda não tem os endpoints de stores; a versão completa está no
+branch `chore/postman-store-endpoints`.
 
 ## 5. Pendências backend (não contornar no FE — são bugs/lacunas de contrato)
 

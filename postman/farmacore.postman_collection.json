@@ -1368,7 +1368,7 @@
         "offer"
        ]
       },
-      "description": "Upsert an offer (operator/admin). Pushes precoOferta to the product's caderno on A7Pharma (idCadernoOferta=cadernoId, idEmbalagem=product.external_id), then mirrors it in tenant.offer_book. 409 if product has no ERP id or the tenant has no A7Pharma API configured.",
+      "description": "Upsert an offer (operator/admin). Pushes precoOferta to the product's caderno on A7Pharma (idCadernoOferta=cadernoId, idEmbalagem=product.external_id), then mirrors it in tenant.offer_book. 409 if product has no ERP id or the tenant has no A7Pharma API configured; 502 when the ERP write fails.",
       "body": {
        "mode": "raw",
        "raw": "{\n  \"targetPrice\": 9.9,\n  \"cadernoId\": 123,\n  \"description\": \"Oferta da semana\"\n}"
@@ -1392,7 +1392,7 @@
         "offer"
        ]
       },
-      "description": "Remove the offer (operator/admin). Sends precoOferta=null to the caderno on A7Pharma, then deletes the local offer_book row. 404 if no offer exists."
+      "description": "Remove the offer (operator/admin). Sends precoOferta=null to the caderno on A7Pharma, then deletes the local offer_book row. 404 if no offer exists; 502 when the ERP write fails."
      },
      "response": []
     }
