@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
 import { execSync } from 'node:child_process';
+import { ModuleCode } from '../src/database/enums/module-code.enum';
 
 const RESERVED = new Set(['admin', 'api', 'app', 'meta', 'shared', 'system', 'www']);
 const SLUG_RE = /^[a-z][a-z0-9-]{2,31}$/;
@@ -33,11 +34,11 @@ async function main(): Promise<void> {
     await ds.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
     await ds.query(
       `
-      INSERT INTO core.tenant (slug, name, schema_name, status)
-      VALUES ($1, $2, $3, 'active')
+      INSERT INTO core.tenant (slug, name, schema_name, status, modules)
+      VALUES ($1, $2, $3, 'active', $4)
       ON CONFLICT (slug) DO NOTHING
     `,
-      [slug, slug, schemaName],
+      [slug, slug, schemaName, Object.values(ModuleCode)],
     );
     console.log(`Schema ${schemaName} created; tenant row inserted (or already existed).`);
   } finally {

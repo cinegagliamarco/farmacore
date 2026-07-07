@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -21,6 +22,7 @@ import { TenantOffboardingService } from '../services/tenant-offboarding.service
 import { TenantService } from '../../tenant/tenant.service';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
 import { UpdateTenantStatusDto } from '../dto/update-tenant-status.dto';
+import { UpdateTenantModulesDto } from '../dto/update-tenant-modules.dto';
 import { TenantEntity } from '../../database/entities/core/tenant.entity';
 
 @Controller('admin/tenants')
@@ -57,6 +59,16 @@ export class TenantsController {
   ): Promise<void> {
     const t = await this.tenants.findBySlug(slug);
     t.status = dto.status;
+    await this.repo.save(t);
+  }
+
+  @Put(':slug/modules')
+  public async updateModules(
+    @Param('slug') slug: string,
+    @Body() dto: UpdateTenantModulesDto,
+  ): Promise<void> {
+    const t = await this.tenants.findBySlug(slug);
+    t.modules = dto.modules;
     await this.repo.save(t);
   }
 

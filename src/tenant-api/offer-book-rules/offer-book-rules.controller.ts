@@ -1,8 +1,10 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { RequireModule } from '../../auth/decorators/require-module.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import type { JwtPayload } from '../../auth/jwt-payload.type';
+import { ModuleCode } from '../../database/enums/module-code.enum';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import {
@@ -12,6 +14,7 @@ import {
 import { OfferBookRulesService } from './offer-book-rules.service';
 
 @Controller('offer-book-rules')
+@RequireModule(ModuleCode.OFFER_BOOK_RULES)
 export class OfferBookRulesController {
   constructor(private readonly rules: OfferBookRulesService) {}
 

@@ -364,6 +364,36 @@
      "response": []
     },
     {
+     "name": "PUT /admin/tenants/:slug/modules",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"modules\": [\n    \"crossed-products\",\n    \"active-ingredient-analysis\",\n    \"pricing-rules\",\n    \"offer-book-rules\",\n    \"strategic-pricing\"\n  ]\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/modules",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "admin",
+        "tenants",
+        "{{tenantSlug}}",
+        "modules"
+       ]
+      },
+      "description": "Replaces the set of modules the tenant can access. Routes gated by @RequireModule return 403 when the module is off; the FE reads the enabled list from GET /auth/me."
+     },
+     "response": []
+    },
+    {
      "name": "DELETE /admin/tenants/:slug",
      "request": {
       "method": "DELETE",

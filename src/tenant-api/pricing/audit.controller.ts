@@ -1,6 +1,8 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
+import { RequireModule } from '../../auth/decorators/require-module.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { ModuleCode } from '../../database/enums/module-code.enum';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import { AuditService, AuditView } from './audit.service';
@@ -11,6 +13,7 @@ import { AuditService, AuditView } from './audit.service';
  * o registro acontece junto da mutação que o gerou.
  */
 @Controller('pricing/audit')
+@RequireModule(ModuleCode.PRICING_RULES)
 export class AuditController {
   constructor(private readonly audit: AuditService) {}
 

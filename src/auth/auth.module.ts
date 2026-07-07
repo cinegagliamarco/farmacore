@@ -13,6 +13,7 @@ import { PasswordService } from './password.service';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { ModulesGuard } from './guards/modules.guard';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { RolesGuard } from './guards/roles.guard';
     JwtStrategy,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: ModulesGuard },
   ],
   exports: [AuthService, PasswordService],
 })

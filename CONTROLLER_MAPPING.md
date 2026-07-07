@@ -34,6 +34,7 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | GET | `/admin/tenants` | `src/admin/controllers/tenants.controller.ts` |
 | GET | `/admin/tenants/:slug` | `src/admin/controllers/tenants.controller.ts` |
 | PATCH | `/admin/tenants/:slug/status` | `src/admin/controllers/tenants.controller.ts` |
+| PUT | `/admin/tenants/:slug/modules` | `src/admin/controllers/tenants.controller.ts` |
 | DELETE | `/admin/tenants/:slug` | `src/admin/controllers/tenants.controller.ts` |
 | PUT | `/admin/tenants/:slug/integration` | `src/admin/controllers/integration.controller.ts` |
 | POST | `/admin/tenants/:slug/integration/test` | `src/admin/controllers/integration.controller.ts` |
