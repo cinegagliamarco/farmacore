@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadGatewayException, ConflictException } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { ApplyPriceStep } from './apply-price.step';
 import { CatalogMutationService } from '../../tenant-api/catalog/catalog-mutation.service';
@@ -71,6 +71,19 @@ describe('ApplyPriceStep.run', () => {
   beforeEach(() => {
     mutation = { updatePrice: jest.fn(), upsertOffer: jest.fn() };
     step = new ApplyPriceStep(mutation as unknown as CatalogMutationService);
+  });
+
+  it('BadGatewayException (ERP write failed) vira failed/erro_transitorio', async () => {
+    mutation.updatePrice.mockRejectedValue(
+      new BadGatewayException('ERP write failed'),
+    );
+    const { em, marks, counters } = makeEm([item()]);
+    await step.run(em, 'acme', 'run1', 1);
+    expect(marks[0]).toMatchObject({
+      status: 'failed',
+      reason: 'erro_transitorio',
+    });
+    expect(counters()).toEqual({ applied: 0, skipped: 0, failed: 1 });
   });
 
   it('aplica precoVenda no ERP e marca applied', async () => {
