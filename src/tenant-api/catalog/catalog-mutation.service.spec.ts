@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   NotFoundException,
@@ -149,7 +150,11 @@ describe('CatalogMutationService.updatePrice', () => {
       monitored: false,
       externalId: '55',
     });
-    store.findOne.mockResolvedValue({ id: 's1', externalId: '9' });
+    store.findOne.mockResolvedValue({
+      id: 's1',
+      externalId: '9',
+      active: true,
+    });
     const em = {
       query: jest.fn().mockResolvedValue([{ id: 'tenant-1' }]),
       getRepository: jest.fn((entity: { name?: string }) => {
@@ -178,6 +183,47 @@ describe('CatalogMutationService.updatePrice', () => {
     );
     expect(product.update).not.toHaveBeenCalled();
     expect(out).toEqual({ ean: '789', price: 19.9, storeId: 's1' });
+  });
+
+  it('409s when the given store is inactive (nothing pushed to the ERP)', async () => {
+    const product = makeRepo();
+    product.findOne.mockResolvedValue({
+      id: 'p-uuid',
+      monitored: false,
+      externalId: '55',
+    });
+    const store = {
+      findOne: jest
+        .fn()
+        .mockResolvedValue({ id: 's1', externalId: '9', active: false }),
+    };
+    const em = {
+      query: jest.fn().mockResolvedValue([{ id: 'tenant-1' }]),
+      getRepository: jest.fn((entity: unknown) =>
+        entity === TenantProductEntity ? product : store,
+      ),
+    } as unknown as EntityManager;
+    const a7 = { changePrices: jest.fn() } as unknown as A7PharmaApiClient;
+    const service = new CatalogMutationService(
+      {
+        getApiCredentials: jest.fn().mockResolvedValue(creds),
+      } as unknown as IntegrationConnectionService,
+      a7,
+    );
+    await expect(
+      service.updatePrice(em, 't', '789', 19.9, 's1'),
+    ).rejects.toThrow(ConflictException);
+    expect(a7.changePrices).not.toHaveBeenCalled();
+  });
+
+  it('502s when the ERP write fails (nothing mirrored locally)', async () => {
+    const { service, em, product, a7 } = build();
+    product.findOne.mockResolvedValue({ monitored: false, externalId: '55' });
+    (a7.changePrices as jest.Mock).mockRejectedValue(new Error('timeout'));
+    await expect(service.updatePrice(em, 't', '789', 19.9)).rejects.toThrow(
+      BadGatewayException,
+    );
+    expect(product.update).not.toHaveBeenCalled();
   });
 
   it('404s when the given store is unknown', async () => {
@@ -226,6 +272,16 @@ describe('CatalogMutationService.upsertOffer', () => {
     );
   });
 
+  it('502s when the ERP write fails (offer_book untouched)', async () => {
+    const { service, em, product, offer, a7 } = build();
+    product.findOne.mockResolvedValue({ externalId: '55' });
+    (a7.upsertOffer as jest.Mock).mockRejectedValue(new Error('timeout'));
+    await expect(service.upsertOffer(em, 't', '789', dto)).rejects.toThrow(
+      BadGatewayException,
+    );
+    expect(offer.upsert).not.toHaveBeenCalled();
+  });
+
   it('upserts the offer on the ERP then mirrors it locally', async () => {
     const { service, em, product, offer, a7 } = build();
     product.findOne.mockResolvedValue({ externalId: '55' });
@@ -262,6 +318,17 @@ describe('CatalogMutationService.removeOffer', () => {
     await expect(service.removeOffer(em, 't', '789')).rejects.toThrow(
       ConflictException,
     );
+  });
+
+  it('502s when the ERP write fails (local offer kept)', async () => {
+    const { service, em, offer, product, a7 } = build();
+    offer.findOne.mockResolvedValue({ externalId: '7' });
+    product.findOne.mockResolvedValue({ externalId: '55' });
+    (a7.upsertOffer as jest.Mock).mockRejectedValue(new Error('timeout'));
+    await expect(service.removeOffer(em, 't', '789')).rejects.toThrow(
+      BadGatewayException,
+    );
+    expect(offer.delete).not.toHaveBeenCalled();
   });
 
   it('clears the offer on the ERP (precoOferta=null) then deletes locally', async () => {

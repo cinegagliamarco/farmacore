@@ -3,8 +3,9 @@ import { NumericColumn } from '../numeric-column.decorator';
 
 /**
  * A7Pharma per-store sell price override for an embalagem. Read-only
- * source for product_item.price; falls back to embalagem.precovenda
- * (global/base) when a store has no override row.
+ * source for product_item.price; when a store has no override row,
+ * product_item.price stays NULL and reads fall back to the live global
+ * product.price.
  */
 @Entity({
   name: 'precoembalagemunidadenegocio',

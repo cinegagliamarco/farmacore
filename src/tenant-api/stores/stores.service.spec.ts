@@ -41,7 +41,7 @@ describe('StoresService.updateStore', () => {
     const calls: Call[] = [];
     const em = buildEm(calls, [
       TENANT,
-      ['UPDATE core.tenant_store', [{ id: 's1' }]],
+      ['UPDATE core.tenant_store', [{ id: 's1', wasActive: true }]],
       [
         'SELECT s.id',
         [
@@ -84,6 +84,32 @@ describe('StoresService.updateStore', () => {
     await expect(
       service.updateStore(em, 'acme', 's1', { active: false }),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('re-activation (false → true) clears the store product_item snapshot', async () => {
+    const calls: Call[] = [];
+    const em = buildEm(calls, [
+      TENANT,
+      ['UPDATE core.tenant_store', [{ id: 's1', wasActive: false }]],
+      ['SELECT s.id', [{ id: 's1', active: true }]],
+    ]);
+    await service.updateStore(em, 'acme', 's1', { active: true });
+    const clear = calls.find((c) => c.sql.includes('UPDATE product_item'));
+    expect(clear?.sql).toContain('price = NULL, cost = NULL');
+    expect(clear?.params).toEqual(['s1']);
+  });
+
+  it('staying active does not clear product_item', async () => {
+    const calls: Call[] = [];
+    const em = buildEm(calls, [
+      TENANT,
+      ['UPDATE core.tenant_store', [{ id: 's1', wasActive: true }]],
+      ['SELECT s.id', [{ id: 's1', active: true }]],
+    ]);
+    await service.updateStore(em, 'acme', 's1', { active: true });
+    expect(calls.some((c) => c.sql.includes('UPDATE product_item'))).toBe(
+      false,
+    );
   });
 });
 

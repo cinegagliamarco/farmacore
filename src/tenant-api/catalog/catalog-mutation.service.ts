@@ -1,7 +1,9 @@
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
@@ -35,6 +37,8 @@ const EDITABLE: ReadonlyArray<keyof UpdateProductDto> = [
  */
 @Injectable()
 export class CatalogMutationService {
+  private readonly logger = new Logger(CatalogMutationService.name);
+
   constructor(
     private readonly integration: IntegrationConnectionService,
     private readonly a7: A7PharmaApiClient,
@@ -64,8 +68,9 @@ export class CatalogMutationService {
    *  (idUnidadeNegocioPreco = its external_id) and mirrors into product_item;
    *  without it (bulk apply path, out of per-store scope), it keeps the legacy
    *  global behavior and mirrors product.price. 409 if the product is
-   *  monitored, lacks an ERP id, the store is unknown, or the tenant has no
-   *  A7Pharma API configured. */
+   *  monitored, lacks an ERP id, the store is inactive, or the tenant has no
+   *  A7Pharma API configured; 404 for an unknown store; 502 when the ERP
+   *  write fails (nothing mirrored locally). */
   public async updatePrice(
     em: EntityManager,
     tenantSlug: string,
@@ -89,6 +94,8 @@ export class CatalogMutationService {
         .getRepository(TenantStoreEntity)
         .findOne({ where: { id: storeId, tenantId } });
       if (!store) throw new NotFoundException(`store ${storeId} not found`);
+      if (!store.active)
+        throw new ConflictException(`store ${storeId} is inactive`);
     }
     const creds = await this.integration.getApiCredentials(tenantSlug);
     if (!creds) {
@@ -96,13 +103,15 @@ export class CatalogMutationService {
         'A7Pharma API not configured for this tenant',
       );
     }
-    await this.a7.changePrices(creds, [
-      {
-        idEmbalagem: Number(product.externalId),
-        precoVendaNovo: newPrice,
-        ...(store && { idUnidadeNegocioPreco: Number(store.externalId) }),
-      },
-    ]);
+    await this.pushToErp(
+      this.a7.changePrices(creds, [
+        {
+          idEmbalagem: Number(product.externalId),
+          precoVendaNovo: newPrice,
+          ...(store && { idUnidadeNegocioPreco: Number(store.externalId) }),
+        },
+      ]),
+    );
     if (store) {
       await em
         .getRepository(ProductItemEntity)
@@ -138,12 +147,14 @@ export class CatalogMutationService {
         'A7Pharma API not configured for this tenant',
       );
     }
-    await this.a7.upsertOffer(creds, dto.cadernoId, [
-      {
-        idEmbalagem: Number(product.externalId),
-        precoOferta: dto.targetPrice,
-      },
-    ]);
+    await this.pushToErp(
+      this.a7.upsertOffer(creds, dto.cadernoId, [
+        {
+          idEmbalagem: Number(product.externalId),
+          precoOferta: dto.targetPrice,
+        },
+      ]),
+    );
     await em.getRepository(OfferBookEntity).upsert(
       {
         ean,
@@ -182,11 +193,32 @@ export class CatalogMutationService {
         'A7Pharma API not configured for this tenant',
       );
     }
-    await this.a7.upsertOffer(creds, Number(offer.externalId), [
-      { idEmbalagem: Number(product.externalId), precoOferta: null },
-    ]);
+    await this.pushToErp(
+      this.a7.upsertOffer(creds, Number(offer.externalId), [
+        { idEmbalagem: Number(product.externalId), precoOferta: null },
+      ]),
+    );
     await em.getRepository(OfferBookEntity).delete({ ean });
     return { ean, deleted: true };
+  }
+
+  /** A7 write failures (timeout/HTTP) surface as a generic 502 —
+   *  distinguishable from local 500s, without echoing upstream error text
+   *  (network errnos leak the ERP host/port). Full detail, including the
+   *  ERP response body, goes to the logs. Nothing was mirrored locally yet
+   *  when this throws, and the bulk-apply step keeps treating it as
+   *  transitory (not Conflict/NotFound). */
+  private async pushToErp(op: Promise<void>): Promise<void> {
+    try {
+      await op;
+    } catch (err) {
+      const body = (err as { response?: { data?: unknown } }).response?.data;
+      this.logger.error(
+        `A7Pharma write failed: ${err instanceof Error ? err.message : String(err)}` +
+          (body !== undefined ? ` — ${JSON.stringify(body)}` : ''),
+      );
+      throw new BadGatewayException('ERP write failed');
+    }
   }
 
   public async softDelete(

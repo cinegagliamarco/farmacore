@@ -1149,7 +1149,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"newPrice\": 29.9\n}"
+       "raw": "{\n  \"newPrice\": 29.9,\n  \"storeId\": \"{{storeId}}\"\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/products/{{ean}}/price",
@@ -1162,7 +1162,7 @@
         "price"
        ]
       },
-      "description": "Set sell price (operator/admin): pushes to A7Pharma (POST /webapi/api/preco/) then mirrors locally. 409 if monitored, no ERP external_id, or no A7Pharma API configured for the tenant."
+      "description": "Set the per-store sell price (operator/admin): pushes to A7Pharma (POST /webapi/api/preco/) then mirrors into product_item. storeId = uuid from GET /products/stores. 409 if monitored, no ERP external_id, store inactive, or no A7Pharma API configured; 404 unknown store; 502 when the ERP write fails."
      },
      "response": []
     },
@@ -1368,7 +1368,7 @@
         "offer"
        ]
       },
-      "description": "Upsert an offer (operator/admin). Pushes precoOferta to the product's caderno on A7Pharma (idCadernoOferta=cadernoId, idEmbalagem=product.external_id), then mirrors it in tenant.offer_book. 409 if product has no ERP id or the tenant has no A7Pharma API configured.",
+      "description": "Upsert an offer (operator/admin). Pushes precoOferta to the product's caderno on A7Pharma (idCadernoOferta=cadernoId, idEmbalagem=product.external_id), then mirrors it in tenant.offer_book. 409 if product has no ERP id or the tenant has no A7Pharma API configured; 502 when the ERP write fails.",
       "body": {
        "mode": "raw",
        "raw": "{\n  \"targetPrice\": 9.9,\n  \"cadernoId\": 123,\n  \"description\": \"Oferta da semana\"\n}"
@@ -1392,7 +1392,7 @@
         "offer"
        ]
       },
-      "description": "Remove the offer (operator/admin). Sends precoOferta=null to the caderno on A7Pharma, then deletes the local offer_book row. 404 if no offer exists."
+      "description": "Remove the offer (operator/admin). Sends precoOferta=null to the caderno on A7Pharma, then deletes the local offer_book row. 404 if no offer exists; 502 when the ERP write fails."
      },
      "response": []
     }

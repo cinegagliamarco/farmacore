@@ -19,15 +19,15 @@ interface ProductRow {
   id: string;
   ean: string;
   externalId: string;
-  price: string | null;
 }
 
 /**
  * Per-batch business logic for sync-product-items. Projects per-store
  * price/cost into tenant.product_item for one slice of products across the
  * active stores resolved at dispatch time. Per-store sell price comes from
- * `precoembalagemunidadenegocio` (fallback: the product's global price =
- * embalagem.precovenda); per-store cost from `custoproduto`; the offer
+ * `precoembalagemunidadenegocio`; when the ERP has no per-store row, price
+ * stays NULL — reads COALESCE to the live global product.price, so no stale
+ * snapshot is stored here. Per-store cost from `custoproduto`; the offer
  * price is global (mirrored from tenant offer_book). Each batch runs in its
  * own tenant transaction, so the ERP round-trips don't hold one long
  * transaction open across the whole catalog.
@@ -53,7 +53,7 @@ export class SyncProductItemsStep {
     }
 
     const products: ProductRow[] = await em.query(
-      `SELECT id, ean::text AS ean, external_id AS "externalId", price
+      `SELECT id, ean::text AS ean, external_id AS "externalId"
          FROM product
         WHERE id = ANY($1::uuid[])
           AND external_id IS NOT NULL
@@ -107,7 +107,7 @@ export class SyncProductItemsStep {
         return {
           productId: p.id,
           storeId: store.id,
-          price: toNumericString(perStorePrice) ?? p.price,
+          price: toNumericString(perStorePrice),
           priceOffer: offerByEan.get(p.ean) ?? null,
           cost:
             produtoId !== undefined
