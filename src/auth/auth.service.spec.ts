@@ -92,3 +92,68 @@ describe('AuthService.login', () => {
     expect(refreshTokens.save).toHaveBeenCalled();
   });
 });
+
+describe('AuthService.refresh', () => {
+  let svc: AuthService;
+  let users: { findOne: jest.Mock };
+  let tenants: { findOne: jest.Mock };
+  let refreshTokens: { save: jest.Mock; findOne: jest.Mock; update: jest.Mock };
+
+  beforeEach(async () => {
+    users = { findOne: jest.fn() };
+    tenants = { findOne: jest.fn() };
+    refreshTokens = { save: jest.fn(), findOne: jest.fn(), update: jest.fn() };
+    const mod = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        PasswordService,
+        { provide: getRepositoryToken(UserEntity), useValue: users },
+        { provide: getRepositoryToken(TenantEntity), useValue: tenants },
+        {
+          provide: getRepositoryToken(RefreshTokenEntity),
+          useValue: refreshTokens,
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            sign: () => 'token',
+            verifyAsync: (): Promise<unknown> => Promise.resolve({}),
+          },
+        },
+      ],
+    }).compile();
+    svc = mod.get(AuthService);
+    refreshTokens.findOne.mockResolvedValue({
+      userId: 'u1',
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    users.findOne.mockResolvedValue({
+      id: 'u1',
+      tenantId: 'acme',
+      role: UserRole.ADMIN,
+      status: 'active',
+    });
+  });
+
+  it('rejects when the tenant is suspended (offboarding kills the 14-day window)', async () => {
+    tenants.findOne.mockResolvedValue({ slug: 'acme', status: 'suspended' });
+    await expect(svc.refresh('tok')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects when the tenant row is gone (soft-deleted)', async () => {
+    tenants.findOne.mockResolvedValue(null);
+    await expect(svc.refresh('tok')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('rotates tokens for an active tenant', async () => {
+    tenants.findOne.mockResolvedValue({ slug: 'acme', status: 'active' });
+    const res = await svc.refresh('tok');
+    expect(res.accessToken).toBe('token');
+    expect(refreshTokens.save).toHaveBeenCalled();
+  });
+});

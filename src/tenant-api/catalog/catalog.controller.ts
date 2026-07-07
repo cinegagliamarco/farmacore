@@ -158,7 +158,14 @@ export class CatalogController {
     return this.mutations.updateProduct(em, ean, dto);
   }
 
+  // Escrita de preço/oferta no ERP pertence às telas dos módulos de análise
+  // (cruzados, mesa por princípio ativo, estratégica) — não ao catálogo base.
   @Post(':ean/price')
+  @RequireModule(
+    ModuleCode.CROSSED_PRODUCTS,
+    ModuleCode.ACTIVE_INGREDIENT_ANALYSIS,
+    ModuleCode.STRATEGIC_PRICING,
+  )
   @Roles(UserRole.OPERATOR, UserRole.ADMIN)
   public updatePrice(
     @TenantEm() em: EntityManager,
@@ -177,6 +184,11 @@ export class CatalogController {
   }
 
   @Post(':ean/offer')
+  @RequireModule(
+    ModuleCode.CROSSED_PRODUCTS,
+    ModuleCode.ACTIVE_INGREDIENT_ANALYSIS,
+    ModuleCode.STRATEGIC_PRICING,
+  )
   @Roles(UserRole.OPERATOR, UserRole.ADMIN)
   public upsertOffer(
     @TenantEm() em: EntityManager,
@@ -189,6 +201,11 @@ export class CatalogController {
   }
 
   @Delete(':ean/offer')
+  @RequireModule(
+    ModuleCode.CROSSED_PRODUCTS,
+    ModuleCode.ACTIVE_INGREDIENT_ANALYSIS,
+    ModuleCode.STRATEGIC_PRICING,
+  )
   @Roles(UserRole.OPERATOR, UserRole.ADMIN)
   public removeOffer(
     @TenantEm() em: EntityManager,

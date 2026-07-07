@@ -64,6 +64,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
+    // Espelha o login: tenant suspenso/offboardado não renova a sessão —
+    // sem isso o refresh token mantém o acesso vivo por até 14 dias.
+    const tenant = await this.tenants.findOne({
+      where: { slug: user.tenantId },
+    });
+    if (!tenant || tenant.status === TenantStatus.SUSPENDED) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
     row.revokedAt = new Date();
     await this.refreshTokens.save(row);
     return this.issueTokens(user.id, user.tenantId, user.role);
