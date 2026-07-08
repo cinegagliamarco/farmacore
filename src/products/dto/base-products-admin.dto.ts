@@ -25,9 +25,10 @@ export class ListBaseProductsQueryDto {
   @Max(200)
   public perPage?: number;
 
-  /** Busca por EAN, descrição ou princípio ativo (substring). */
+  /** Busca por EAN, descrição ou princípio ativo (substring literal). */
   @IsOptional()
   @IsString()
+  @Length(1, 100)
   public search?: string;
 
   @IsOptional()
@@ -51,10 +52,12 @@ export class UpdateBaseProductDto {
   @IsBoolean()
   public generic?: boolean;
 
+  /** `null` limpa a descrição. */
   @IsOptional()
+  @ValidateIf((o: UpdateBaseProductDto) => o.description !== null)
   @IsString()
   @Length(1, 500)
-  public description?: string;
+  public description?: string | null;
 }
 
 export class RenameActiveIngredientDto {

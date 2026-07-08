@@ -86,6 +86,9 @@ JOIN product tp USING (ean)
 WHERE bp.ean = <known ean>;
 ```
 
+Note: `bp.active_ingredient` is NOT written by the sync — it is curated
+via `/admin/catalog/base-products` and stays NULL until someone fills it.
+
 ## Common surprises
 
 - **`product.classification_id` empty**: the ERP product's

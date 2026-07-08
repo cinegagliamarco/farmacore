@@ -56,8 +56,9 @@ export class BaseProductsAdminController {
     @Param('ean') ean: string,
     @Body() dto: UpdateBaseProductDto,
   ): Promise<{ ean: string; updated: number }> {
-    if (!/^\d+$/.test(ean)) {
-      throw new BadRequestException('ean must be numeric');
+    // ≤14 dígitos (GTIN-14): acima disso estoura o bigint e viraria 500.
+    if (!/^\d{1,14}$/.test(ean)) {
+      throw new BadRequestException('ean must be numeric (up to 14 digits)');
     }
     return this.service.update(ean, dto);
   }

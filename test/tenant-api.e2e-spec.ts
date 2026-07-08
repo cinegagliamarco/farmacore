@@ -254,6 +254,14 @@ describe('Tenant API (e2e)', () => {
     it('400s on a non-numeric ean', async () => {
       await patch('/products/abc').send({ supplier: 'X' }).expect(400);
     });
+
+    // Identity agora é do cadastro interno; forbidNonWhitelisted faz o
+    // contrato antigo falhar alto (400), não silenciosamente.
+    it('rejects identity fields moved to the internal cadastre', async () => {
+      await patch(`/products/${EAN_A}`)
+        .send({ activeIngredient: 'DIPIRONA', generic: true })
+        .expect(400);
+    });
   });
 
   describe('POST/DELETE /products/:ean/offer (write-back)', () => {
