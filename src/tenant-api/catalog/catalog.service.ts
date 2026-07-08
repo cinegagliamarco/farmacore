@@ -118,6 +118,12 @@ export interface IngredientGroup {
 const OFFER_BOOK_JOINS = `LEFT JOIN offer_book ob ON ob.ean = p.ean
          LEFT JOIN tenant_offer_campaign toc ON toc.external_id = ob.external_id`;
 
+/** Identity facts (generic flag, princípio ativo) live in the internal
+ *  cadastre (shared_catalog.base_product), curated via
+ *  /admin/catalog/base-products — never ERP-synced. Tenant reads cross
+ *  their EAN into it with this join. */
+const BASE_PRODUCT_JOIN = `LEFT JOIN shared_catalog.base_product bp ON bp.ean = p.ean`;
+
 /** precoOferta from offer_book — null when absent, zero, or linked to an expired/inactive caderno. */
 const PRICE_OFFER_EXPR = `CASE
           WHEN ob.target_price IS NULL OR ob.target_price <= 0 THEN NULL
@@ -210,10 +216,12 @@ export class CatalogService {
       `SELECT p.ean, p.name, p.active, p.supplier,
               ${EFF_PRICE} AS price, ${EFF_COST} AS cost, ${EFF_MARGIN} AS margin,
               p.average_variation AS "averageVariation", p.status,
-              p.monitored, p.generic, p.receipt_date AS "receiptDate",
+              p.monitored, COALESCE(bp.generic, false) AS generic,
+              p.receipt_date AS "receiptDate",
               c.name AS classification
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
+         ${BASE_PRODUCT_JOIN}
          ${OFFER_BOOK_JOINS}
          ${productItemJoin(f.params.length + 1)}
         ${f.where}
@@ -340,9 +348,11 @@ export class CatalogService {
   /** Distinct active ingredients present in the tenant catalog. */
   public async activeIngredients(em: EntityManager): Promise<string[]> {
     const rows: Array<{ active_ingredient: string }> = await em.query(
-      `SELECT DISTINCT active_ingredient FROM product
-        WHERE active_ingredient IS NOT NULL
-        ORDER BY active_ingredient`,
+      `SELECT DISTINCT bp.active_ingredient
+         FROM product p
+         ${BASE_PRODUCT_JOIN}
+        WHERE bp.active_ingredient IS NOT NULL
+        ORDER BY bp.active_ingredient`,
     );
     return rows.map((r) => r.active_ingredient);
   }
@@ -419,17 +429,18 @@ export class CatalogService {
     const tolerance = q.tolerance ?? 0;
     const params: unknown[] = [store, storeUuid];
     const aiFilter = q.activeIngredient
-      ? `AND p.active_ingredient ILIKE $${params.push(`%${q.activeIngredient}%`)}`
+      ? `AND bp.active_ingredient ILIKE $${params.push(`%${q.activeIngredient}%`)}`
       : '';
     const { joins, selects } = buildCompetitorCrossJoins(origins);
     const rows: VariantRow[] = await em.query(
-      `SELECT p.active_ingredient AS ai, p.ean, p.name,
+      `SELECT bp.active_ingredient AS ai, p.ean, p.name,
               ${EFF_PRICE} AS price, ${EFF_COST} AS cost, ${EFF_MARGIN} AS margin,
               COALESCE(ps.quantity, 0) AS "stockInStore",
               cc.origin AS "competitorOrigin", cc.price AS "competitorPrice",
               ${PRICE_OFFER_EXPR} AS "priceOffer"
               ${selects ? `,\n              ${selects}` : ''}
          FROM product p
+         ${BASE_PRODUCT_JOIN}
          ${joins}
          ${OFFER_BOOK_JOINS}
          ${productItemJoin(2)}
@@ -441,8 +452,8 @@ export class CatalogService {
             WHERE sp.ean = p.ean AND sp.deleted_at IS NULL AND sp.price > 0
             ORDER BY sp.price ASC NULLS LAST LIMIT 1
          ) cc ON true
-        WHERE p.active_ingredient IS NOT NULL ${aiFilter}
-        ORDER BY p.active_ingredient, p.ean`,
+        WHERE bp.active_ingredient IS NOT NULL ${aiFilter}
+        ORDER BY bp.active_ingredient, p.ean`,
       params,
     );
     const byIng = new Map<string, VariantRow[]>();
@@ -554,35 +565,6 @@ export class CatalogService {
       [tenantId, store],
     );
     return rows[0]?.id ?? null;
-  }
-
-  /** Generic products still missing an active ingredient (need manual fill). */
-  public async genericMissing(
-    em: EntityManager,
-    q: ListProductsQueryDto,
-  ): Promise<Paginated<Record<string, unknown>>> {
-    const { page, perPage, offset } = this.paginate(q);
-    const f = this.buildFilters(q);
-    const base = f.where
-      ? `${f.where} AND p.generic IS TRUE AND p.active_ingredient IS NULL`
-      : `WHERE p.generic IS TRUE AND p.active_ingredient IS NULL`;
-    const countRows: Array<{ count: string }> = await em.query(
-      `SELECT count(*)::int AS count FROM product p ${base}`,
-      f.params,
-    );
-    const rows: Array<Record<string, unknown>> = await em.query(
-      `SELECT p.ean, p.name, p.supplier
-         FROM product p ${base}
-        ORDER BY p.ean
-        LIMIT $${f.params.length + 1} OFFSET $${f.params.length + 2}`,
-      [...f.params, perPage, offset],
-    );
-    return {
-      rows: rows.map((r) => this.normalize(r)),
-      count: Number(countRows[0]?.count ?? 0),
-      page,
-      perPage,
-    };
   }
 
   /** Crossed catalog as CSV (capped). */

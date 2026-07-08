@@ -112,15 +112,6 @@ export class CatalogController {
     return this.catalog.decisionCounts(em, user.tenantId, query);
   }
 
-  @Get('generic-missing-active-ingredients')
-  @RequireModule(ModuleCode.ACTIVE_INGREDIENT_ANALYSIS)
-  public genericMissing(
-    @TenantEm() em: EntityManager,
-    @Query() query: ListProductsQueryDto,
-  ): Promise<Paginated<Record<string, unknown>>> {
-    return this.catalog.genericMissing(em, query);
-  }
-
   // O CSV é o catálogo CRUZADO (uma coluna de preço por concorrente).
   @Get('export')
   @RequireModule(ModuleCode.CROSSED_PRODUCTS)

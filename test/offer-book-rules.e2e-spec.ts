@@ -101,10 +101,10 @@ describe('Offer book rules preview (e2e)', () => {
     );
     await ds.query(
       `INSERT INTO ${SCHEMA}.product
-         (ean, name, active, price, cost, margin, active_ingredient,
-          classification_id, external_id, monitored, generic, status) VALUES
-        (${EAN_A}, 'Dipirona 500mg', true, 10.00, 5.0000, 50.0000, 'DIPIRONA', $1, '6001', false, true, 'OK'),
-        (${EAN_B}, 'Dipirona 1g',  true,  8.00, 5.0000, 37.5000, 'DIPIRONA', $1, '6002', false, true, 'OK')`,
+         (ean, name, active, price, cost, margin,
+          classification_id, external_id, monitored, status) VALUES
+        (${EAN_A}, 'Dipirona 500mg', true, 10.00, 5.0000, 50.0000, $1, '6001', false, 'OK'),
+        (${EAN_B}, 'Dipirona 1g',  true,  8.00, 5.0000, 37.5000, $1, '6002', false, 'OK')`,
       [CHILD_ID],
     );
 

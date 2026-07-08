@@ -4,8 +4,24 @@ import { BaseProductEntity } from '../../entities/shared-catalog/base-product.en
 export interface BaseProductUpsertInput {
   ean: string;
   description?: string | null;
-  activeIngredient?: string | null;
   generic?: boolean;
+}
+
+export interface BaseProductAdminRow {
+  ean: string;
+  description: string | null;
+  activeIngredient: string | null;
+  generic: boolean;
+  updatedAt: Date;
+}
+
+export interface BaseProductSearchQuery {
+  /** Matches ean, description or active_ingredient (ILIKE substring). */
+  search?: string;
+  missingActiveIngredient?: boolean;
+  generic?: boolean;
+  limit: number;
+  offset: number;
 }
 
 /**
@@ -124,6 +140,81 @@ export class BaseProductRepository {
          AND (bp.height IS NULL OR bp.length IS NULL OR bp.width IS NULL OR bp.weight IS NULL)`,
       params,
     );
+  }
+
+  /** Paginated admin search over the internal cadastre (EAN ↔ princípio
+   *  ativo curation — see /admin/catalog/base-products). */
+  public async search(
+    q: BaseProductSearchQuery,
+  ): Promise<{ rows: BaseProductAdminRow[]; count: number }> {
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    if (q.search) {
+      params.push(`%${q.search}%`);
+      clauses.push(
+        `(bp.ean::text ILIKE $${params.length} OR bp.description ILIKE $${params.length} OR bp.active_ingredient ILIKE $${params.length})`,
+      );
+    }
+    if (q.missingActiveIngredient) clauses.push('bp.active_ingredient IS NULL');
+    if (q.generic !== undefined) {
+      params.push(q.generic);
+      clauses.push(`bp.generic = $${params.length}`);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const countRows: Array<{ count: string }> = await this.em.query(
+      `SELECT count(*)::int AS count FROM shared_catalog.base_product bp ${where}`,
+      params,
+    );
+    const rows: BaseProductAdminRow[] = await this.em.query(
+      `SELECT bp.ean::text AS ean, bp.description,
+              bp.active_ingredient AS "activeIngredient", bp.generic,
+              bp.updated_at AS "updatedAt"
+         FROM shared_catalog.base_product bp ${where}
+        ORDER BY bp.ean
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, q.limit, q.offset],
+    );
+    return { rows, count: Number(countRows[0]?.count ?? 0) };
+  }
+
+  public async updateIdentityByEan(
+    ean: string,
+    patch: {
+      description?: string | null;
+      activeIngredient?: string | null;
+      generic?: boolean;
+    },
+  ): Promise<number> {
+    const res = await this.em
+      .getRepository(BaseProductEntity)
+      .update({ ean }, patch);
+    return res.affected ?? 0;
+  }
+
+  public async listActiveIngredients(): Promise<
+    Array<{ name: string; eans: number }>
+  > {
+    return this.em.query(
+      `SELECT active_ingredient AS name, count(*)::int AS eans
+         FROM shared_catalog.base_product
+        WHERE active_ingredient IS NOT NULL
+        GROUP BY active_ingredient
+        ORDER BY active_ingredient`,
+    );
+  }
+
+  public async renameActiveIngredient(
+    from: string,
+    to: string,
+  ): Promise<number> {
+    const res = await this.em
+      .getRepository(BaseProductEntity)
+      .createQueryBuilder()
+      .update()
+      .set({ activeIngredient: to })
+      .where('active_ingredient = :from', { from })
+      .execute();
+    return res.affected ?? 0;
   }
 
   private async findEansMissingPredicate(predicate: string): Promise<string[]> {

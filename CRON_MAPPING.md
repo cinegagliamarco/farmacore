@@ -26,7 +26,7 @@ Legacy ran **one daily cron** (`DailyRoutinesCron`) that did all 8 steps sequent
 
 | # | Legacy step | New routine | Status | Notes |
 |---|---|---|---|---|
-| 1 | `synchronizeBaseProduct` | Tenant import (`sync-base-product`) + Build base products | 🆕 | Tenant data stays in `sync-base-product`; the `base_product` write moves to the system "Build base products" routine that aggregates across all tenants. |
+| 1 | `synchronizeBaseProduct` | Tenant import (`sync-base-product`) | ✅ | Tenant data stays in `sync-base-product`, which also seeds `base_product` (ean/description/generic, insert-only). Princípio ativo NÃO vem do ERP: é curado em `/admin/catalog/base-products` e lido pelos tenants via join por EAN — a rotina "Build base products" agregadora ficou obsoleta. |
 | 2 | `synchronizeBaseProductStock` | Tenant import (`sync-base-product-stock`) | ✅ | Already a step; moves under the tenant-import routine. |
 | 3 | `synchronizeOfferBooksInfo` | Tenant import (`sync-offer-books-info`) | ✅ | Already a step. |
 | 4 | `importProducts` (Drogal/Drogasil/Michelassi) | Shared catalog sync (`import-competitor-products`) | 🆕 | Becomes **system-scoped, once** over the `base_product` EAN universe (was per-tenant). |

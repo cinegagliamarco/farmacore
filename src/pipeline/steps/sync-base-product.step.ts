@@ -34,7 +34,9 @@ interface SyncBaseProductBatchResult {
  * tenant schema; no RMQ awareness.
  *
  * Field mapping (legacy BaseProductEntity -> new model):
- *   ean, description, activeIngredient, generic -> shared_catalog.base_product
+ *   ean, description, generic -> shared_catalog.base_product (seed only;
+ *     active_ingredient is OURS — curated via /admin/catalog/base-products,
+ *     never read from the ERP)
  *   external_id, name, active, price, cost, average_unit_cost,
  *     unit_sale_price, supplier, receipt_date, monitored,
  *     classification_id, deals -> tenant.product
@@ -125,14 +127,10 @@ export class SyncBaseProductStep {
         ? classificationPathByProdutoId[String(record.produtoid)]
         : undefined;
       const isGeneric = this.isGenericClassification(classificationPath);
-      const activeIngredient = isGeneric
-        ? (record.produto?.principioativo?.nome ?? null)
-        : null;
 
       baseProductInputs.push({
         ean,
         description: record.apresentacao ?? null,
-        activeIngredient,
         generic: isGeneric,
       });
 
@@ -154,10 +152,6 @@ export class SyncBaseProductStep {
         monitored: record.produto?.tipopreco === 'M',
         classificationPath,
         deals: this.buildDeals(quantitiesByEmbalagemId[String(record.id)]),
-        // Base-product identity, denormalized for plan-10 aggregation.
-        description: record.apresentacao ?? null,
-        activeIngredient,
-        generic: isGeneric,
       });
 
       const offer = offerByEmbalagemId[String(record.id)];

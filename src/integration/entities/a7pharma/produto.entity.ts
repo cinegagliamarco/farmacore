@@ -9,7 +9,6 @@ import {
 import { NumericColumn } from '../numeric-column.decorator';
 import { EmbalagemEntity } from './embalagem.entity';
 import { FabricanteEntity } from './fabricante.entity';
-import { PrincipioAtivoEntity } from './principio-ativo.entity';
 
 @Entity({ name: 'produto', schema: 'public', synchronize: false })
 export class ProdutoEntity {
@@ -263,8 +262,4 @@ export class ProdutoEntity {
 
   @OneToMany(() => EmbalagemEntity, (embalagem) => embalagem.produto)
   public embalagens!: EmbalagemEntity[];
-
-  @ManyToOne(() => PrincipioAtivoEntity, { nullable: true })
-  @JoinColumn({ name: 'principioativoid', referencedColumnName: 'id' })
-  public principioativo?: PrincipioAtivoEntity;
 }
