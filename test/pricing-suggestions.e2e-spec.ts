@@ -83,8 +83,8 @@ describe('Pricing suggestions (e2e)', () => {
     // custo 6, P. Venda 8 → margem 25%. Catch-all margem 40% sugere 6/0.6 = 10.
     await ds.query(
       `INSERT INTO ${SCHEMA}.product
-         (ean, name, active, price, cost, classification_id, external_id, generic, status)
-       VALUES (${EAN}, 'Dipirona 500mg', true, 8.00, 6.0000, $1, '6001', true, 'OK')`,
+         (ean, name, active, price, cost, classification_id, external_id, status)
+       VALUES (${EAN}, 'Dipirona 500mg', true, 8.00, 6.0000, $1, '6001', 'OK')`,
       [ROOT_ID],
     );
     // Concorrente DROGAL a 12 (sem PBM) + origem habilitada (core, por tenant_id).

@@ -10,15 +10,14 @@ import {
 
 /** Editable tenant-product fields. `price` is intentionally NOT here —
  *  price changes go through POST /products/:ean/price (which pushes to the
- *  ERP). curve/book/mat are deferred (see TODO.md). */
+ *  ERP). Identity facts (princípio ativo, generic, description) are NOT
+ *  here either — they live in the internal cadastre, curated via
+ *  /admin/catalog/base-products. curve/book/mat are deferred (see TODO.md). */
 export class UpdateProductDto {
   @IsOptional() @IsString() @Length(1, 500) name?: string;
   @IsOptional() @IsBoolean() active?: boolean;
   @IsOptional() @IsBoolean() monitored?: boolean;
-  @IsOptional() @IsBoolean() generic?: boolean;
   @IsOptional() @IsString() @Length(1, 500) supplier?: string;
-  @IsOptional() @IsString() description?: string;
-  @IsOptional() @IsString() @Length(1, 500) activeIngredient?: string;
   @IsOptional() @IsNumber() @Min(0) cost?: number;
   @IsOptional() @IsNumber() @Min(0) averageUnitCost?: number;
   @IsOptional() @IsNumber() @Min(0) unitSalePrice?: number;

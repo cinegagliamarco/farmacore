@@ -98,11 +98,23 @@ describe('Tenant API (e2e)', () => {
     );
     await ds.query(
       `INSERT INTO ${SCHEMA}.product
-         (ean, name, active, price, cost, active_ingredient, classification_id,
-          external_id, monitored, generic, status) VALUES
-        (${EAN_A}, 'Dipirona 500mg', true, 10.00, 5.0000, 'DIPIRONA', $1, '5001', false, true, 'OK'),
-        (${EAN_B}, 'Dipirona 1g',  true,  8.00, 5.0000, 'DIPIRONA', NULL, '5002', false, true, 'OK')`,
+         (ean, name, active, price, cost, classification_id,
+          external_id, monitored, status) VALUES
+        (${EAN_A}, 'Dipirona 500mg', true, 10.00, 5.0000, $1, '5001', false, 'OK'),
+        (${EAN_B}, 'Dipirona 1g',  true,  8.00, 5.0000, NULL, '5002', false, 'OK')`,
       [ROOT_ID],
+    );
+    // Identity (princípio ativo, generic) agora vem do cadastro interno —
+    // shared_catalog.base_product — cruzado por EAN nas leituras do tenant.
+    // A tabela é cross-tenant: limpar antes de semear e no afterAll.
+    await ds.query(
+      `DELETE FROM shared_catalog.base_product WHERE ean IN (${EAN_A}, ${EAN_B})`,
+    );
+    await ds.query(
+      `INSERT INTO shared_catalog.base_product
+         (ean, description, active_ingredient, generic) VALUES
+        (${EAN_A}, 'Dipirona 500mg', 'DIPIRONA', true),
+        (${EAN_B}, 'Dipirona 1g', 'DIPIRONA', true)`,
     );
     await ds.query(
       `INSERT INTO ${SCHEMA}.product_stock (ean, store_external_id, quantity) VALUES
@@ -145,6 +157,9 @@ describe('Tenant API (e2e)', () => {
     // runs fully even if beforeAll aborted partway — no leaked schema/rows.
     if (ds?.isInitialized) {
       await ds.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
+      await ds.query(
+        `DELETE FROM shared_catalog.base_product WHERE ean IN (${EAN_A}, ${EAN_B})`,
+      );
       const rows: Array<{ id: string }> = await ds.query(
         `SELECT id FROM core.tenant WHERE slug = $1`,
         [SLUG],

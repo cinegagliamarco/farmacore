@@ -5,10 +5,11 @@ import { ClassificationEntity } from './classification.entity';
 /**
  * Per-tenant projection of a shared catalog product. The intrinsic facts
  * (EAN, dimensions, generic flag, active ingredient text, description)
- * live in shared_catalog.base_product; this row carries everything that
- * is tenant-scoped and ERP-sourced: ERP id, ERP name, pricing, supplier,
- * receipt date, monitored flag, classification FK, and the legacy
- * `deals` jsonb (per-quantity offer payload).
+ * live in shared_catalog.base_product — tenant reads join it by EAN.
+ * This row carries everything that is tenant-scoped and ERP-sourced:
+ * ERP id, ERP name, pricing, supplier, receipt date, monitored flag,
+ * classification FK, and the legacy `deals` jsonb (per-quantity offer
+ * payload).
  */
 @Entity({ name: 'product' })
 @Index('UQ_PRODUCT_EAN', ['ean'], { unique: true })
@@ -94,17 +95,6 @@ export class ProductEntity extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   public status?: string | null;
-
-  // Base-product identity, denormalized here so the system build-base-
-  // products routine aggregates base_product from tenant rows (plan 10).
-  @Column({ type: 'text', nullable: true })
-  public description?: string | null;
-
-  @Column({ name: 'active_ingredient', type: 'text', nullable: true })
-  public activeIngredient?: string | null;
-
-  @Column({ type: 'boolean', default: false })
-  public generic!: boolean;
 }
 
 export interface ProductDeal {

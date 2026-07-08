@@ -193,7 +193,7 @@ describe('CatalogService.activeIngredientsCrossed', () => {
   it('builds the group: cheapest in-stock combate, lowest cost, competitor, decision', async () => {
     const em = makeEm([
       ...STORE_LOOKUP,
-      ['p.active_ingredient AS ai', INGREDIENT_ROWS],
+      ['bp.active_ingredient AS ai', INGREDIENT_ROWS],
     ]);
     const out = await catalog().activeIngredientsCrossed(
       em,
@@ -225,11 +225,11 @@ describe('CatalogService.activeIngredientsCrossed', () => {
   it('projects per-store price/cost from product_item over the globals', async () => {
     const em = makeEm([
       ...STORE_LOOKUP,
-      ['p.active_ingredient AS ai', INGREDIENT_ROWS],
+      ['bp.active_ingredient AS ai', INGREDIENT_ROWS],
     ]);
     await catalog().activeIngredientsCrossed(em, SLUG, q({ store: '1' }));
     const call = (em.query as jest.Mock).mock.calls.find((c: [string]) =>
-      c[0].includes('p.active_ingredient AS ai'),
+      c[0].includes('bp.active_ingredient AS ai'),
     ) as [string, unknown[]];
     expect(call[0]).toContain('COALESCE(pi.price, p.price) AS price');
     expect(call[0]).toContain('COALESCE(pi.cost, p.cost) AS cost');
@@ -242,7 +242,7 @@ describe('CatalogService.decisionCounts', () => {
   it('tallies the groups by decision with a total', async () => {
     const em = makeEm([
       ...STORE_LOOKUP,
-      ['p.active_ingredient AS ai', INGREDIENT_ROWS],
+      ['bp.active_ingredient AS ai', INGREDIENT_ROWS],
     ]);
     const counts = await catalog().decisionCounts(em, SLUG, q({ store: '1' }));
     expect(counts).toEqual({
@@ -729,37 +729,6 @@ describe('CatalogService.strategicPrice', () => {
     const out = await catalog().strategicPrice(em, SLUG, q({}));
     expect(out.count).toBe(4);
     expect(out.rows[0].ean).toBe('123');
-  });
-});
-
-describe('CatalogService.genericMissing', () => {
-  it('appends the generic-missing predicate with WHERE when no filters', async () => {
-    const { em, query } = recordingEm();
-    await catalog().genericMissing(em, q({}));
-    const [sql] = dataCall(query);
-    expect(sql).toContain(
-      'WHERE p.generic IS TRUE AND p.active_ingredient IS NULL',
-    );
-  });
-
-  it('appends the predicate with AND when filters are present', async () => {
-    const { em, query } = recordingEm();
-    await catalog().genericMissing(em, q({ supplier: 'EMS' }));
-    const [sql, params] = dataCall(query);
-    expect(sql).toContain(
-      'WHERE p.supplier ILIKE $1 AND p.generic IS TRUE AND p.active_ingredient IS NULL',
-    );
-    expect(params[0]).toBe('%EMS%');
-  });
-
-  it('returns the count and normalized rows', async () => {
-    const em = makeEm([
-      ['count(*)::int AS count', [{ count: '2' }]],
-      ['SELECT p.ean, p.name, p.supplier', [{ ean: 999, name: 'Z' }]],
-    ]);
-    const out = await catalog().genericMissing(em, q({}));
-    expect(out.count).toBe(2);
-    expect(out.rows[0].ean).toBe('999');
   });
 });
 

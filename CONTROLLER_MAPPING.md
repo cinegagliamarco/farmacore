@@ -56,6 +56,10 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | GET | `/integration/health` | `src/tenant-api/integration/integration.controller.ts` (tenant; admin) |
 | POST | `/admin/catalog/products/:ean/import` | `src/products/products.controller.ts` (system admin) |
 | GET | `/admin/catalog/products/export` | `src/products/products.controller.ts` (system admin) |
+| GET | `/admin/catalog/base-products` | `src/products/base-products-admin.controller.ts` (system admin) |
+| PATCH | `/admin/catalog/base-products/:ean` | `src/products/base-products-admin.controller.ts` (system admin) |
+| GET | `/admin/catalog/base-products/active-ingredients` | `src/products/base-products-admin.controller.ts` (system admin) |
+| POST | `/admin/catalog/base-products/active-ingredients/rename` | `src/products/base-products-admin.controller.ts` (system admin) |
 
 ## Pipeline steps (worker)
 
@@ -103,7 +107,7 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `GET /products/base/stock-metrics` | `GET /products/stock-metrics` (tenant) | ✅ ³ |
 | `GET /products/base/active-ingredients` | `GET /products/active-ingredients` (tenant) | ✅ ³ |
 | `GET /products/base/active-ingredients/crossed` | `GET /products/active-ingredients/crossed` (tenant) | ✅ ³ |
-| `GET /products/base/generic-missing-active-ingredients` | `GET /products/generic-missing-active-ingredients` (tenant) | ✅ ³ |
+| `GET /products/base/generic-missing-active-ingredients` | `GET /admin/catalog/base-products?missingActiveIngredient=true&generic=true` (system admin — curadoria do cadastro interno) | ✅ |
 | `PATCH /products/base/generic-missing-active-ingredients/:id` | — | ❌ |
 | `POST /products/base/import/csv` | — | ❌ |
 | `DELETE /products/base/reset` | — | ❌ |

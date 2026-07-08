@@ -13,9 +13,11 @@ import { IntegrationConnectionService } from '../src/integration/integration-con
  * End-to-end coverage for the catalog FILTER endpoints over the REAL SQL.
  * The unit spec mocks em.query; this boots the real AppModule against a real
  * DB so the filter WHERE clauses (active, receipt_date window), the perPage
- * clamp, the competitor LEFT JOINs (null with no shared_catalog rows) and the
- * strategic-price / generic-missing predicates actually run as SQL. Only the
- * external ERP (A7Pharma) is mocked.
+ * clamp, the competitor LEFT JOINs (null with no shared_catalog rows), the
+ * strategic-price predicate and the base_product identity cross (generic /
+ * princípio ativo via shared_catalog.base_product + curation through
+ * /admin/catalog/base-products) actually run as SQL. Only the external ERP
+ * (A7Pharma) is mocked.
  *
  * Requires the same already-migrated local DB + broker as the other e2e specs
  * (NODE_ENV=development, core + shared_catalog migrated). The tenant schema is
@@ -44,6 +46,7 @@ describe('Catalog filters (e2e)', () => {
   let app: INestApplication;
   let ds: DataSource;
   let token: string;
+  let sysToken: string;
 
   const get = (path: string) =>
     request(app.getHttpServer())
@@ -86,20 +89,32 @@ describe('Catalog filters (e2e)', () => {
     // seed. Delegating to the script keeps the DDL identical to prod.
     execSync(`npm run migration:tenant ${SLUG}`, { stdio: 'inherit' });
 
-    // P_ACTIVE: active, generic, has active_ingredient, in OK status, has a
-    //   non-empty deals jsonb (so it surfaces in strategic-price).
+    // P_ACTIVE: active, in OK status, has a non-empty deals jsonb (so it
+    //   surfaces in strategic-price).
     // P_INACTIVE: active=false, later receipt_date.
-    // P_GENERIC_MISSING: active+generic but active_ingredient NULL.
+    // P_GENERIC_MISSING: active, generic no cadastro interno mas sem
+    //   princípio ativo (fila de curadoria do admin).
     await ds.query(
       `INSERT INTO ${SCHEMA}.product
-         (ean, name, active, price, cost, generic, active_ingredient,
-          receipt_date, status, deals) VALUES
-        (${EAN_ACTIVE}, 'Dipirona 500mg', true, 10.00, 5.0000, true, 'DIPIRONA',
+         (ean, name, active, price, cost, receipt_date, status, deals) VALUES
+        (${EAN_ACTIVE}, 'Dipirona 500mg', true, 10.00, 5.0000,
           '2026-01-10', 'OK', '{"caderno": "promo"}'::jsonb),
-        (${EAN_INACTIVE}, 'Descontinuado', false, 8.00, 5.0000, false, NULL,
+        (${EAN_INACTIVE}, 'Descontinuado', false, 8.00, 5.0000,
           '2026-03-15', 'OK', NULL),
         (${EAN_GENERIC_MISSING}, 'Genérico sem princípio', true, 12.00, 6.0000,
-          true, NULL, '2026-02-01', 'OK', NULL)`,
+          '2026-02-01', 'OK', NULL)`,
+    );
+    // Identity (generic, princípio ativo) vive no cadastro interno
+    // (shared_catalog.base_product, cross-tenant): limpar e semear.
+    await ds.query(
+      `DELETE FROM shared_catalog.base_product WHERE ean IN (${ALL_EANS})`,
+    );
+    await ds.query(
+      `INSERT INTO shared_catalog.base_product
+         (ean, description, active_ingredient, generic) VALUES
+        (${EAN_ACTIVE}, 'Dipirona 500mg', 'DIPIRONA E2E-CATFILTER', true),
+        (${EAN_INACTIVE}, 'Descontinuado', NULL, false),
+        (${EAN_GENERIC_MISSING}, 'Genérico sem princípio', NULL, true)`,
     );
     // Own stock for P_ACTIVE so GET /products/stock returns own-stock numbers.
     await ds.query(
@@ -136,6 +151,24 @@ describe('Catalog filters (e2e)', () => {
       })
       .expect(200);
     token = (login.body as { accessToken: string }).accessToken;
+
+    // System admin para a curadoria do cadastro interno (email próprio do
+    // spec — os e2e rodam em paralelo e não podem disputar a mesma linha).
+    await ds.query(
+      `INSERT INTO core."user" (tenant_id, email, password_hash, role, status)
+       VALUES ('system', 'sysadmin@catfilter.e2e', $1, 'admin', 'active')
+       ON CONFLICT (tenant_id, email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+      [hash],
+    );
+    const sysLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: 'sysadmin@catfilter.e2e',
+        password: 'secret123',
+        tenantSlug: 'system',
+      })
+      .expect(200);
+    sysToken = (sysLogin.body as { accessToken: string }).accessToken;
   }, 60000);
 
   afterAll(async () => {
@@ -155,6 +188,12 @@ describe('Catalog filters (e2e)', () => {
         );
       }
       await ds.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
+      await ds.query(
+        `DELETE FROM shared_catalog.base_product WHERE ean IN (${ALL_EANS})`,
+      );
+      await ds.query(
+        `DELETE FROM core."user" WHERE tenant_id = 'system' AND email = 'sysadmin@catfilter.e2e'`,
+      );
       await ds.query(`DELETE FROM core."user" WHERE tenant_id = $1`, [SLUG]);
       await ds.query(`DELETE FROM core.tenant WHERE slug = $1`, [SLUG]);
     }
@@ -251,13 +290,73 @@ describe('Catalog filters (e2e)', () => {
     });
   });
 
-  describe('GET /products/generic-missing-active-ingredients', () => {
-    it('returns only the generic product missing an active ingredient', async () => {
-      const res = await get(
-        '/products/generic-missing-active-ingredients',
-      ).expect(200);
+  describe('GET /products — identity do cadastro interno (join por EAN)', () => {
+    it('carries generic from shared_catalog.base_product', async () => {
+      const res = await get(`/products?eans=${EAN_ACTIVE}`).expect(200);
+      expect((res.body.rows[0] as { generic: boolean }).generic).toBe(true);
+
+      const inactive = await get(`/products?eans=${EAN_INACTIVE}`).expect(200);
+      expect((inactive.body.rows[0] as { generic: boolean }).generic).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('/admin/catalog/base-products (curadoria EAN ↔ princípio ativo)', () => {
+    const admin = (path: string) =>
+      request(app.getHttpServer())
+        .get(path)
+        .set('Authorization', `Bearer ${sysToken}`);
+    const QUEUE = `/admin/catalog/base-products?search=789666&missingActiveIngredient=true&generic=true`;
+
+    it('403s for a tenant token', async () => {
+      await get('/admin/catalog/base-products').expect(403);
+    });
+
+    it('lists the curation queue (generic without princípio ativo)', async () => {
+      const res = await admin(QUEUE).expect(200);
       expect(res.body.count).toBe(1);
-      expect((res.body.rows as ProductRow[])[0].ean).toBe(EAN_GENERIC_MISSING);
+      expect(res.body.rows[0].ean).toBe(EAN_GENERIC_MISSING);
+      expect(res.body.rows[0].activeIngredient).toBeNull();
+    });
+
+    it('PATCH fills the princípio ativo and empties the queue', async () => {
+      await request(app.getHttpServer())
+        .patch(`/admin/catalog/base-products/${EAN_GENERIC_MISSING}`)
+        .set('Authorization', `Bearer ${sysToken}`)
+        .send({ activeIngredient: 'IBUPROFENO E2E-CATFILTER' })
+        .expect(200);
+      const res = await admin(QUEUE).expect(200);
+      expect(res.body.count).toBe(0);
+    });
+
+    it('404s a PATCH on an unknown EAN', async () => {
+      await request(app.getHttpServer())
+        .patch('/admin/catalog/base-products/40000000000001')
+        .set('Authorization', `Bearer ${sysToken}`)
+        .send({ activeIngredient: 'X' })
+        .expect(404);
+    });
+
+    it('renames a princípio ativo across its EANs', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/admin/catalog/base-products/active-ingredients/rename')
+        .set('Authorization', `Bearer ${sysToken}`)
+        .send({
+          from: 'IBUPROFENO E2E-CATFILTER',
+          to: 'IBUPROFENO E2E-CATFILTER-OK',
+        })
+        .expect(201);
+      expect(res.body.updated).toBe(1);
+
+      const names = await admin(
+        '/admin/catalog/base-products/active-ingredients',
+      ).expect(200);
+      expect(names.body).toEqual(
+        expect.arrayContaining([
+          { name: 'IBUPROFENO E2E-CATFILTER-OK', eans: 1 },
+        ]),
+      );
     });
   });
 

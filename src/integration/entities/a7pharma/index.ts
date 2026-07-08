@@ -10,7 +10,6 @@ import { ItemCadernoOfertaQuantidadeEntity } from './item-caderno-oferta-quantid
 import { ItemRecebimentoFisicoEntity } from './item-recebimento-fisico.entity';
 import { PessoaEntity } from './pessoa.entity';
 import { PrecoEmbalagemUnidadeNegocioEntity } from './preco-embalagem-unidade-negocio.entity';
-import { PrincipioAtivoEntity } from './principio-ativo.entity';
 import { ProdutoEntity } from './produto.entity';
 import { RecebimentoFisicoEntity } from './recebimento-fisico.entity';
 import { UnidadeNegocioEntity } from './unidade-negocio.entity';
@@ -28,7 +27,6 @@ export {
   ItemRecebimentoFisicoEntity,
   PessoaEntity,
   PrecoEmbalagemUnidadeNegocioEntity,
-  PrincipioAtivoEntity,
   ProdutoEntity,
   RecebimentoFisicoEntity,
   UnidadeNegocioEntity,
@@ -47,7 +45,6 @@ export const A7PHARMA_ENTITIES = [
   ItemRecebimentoFisicoEntity,
   PessoaEntity,
   PrecoEmbalagemUnidadeNegocioEntity,
-  PrincipioAtivoEntity,
   ProdutoEntity,
   RecebimentoFisicoEntity,
   UnidadeNegocioEntity,

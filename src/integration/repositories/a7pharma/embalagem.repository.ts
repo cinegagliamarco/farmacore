@@ -37,16 +37,15 @@ export class EmbalagemRepository {
 
   /**
    * Full embalagem rows for a given ID slice WITH the relations the
-   * sync-base-product step needs (produto + principioativo, produto +
-   * fabricante + pessoa). Bounded to the batch size so the heap footprint
-   * is one batch worth of rows, not the whole table.
+   * sync-base-product step needs (produto + fabricante + pessoa).
+   * Bounded to the batch size so the heap footprint is one batch worth
+   * of rows, not the whole table.
    */
   public findByIdsWithRelations(ids: number[]): Promise<EmbalagemEntity[]> {
     if (ids.length === 0) return Promise.resolve([]);
     return this.validQuery()
       .leftJoinAndSelect('e.produto', 'produto')
       .leftJoinAndSelect('produto.fabricante', 'fabricante')
-      .leftJoinAndSelect('produto.principioativo', 'principioativo')
       .leftJoinAndSelect('fabricante.pessoa', 'pessoa')
       .andWhere('e.id IN (:...ids)', { ids })
       .orderBy('e.id', 'ASC')
