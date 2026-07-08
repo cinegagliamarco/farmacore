@@ -12,7 +12,22 @@ export interface BaseProductAdminRow {
   description: string | null;
   activeIngredient: string | null;
   generic: boolean;
+  weight: string | null;
+  height: string | null;
+  length: string | null;
+  width: string | null;
   updatedAt: Date;
+}
+
+/** Campos editáveis do cadastro base (o EAN é a chave, não muda). */
+export interface BaseProductIdentityPatch {
+  description?: string | null;
+  activeIngredient?: string | null;
+  generic?: boolean;
+  weight?: string | null;
+  height?: string | null;
+  length?: string | null;
+  width?: string | null;
 }
 
 export interface BaseProductSearchQuery {
@@ -170,6 +185,7 @@ export class BaseProductRepository {
     const rows: BaseProductAdminRow[] = await this.em.query(
       `SELECT bp.ean::text AS ean, bp.description,
               bp.active_ingredient AS "activeIngredient", bp.generic,
+              bp.weight, bp.height, bp.length, bp.width,
               bp.updated_at AS "updatedAt"
          FROM shared_catalog.base_product bp ${where}
         ORDER BY bp.ean
@@ -181,11 +197,7 @@ export class BaseProductRepository {
 
   public async updateIdentityByEan(
     ean: string,
-    patch: {
-      description?: string | null;
-      activeIngredient?: string | null;
-      generic?: boolean;
-    },
+    patch: BaseProductIdentityPatch,
   ): Promise<number> {
     const res = await this.em
       .getRepository(BaseProductEntity)

@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Length,
@@ -58,6 +59,31 @@ export class UpdateBaseProductDto {
   @IsString()
   @Length(1, 500)
   public description?: string | null;
+
+  /** Peso (kg) e medidas (cm) — `null` limpa. */
+  @IsOptional()
+  @ValidateIf((o: UpdateBaseProductDto) => o.weight !== null)
+  @IsNumber()
+  @Min(0)
+  public weight?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o: UpdateBaseProductDto) => o.height !== null)
+  @IsNumber()
+  @Min(0)
+  public height?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o: UpdateBaseProductDto) => o.length !== null)
+  @IsNumber()
+  @Min(0)
+  public length?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o: UpdateBaseProductDto) => o.width !== null)
+  @IsNumber()
+  @Min(0)
+  public width?: number | null;
 }
 
 export class RenameActiveIngredientDto {

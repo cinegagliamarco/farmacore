@@ -342,6 +342,24 @@ describe('Catalog filters (e2e)', () => {
       expect(res.body.count).toBe(0);
     });
 
+    it('PATCH updates weight/measures and they come back in the list', async () => {
+      await request(app.getHttpServer())
+        .patch(`/admin/catalog/base-products/${EAN_ACTIVE}`)
+        .set('Authorization', `Bearer ${sysToken}`)
+        .send({ weight: 0.25, height: 12, width: 6, length: 3 })
+        .expect(200);
+      const res = await admin(
+        `/admin/catalog/base-products?search=${EAN_ACTIVE}`,
+      ).expect(200);
+      const row = res.body.rows.find(
+        (r: { ean: string }) => r.ean === EAN_ACTIVE,
+      );
+      expect(Number(row.weight)).toBe(0.25);
+      expect(Number(row.height)).toBe(12);
+      expect(Number(row.width)).toBe(6);
+      expect(Number(row.length)).toBe(3);
+    });
+
     it('404s a PATCH on an unknown EAN', async () => {
       await request(app.getHttpServer())
         .patch('/admin/catalog/base-products/40000000000001')

@@ -60,6 +60,9 @@ export class BaseProductsAdminService {
     if (dto.description !== undefined) {
       patch.description = dto.description?.trim() || null;
     }
+    for (const dim of ['weight', 'height', 'length', 'width'] as const) {
+      if (dto[dim] !== undefined) patch[dim] = dto[dim]?.toString() ?? null;
+    }
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('no editable fields provided');
     }
