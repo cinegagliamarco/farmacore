@@ -23,10 +23,10 @@ const DEFAULT_PER_PAGE = 50;
  */
 @Injectable()
 export class BaseProductsAdminService {
-  constructor(private readonly dataSource: DataSource) {}
+  private readonly repo: BaseProductRepository;
 
-  private get repo(): BaseProductRepository {
-    return new BaseProductRepository(this.dataSource.manager);
+  constructor(dataSource: DataSource) {
+    this.repo = new BaseProductRepository(dataSource.manager);
   }
 
   public async list(q: ListBaseProductsQueryDto): Promise<{
@@ -57,7 +57,9 @@ export class BaseProductsAdminService {
       patch.activeIngredient = dto.activeIngredient?.trim() || null;
     }
     if (dto.generic !== undefined) patch.generic = dto.generic;
-    if (dto.description !== undefined) patch.description = dto.description;
+    if (dto.description !== undefined) {
+      patch.description = dto.description?.trim() || null;
+    }
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('no editable fields provided');
     }
@@ -74,13 +76,16 @@ export class BaseProductsAdminService {
     from: string,
     to: string,
   ): Promise<{ from: string; to: string; updated: number }> {
+    const source = from.trim();
     const target = to.trim();
     // @Length(1,255) conta espaços — sem isto, '  ' viraria '' em massa.
-    if (!target) throw new BadRequestException('to must not be blank');
-    const updated = await this.repo.renameActiveIngredient(from, target);
-    if (!updated) {
-      throw new NotFoundException(`no base product with "${from}"`);
+    if (!source || !target) {
+      throw new BadRequestException('from/to must not be blank');
     }
-    return { from, to: target, updated };
+    const updated = await this.repo.renameActiveIngredient(source, target);
+    if (!updated) {
+      throw new NotFoundException(`no base product with "${source}"`);
+    }
+    return { from: source, to: target, updated };
   }
 }

@@ -32,7 +32,9 @@ const SCHEMA = 'tenant_e2ecatfilter';
 const EAN_ACTIVE = '7896666666661';
 const EAN_INACTIVE = '7896666666662';
 const EAN_GENERIC_MISSING = '7896666666663';
-const ALL_EANS = `${EAN_ACTIVE}, ${EAN_INACTIVE}, ${EAN_GENERIC_MISSING}`;
+// Seeded mid-test WITHOUT a base_product row (LEFT JOIN miss coverage).
+const EAN_NO_BP = '7896666666664';
+const ALL_EANS = `${EAN_ACTIVE}, ${EAN_INACTIVE}, ${EAN_GENERIC_MISSING}, ${EAN_NO_BP}`;
 
 const a7 = { changePrices: jest.fn(), upsertOffer: jest.fn() };
 const credentials = { baseUrl: 'https://erp.test', apiKey: 'key' };
@@ -300,6 +302,16 @@ describe('Catalog filters (e2e)', () => {
         false,
       );
     });
+
+    it('still lists a product with NO base_product row (LEFT JOIN miss → generic=false)', async () => {
+      await ds.query(
+        `INSERT INTO ${SCHEMA}.product (ean, name, active, price, cost, status)
+         VALUES (${EAN_NO_BP}, 'Sem cadastro', true, 5.00, 2.0000, 'OK')`,
+      );
+      const res = await get(`/products?eans=${EAN_NO_BP}`).expect(200);
+      expect(res.body.count).toBe(1);
+      expect((res.body.rows[0] as { generic: boolean }).generic).toBe(false);
+    });
   });
 
   describe('/admin/catalog/base-products (curadoria EAN ↔ princípio ativo)', () => {
@@ -336,6 +348,19 @@ describe('Catalog filters (e2e)', () => {
         .set('Authorization', `Bearer ${sysToken}`)
         .send({ activeIngredient: 'X' })
         .expect(404);
+    });
+
+    it('400s a PATCH with a non-numeric or oversized EAN', async () => {
+      await request(app.getHttpServer())
+        .patch('/admin/catalog/base-products/not-an-ean')
+        .set('Authorization', `Bearer ${sysToken}`)
+        .send({ activeIngredient: 'X' })
+        .expect(400);
+      await request(app.getHttpServer())
+        .patch('/admin/catalog/base-products/999999999999999999999')
+        .set('Authorization', `Bearer ${sysToken}`)
+        .send({ activeIngredient: 'X' })
+        .expect(400);
     });
 
     it('renames a princípio ativo across its EANs', async () => {

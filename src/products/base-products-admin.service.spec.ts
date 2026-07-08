@@ -60,6 +60,14 @@ describe('BaseProductsAdminService.list', () => {
     });
   });
 
+  it('escapes ILIKE metacharacters so search is a literal substring', async () => {
+    const { service, query } = build();
+    query.mockResolvedValueOnce([{ count: '0' }]).mockResolvedValueOnce([]);
+    await service.list({ search: '50%_a\\' });
+    const [, countParams] = query.mock.calls[0] as [string, unknown[]];
+    expect(countParams).toEqual(['%50\\%\\_a\\\\%']);
+  });
+
   it('omits WHERE when no filter is given', async () => {
     const { service, query } = build();
     query.mockResolvedValueOnce([{ count: '0' }]).mockResolvedValueOnce([]);
@@ -119,11 +127,19 @@ describe('BaseProductsAdminService.rename', () => {
     await expect(service.rename('X', 'Y')).rejects.toThrow(NotFoundException);
   });
 
-  it('rejects a blank target name', async () => {
-    const { service, execute } = build();
+  it('rejects blank names on either side and trims the source', async () => {
+    const { service, qb, execute } = build();
     await expect(service.rename('X', '   ')).rejects.toThrow(
       BadRequestException,
     );
+    await expect(service.rename('   ', 'Y')).rejects.toThrow(
+      BadRequestException,
+    );
     expect(execute).not.toHaveBeenCalled();
+
+    await service.rename(' DIPIRONA SODICA ', 'DIPIRONA');
+    expect(qb.where).toHaveBeenCalledWith('active_ingredient = :from', {
+      from: 'DIPIRONA SODICA',
+    });
   });
 });

@@ -8,8 +8,7 @@ Legacy ran **one daily cron** (`DailyRoutinesCron`) that did all 8 steps sequent
 
 | New routine | Scope | Replaces (legacy steps) |
 |---|---|---|
-| **Tenant import** | per tenant | 1 synchronizeBaseProduct (tenant data), 2 synchronizeBaseProductStock, 3 synchronizeOfferBooksInfo |
-| **Build base products** | system (all tenants → `shared_catalog.base_product`) | the `base_product` half of step 1 |
+| **Tenant import** | per tenant | 1 synchronizeBaseProduct (tenant data + seed insert-only de `shared_catalog.base_product`; princípio ativo é curadoria via `/admin/catalog/base-products`), 2 synchronizeBaseProductStock, 3 synchronizeOfferBooksInfo |
 | **Shared catalog sync** | system (once) | 4 importProducts, 5 importStocks, 7 (base_product weight/dims) |
 | **Tenant metrics** | per tenant | 6 calculateBaseProductMetrics, 7 (tenant supplier/name), 8 updateActiveIngredientMat |
 

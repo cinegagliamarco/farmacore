@@ -108,7 +108,7 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `GET /products/base/active-ingredients` | `GET /products/active-ingredients` (tenant) | ✅ ³ |
 | `GET /products/base/active-ingredients/crossed` | `GET /products/active-ingredients/crossed` (tenant) | ✅ ³ |
 | `GET /products/base/generic-missing-active-ingredients` | `GET /admin/catalog/base-products?missingActiveIngredient=true&generic=true` (system admin — curadoria do cadastro interno) | ✅ |
-| `PATCH /products/base/generic-missing-active-ingredients/:id` | — | ❌ |
+| `PATCH /products/base/generic-missing-active-ingredients/:id` | `PATCH /admin/catalog/base-products/:ean` (system admin) | ✅ |
 | `POST /products/base/import/csv` | — | ❌ |
 | `DELETE /products/base/reset` | — | ❌ |
 | `DELETE /products/base/reset-images` | — | ❌ |

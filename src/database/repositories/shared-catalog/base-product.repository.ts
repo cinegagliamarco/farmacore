@@ -27,10 +27,11 @@ export interface BaseProductSearchQuery {
 /**
  * Shared-catalog base_product repository.
  *
- * Plain class instantiated per pipeline step, bound to the tenant
- * EntityManager from runWithTenant. The entity is declared with
- * `schema: 'shared_catalog'` so writes land in the shared catalog
- * regardless of the search_path.
+ * Plain class bound to whatever EntityManager the caller holds: pipeline
+ * steps pass the tenant EM from runWithTenant, the admin curation API
+ * (BaseProductsAdminService) passes the default DataSource manager. The
+ * entity is declared with `schema: 'shared_catalog'` so access lands in
+ * the shared catalog regardless of the search_path.
  */
 export class BaseProductRepository {
   constructor(private readonly em: EntityManager) {}
@@ -150,7 +151,8 @@ export class BaseProductRepository {
     const clauses: string[] = [];
     const params: unknown[] = [];
     if (q.search) {
-      params.push(`%${q.search}%`);
+      // % e _ do usuário são busca literal, não curinga de ILIKE.
+      params.push(`%${q.search.replace(/[\\%_]/g, '\\$&')}%`);
       clauses.push(
         `(bp.ean::text ILIKE $${params.length} OR bp.description ILIKE $${params.length} OR bp.active_ingredient ILIKE $${params.length})`,
       );
