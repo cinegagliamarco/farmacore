@@ -360,6 +360,37 @@ describe('Catalog filters (e2e)', () => {
       expect(Number(row.length)).toBe(3);
     });
 
+    it('PATCH null clears a previously-set dimension', async () => {
+      await request(app.getHttpServer())
+        .patch(`/admin/catalog/base-products/${EAN_ACTIVE}`)
+        .set('Authorization', `Bearer ${sysToken}`)
+        .send({ weight: null })
+        .expect(200);
+      const res = await admin(
+        `/admin/catalog/base-products?search=${EAN_ACTIVE}`,
+      ).expect(200);
+      const row = res.body.rows.find(
+        (r: { ean: string }) => r.ean === EAN_ACTIVE,
+      );
+      expect(row.weight).toBeNull();
+    });
+
+    it('400s a dimension beyond the column precision (no 500)', async () => {
+      await request(app.getHttpServer())
+        .patch(`/admin/catalog/base-products/${EAN_ACTIVE}`)
+        .set('Authorization', `Bearer ${sysToken}`)
+        .send({ height: 1_000_000 }) // numeric(10,4) → 6 dígitos inteiros
+        .expect(400);
+    });
+
+    it('400s a non-numeric dimension', async () => {
+      await request(app.getHttpServer())
+        .patch(`/admin/catalog/base-products/${EAN_ACTIVE}`)
+        .set('Authorization', `Bearer ${sysToken}`)
+        .send({ weight: 'heavy' })
+        .expect(400);
+    });
+
     it('404s a PATCH on an unknown EAN', async () => {
       await request(app.getHttpServer())
         .patch('/admin/catalog/base-products/40000000000001')

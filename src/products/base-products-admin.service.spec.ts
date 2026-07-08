@@ -104,12 +104,17 @@ describe('BaseProductsAdminService.update', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it('stores dimensions as strings and null clears them', async () => {
+  it('stores dimensions as strings, keeps 0, and null clears them', async () => {
     const { service, update } = build();
-    await service.update('789', { weight: 0.5, height: 12, width: null });
+    await service.update('789', {
+      weight: 0.5,
+      height: 12,
+      length: 0, // 0 é válido (@Min 0): vira '0', NÃO null
+      width: null,
+    });
     expect(update).toHaveBeenCalledWith(
       { ean: '789' },
-      { weight: '0.5', height: '12', width: null },
+      { weight: '0.5', height: '12', length: '0', width: null },
     );
   });
 });

@@ -20,9 +20,9 @@ import {
 } from './dto/base-products-admin.dto';
 
 /**
- * Cadastro interno (shared_catalog.base_product): administra o
- * relacionamento EAN ↔ princípio ativo. System-admin only — o dado é
- * global, compartilhado por todos os tenants.
+ * Cadastro interno (shared_catalog.base_product): edita os campos
+ * curados por EAN (princípio ativo, generic, descrição, peso e medidas).
+ * System-admin only — o dado é global, compartilhado por todos os tenants.
  */
 @Controller('admin/catalog/base-products')
 @UseGuards(SystemAdminGuard)

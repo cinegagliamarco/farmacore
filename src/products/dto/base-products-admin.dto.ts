@@ -60,29 +60,35 @@ export class UpdateBaseProductDto {
   @Length(1, 500)
   public description?: string | null;
 
-  /** Peso (kg) e medidas (cm) — `null` limpa. */
+  // Peso (kg) e medidas (cm) — `null` limpa. Os @Max batem com a precisão
+  // das colunas (weight numeric(10,3), medidas numeric(10,4)); sem eles um
+  // valor acima disso estoura o numeric no UPDATE e viraria 500 em vez de 400.
   @IsOptional()
   @ValidateIf((o: UpdateBaseProductDto) => o.weight !== null)
   @IsNumber()
   @Min(0)
+  @Max(9999999.999)
   public weight?: number | null;
 
   @IsOptional()
   @ValidateIf((o: UpdateBaseProductDto) => o.height !== null)
   @IsNumber()
   @Min(0)
+  @Max(999999.9999)
   public height?: number | null;
 
   @IsOptional()
   @ValidateIf((o: UpdateBaseProductDto) => o.length !== null)
   @IsNumber()
   @Min(0)
+  @Max(999999.9999)
   public length?: number | null;
 
   @IsOptional()
   @ValidateIf((o: UpdateBaseProductDto) => o.width !== null)
   @IsNumber()
   @Min(0)
+  @Max(999999.9999)
   public width?: number | null;
 }
 

@@ -158,8 +158,8 @@ export class BaseProductRepository {
     );
   }
 
-  /** Paginated admin search over the internal cadastre (EAN ↔ princípio
-   *  ativo curation — see /admin/catalog/base-products). */
+  /** Paginated admin search over the internal cadastre (base_product admin
+   *  rows — see /admin/catalog/base-products). */
   public async search(
     q: BaseProductSearchQuery,
   ): Promise<{ rows: BaseProductAdminRow[]; count: number }> {
