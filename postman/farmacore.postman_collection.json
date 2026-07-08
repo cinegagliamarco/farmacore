@@ -1005,10 +1005,10 @@
         "{{ean}}"
        ]
       },
-      "description": "Define/limpa princípio ativo (null limpa), generic e description de um EAN do cadastro interno. System admin.",
+      "description": "Edita o cadastro base de um EAN: princípio ativo, generic, descrição, peso e medidas (null limpa texto/dimensão). System admin.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"activeIngredient\": \"DIPIRONA\",\n  \"generic\": true\n}"
+       "raw": "{\n  \"activeIngredient\": \"DIPIRONA\",\n  \"generic\": true,\n  \"description\": \"500MG C/ 20 CP\",\n  \"weight\": 0.25,\n  \"height\": 12,\n  \"width\": 6,\n  \"length\": 3\n}"
       }
      },
      "response": []

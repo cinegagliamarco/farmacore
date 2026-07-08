@@ -6,6 +6,7 @@ import {
 import { DataSource } from 'typeorm';
 import {
   BaseProductAdminRow,
+  BaseProductIdentityPatch,
   BaseProductRepository,
 } from '../database/repositories/shared-catalog/base-product.repository';
 import {
@@ -16,10 +17,11 @@ import {
 const DEFAULT_PER_PAGE = 50;
 
 /**
- * Curadoria do cadastro interno (shared_catalog.base_product) — o
- * relacionamento EAN ↔ princípio ativo é responsabilidade NOSSA, não do
- * ERP dos tenants: o sync semeia a linha (sem princípio ativo) e tudo o
- * que os tenants leem cruza por EAN com o que foi curado aqui.
+ * Curadoria do cadastro interno (shared_catalog.base_product): edita os
+ * campos que são responsabilidade NOSSA, não do ERP dos tenants —
+ * princípio ativo, generic, descrição, peso e medidas. O sync semeia a
+ * linha e tudo o que os tenants leem cruza por EAN com o que foi curado
+ * aqui.
  */
 @Injectable()
 export class BaseProductsAdminService {
@@ -51,14 +53,16 @@ export class BaseProductsAdminService {
     ean: string,
     dto: UpdateBaseProductDto,
   ): Promise<{ ean: string; updated: number }> {
-    const patch: Parameters<BaseProductRepository['updateIdentityByEan']>[1] =
-      {};
+    const patch: BaseProductIdentityPatch = {};
     if (dto.activeIngredient !== undefined) {
       patch.activeIngredient = dto.activeIngredient?.trim() || null;
     }
     if (dto.generic !== undefined) patch.generic = dto.generic;
     if (dto.description !== undefined) {
       patch.description = dto.description?.trim() || null;
+    }
+    for (const dim of ['weight', 'height', 'length', 'width'] as const) {
+      if (dto[dim] !== undefined) patch[dim] = dto[dim]?.toString() ?? null;
     }
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('no editable fields provided');
