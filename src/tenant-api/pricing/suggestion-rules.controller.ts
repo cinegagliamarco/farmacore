@@ -49,7 +49,7 @@ export class SuggestionRulesController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: UpsertSuggestionRuleDto,
   ): Promise<SuggestionRuleApi> {
-    const rule = await this.rules.create(em, dto);
+    const rule = await this.rules.create(em, user.tenantId, dto);
     await this.audit.log(em, {
       actor: user.sub,
       action: 'create',
@@ -68,7 +68,7 @@ export class SuggestionRulesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpsertSuggestionRuleDto,
   ): Promise<SuggestionRuleApi> {
-    const rule = await this.rules.update(em, id, dto);
+    const rule = await this.rules.update(em, user.tenantId, id, dto);
     await this.audit.log(em, {
       actor: user.sub,
       action: 'update',

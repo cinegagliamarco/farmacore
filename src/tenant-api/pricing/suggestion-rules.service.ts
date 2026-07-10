@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { EntityManager, QueryFailedError } from 'typeorm';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
+import { resolveTenantId } from '../../tenant/tenant-lookup';
 import {
   CompetitorMode,
   PricingSuggestionRuleEntity,
@@ -18,6 +19,8 @@ export interface SuggestionRuleApi {
   id: string;
   name: string;
   classifications: string[];
+  /** Lojas participantes (uuids). Vazio = todas as lojas ativas. */
+  storeIds: string[];
   clusterId: string | null;
   clusterName: string | null;
   excludeClusterIds: string[];
@@ -43,6 +46,7 @@ interface RuleRow {
   id: string;
   name: string;
   classifications: string[];
+  storeIds: string[];
   clusterId: string | null;
   clusterName: string | null;
   excludeClusterIds: string[];
@@ -71,7 +75,7 @@ interface RuleRow {
 export class SuggestionRulesService {
   public async list(em: EntityManager): Promise<SuggestionRuleApi[]> {
     const rows: RuleRow[] = await em.query(
-      `SELECT r.id, r.name, r.classifications,
+      `SELECT r.id, r.name, r.classifications, r.store_ids AS "storeIds",
               r.cluster_id AS "clusterId", cl.name AS "clusterName",
               r.exclude_cluster_ids AS "excludeClusterIds",
               r.strategy, r.min_margin AS "minMargin",
@@ -93,9 +97,11 @@ export class SuggestionRulesService {
 
   public async create(
     em: EntityManager,
+    slug: string,
     dto: UpsertSuggestionRuleDto,
   ): Promise<SuggestionRuleApi> {
     const values = this.validate(dto);
+    await this.assertStores(em, slug, values.storeIds!);
     const repo = em.getRepository(PricingSuggestionRuleEntity);
     const saved = await this.runOrMapFk(() => repo.save(repo.create(values)));
     return this.get(em, saved.id);
@@ -103,14 +109,37 @@ export class SuggestionRulesService {
 
   public async update(
     em: EntityManager,
+    slug: string,
     id: string,
     dto: UpsertSuggestionRuleDto,
   ): Promise<SuggestionRuleApi> {
     const values = this.validate(dto);
+    await this.assertStores(em, slug, values.storeIds!);
     const repo = em.getRepository(PricingSuggestionRuleEntity);
     const res = await this.runOrMapFk(() => repo.update({ id }, values));
     if (!res.affected) throw new NotFoundException(`rule ${id} not found`);
     return this.get(em, id);
+  }
+
+  /** Toda loja da regra precisa ser do tenant (e não deletada) — inativa
+   *  pode: a regra volta a valer se o admin reativar a loja. */
+  private async assertStores(
+    em: EntityManager,
+    slug: string,
+    storeIds: string[],
+  ): Promise<void> {
+    if (storeIds.length === 0) return;
+    const tenantId = await resolveTenantId(em, slug);
+    const rows: unknown[] = await em.query(
+      `SELECT 1 FROM core.tenant_store
+        WHERE tenant_id = $1 AND id = ANY($2::uuid[]) AND deleted_at IS NULL`,
+      [tenantId, storeIds],
+    );
+    if (rows.length !== storeIds.length) {
+      throw new BadRequestException(
+        'Loja inválida na regra (não existe neste tenant).',
+      );
+    }
   }
 
   /** FK cluster_id violada (23503): cluster apagado/inexistente → 400 claro. */
@@ -152,6 +181,7 @@ export class SuggestionRulesService {
       id: 'preview',
       name: v.name!,
       classifications: v.classifications!,
+      storeIds: v.storeIds!,
       clusterId: v.clusterId ?? null,
       clusterName: null,
       excludeClusterIds: v.excludeClusterIds!,
@@ -184,6 +214,7 @@ export class SuggestionRulesService {
       id: r.id,
       name: r.name,
       classifications: r.classifications,
+      storeIds: r.storeIds,
       clusterId: r.clusterId,
       clusterName: r.clusterName,
       excludeClusterIds: r.excludeClusterIds,
@@ -229,6 +260,9 @@ export class SuggestionRulesService {
       ...new Set(
         (dto.excludeClusterIds ?? []).map((c) => c.trim()).filter(Boolean),
       ),
+    ];
+    const storeIds = [
+      ...new Set((dto.storeIds ?? []).map((s) => s.trim()).filter(Boolean)),
     ];
     if (clusterId && excludeClusterIds.includes(clusterId)) {
       throw new BadRequestException(
@@ -280,6 +314,7 @@ export class SuggestionRulesService {
     return {
       name: dto.name.trim(),
       classifications,
+      storeIds,
       clusterId,
       excludeClusterIds,
       strategy,

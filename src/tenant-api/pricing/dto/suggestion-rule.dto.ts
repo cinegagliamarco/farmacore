@@ -54,6 +54,14 @@ export class UpsertSuggestionRuleDto {
   @IsUUID('all', { each: true })
   public excludeClusterIds?: string[];
 
+  // Lojas participantes (uuids de core.tenant_store). Vazio/ausente = todas
+  // as lojas ativas.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  public storeIds?: string[];
+
   @IsOptional()
   @IsIn(['margem', 'concorrencia'])
   public strategy?: 'margem' | 'concorrencia';
