@@ -30,6 +30,10 @@ export class PricingSuggestionRuleEntity extends BaseEntity {
   @Column({ type: 'jsonb', default: [] })
   public classifications!: string[];
 
+  // Lojas participantes (uuids de core.tenant_store). Vazio = todas as ativas.
+  @Column({ name: 'store_ids', type: 'jsonb', default: [] })
+  public storeIds!: string[];
+
   @Column({ name: 'cluster_id', type: 'uuid', nullable: true })
   public clusterId!: string | null;
 
