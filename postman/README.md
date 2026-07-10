@@ -21,6 +21,8 @@ For each plan that touches `*.controller.ts`:
 | `accessToken`      | (set by login/refresh)      | JWT bearer; auto-populated by the login test.                   |
 | `refreshToken`     | (set by login/refresh)      | Refresh token; auto-populated by the login test.                |
 | `ean`              | `EXAMPLE_EAN`                | Replace with a product EAN for `/products/:ean*` and `/admin/catalog/*` routes.|
+| `ean2`             | `EXAMPLE_EAN_2`              | Optional second product EAN in multi-product examples.           |
+| `adminEmail`       | (set before sending)         | Email for the tenant-admin onboarding request.                   |
 | `queue`            | `sync-base-product.batch`   | Queue name for `/admin/dlq/:queue*` routes.                     |
 | `storeId`          | (paste from `GET /products/stores`) | Store **uuid** — goes in bodies (price writes, suggestion rules). |
 | `storeExternalId`  | `3`                         | Store **ERP id** — goes in `?store=` query params of the grids. |
