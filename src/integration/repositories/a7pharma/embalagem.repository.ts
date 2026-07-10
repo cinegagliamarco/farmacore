@@ -13,10 +13,6 @@ import { EmbalagemEntity } from '../../entities/a7pharma/embalagem.entity';
 export class EmbalagemRepository {
   constructor(private readonly repository: Repository<EmbalagemEntity>) {}
 
-  public countValid(): Promise<number> {
-    return this.validQuery().getCount();
-  }
-
   /**
    * Lightweight (id, codigobarras) pairs for the dispatcher's EAN
    * chunker. Two embalagens can share a barcode; only the dispatcher
@@ -36,17 +32,27 @@ export class EmbalagemRepository {
   }
 
   /**
-   * Full embalagem rows for a given ID slice WITH the relations the
-   * sync-base-product step needs (produto + fabricante + pessoa).
-   * Bounded to the batch size so the heap footprint is one batch worth
-   * of rows, not the whole table.
+   * Full embalagem rows for a given ID slice WITH the relation columns the
+   * sync-base-product step reads (produto.status/tipopreco, pessoa.nome —
+   * plus the ids TypeORM needs to hydrate the tree). Selecting the whole
+   * produto/fabricante/pessoa rows would drag ~100 unused columns per row
+   * over the ERP link. Bounded to the batch size so the heap footprint is
+   * one batch worth of rows, not the whole table.
    */
   public findByIdsWithRelations(ids: number[]): Promise<EmbalagemEntity[]> {
     if (ids.length === 0) return Promise.resolve([]);
     return this.validQuery()
-      .leftJoinAndSelect('e.produto', 'produto')
-      .leftJoinAndSelect('produto.fabricante', 'fabricante')
-      .leftJoinAndSelect('fabricante.pessoa', 'pessoa')
+      .leftJoin('e.produto', 'produto')
+      .leftJoin('produto.fabricante', 'fabricante')
+      .leftJoin('fabricante.pessoa', 'pessoa')
+      .addSelect([
+        'produto.id',
+        'produto.status',
+        'produto.tipopreco',
+        'fabricante.id',
+        'pessoa.id',
+        'pessoa.nome',
+      ])
       .andWhere('e.id IN (:...ids)', { ids })
       .orderBy('e.id', 'ASC')
       .getMany();

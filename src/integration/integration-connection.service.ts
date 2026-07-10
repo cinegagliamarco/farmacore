@@ -10,9 +10,8 @@ import { IntegrationOrigin } from '../database/enums/integration-origin.enum';
 import { CredentialEncryptionService } from './credential-encryption.service';
 import { IntegrationDataSourceFactory } from './integration-data-source.factory';
 import { UpsertIntegrationDto } from './dto/upsert-integration.dto';
-import { entitiesForOrigin } from './entities';
 
-export interface IntegrationHealthEntry {
+interface IntegrationHealthEntry {
   tenantSlug: string;
   origin: IntegrationOrigin;
   status: IntegrationStatus;
@@ -110,7 +109,7 @@ export class IntegrationConnectionService {
     if (!tenant) return null;
     const row = await this.repo.findOne({ where: { tenantId: tenant.id } });
     if (!row || !row.apiBaseUrl || !row.apiKeyEncrypted) return null;
-    const apiKey = await this.crypto.decrypt(row.apiKeyEncrypted);
+    const apiKey = this.crypto.decrypt(row.apiKeyEncrypted);
     return { baseUrl: row.apiBaseUrl, apiKey };
   }
 
@@ -242,7 +241,7 @@ export class IntegrationConnectionService {
   ): Promise<PingResult> {
     let ds: DataSource | undefined;
     try {
-      const password = await this.crypto.decrypt(row.passwordEncrypted);
+      const password = this.crypto.decrypt(row.passwordEncrypted);
       ds = new DataSource({
         type: 'postgres',
         host: row.host,
@@ -257,7 +256,9 @@ export class IntegrationConnectionService {
                 rejectUnauthorized: row.sslMode === 'verify-full',
                 ca: row.sslCaCert ?? undefined,
               },
-        entities: [...entitiesForOrigin(row.origin)],
+        // No entities: the ping only runs `SELECT 1`, so skip building
+        // metadata for the origin's whole entity set on every poll.
+        entities: [],
         synchronize: false,
         // connectionTimeoutMillis bounds connect; statement/query_timeout bound
         // a host that accepts the connection then hangs the SELECT 1.
