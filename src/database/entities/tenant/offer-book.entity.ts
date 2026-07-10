@@ -1,8 +1,6 @@
 import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from '../base.entity';
 import { OfferBookInfoEntity } from './offer-book-info.entity';
-import { OfferBookPriceLockEntity } from './offer-book-price-lock.entity';
-import { OfferBookPricingRuleEntity } from './offer-book-pricing-rule.entity';
 
 @Entity({ name: 'offer_book' })
 @Index('UQ_OFFER_BOOK_EAN', ['ean'], { unique: true })
@@ -28,10 +26,4 @@ export class OfferBookEntity extends BaseEntity {
 
   @OneToMany(() => OfferBookInfoEntity, (info) => info.offerBook)
   public infos?: OfferBookInfoEntity[];
-
-  @OneToMany(() => OfferBookPricingRuleEntity, (rule) => rule.offerBook)
-  public pricingRules?: OfferBookPricingRuleEntity[];
-
-  @OneToMany(() => OfferBookPriceLockEntity, (lock) => lock.offerBook)
-  public priceLocks?: OfferBookPriceLockEntity[];
 }

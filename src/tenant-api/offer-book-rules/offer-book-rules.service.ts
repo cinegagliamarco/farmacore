@@ -1,14 +1,23 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { EntityManager, IsNull } from 'typeorm';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { EntityManager, IsNull, QueryFailedError } from 'typeorm';
 import { CalculationBaseType } from '../../database/enums/calculation-base-type.enum';
 import { PriceBaseSource } from '../../database/enums/price-base-source.enum';
 import { PricingActionType } from '../../database/enums/pricing-action-type.enum';
 import { ClassificationEntity } from '../../database/entities/tenant/classification.entity';
+import { OfferBookRuleEntity } from '../../database/entities/tenant/offer-book-rule.entity';
+import { OfferBookRuleProductEntity } from '../../database/entities/tenant/offer-book-rule-product.entity';
+import { TenantOfferCampaignEntity } from '../../database/entities/tenant/tenant-offer-campaign.entity';
 import {
   buildClassificationIndex,
   type ClassificationIndex,
 } from '../classification/classification-index';
 import { PriceRoundingService } from '../config/price-rounding.service';
+import { CreateOfferBookRuleDto } from './dto/create-offer-book-rule.dto';
 import {
   CreatePriceLockDto,
   CreatePricingRuleDto,
@@ -16,6 +25,34 @@ import {
   PreviewOfferBookRulesDto,
   PreviewProductResult,
 } from './dto/preview-offer-book-rules.dto';
+
+export interface OfferBookRuleListItem {
+  id: string;
+  offerBookInfoId: number;
+  cadernoName: string | null;
+  calculationBaseType: CalculationBaseType;
+  scheduleEnabled: boolean;
+  productsCount: number;
+  createdAt: string;
+}
+
+export interface PaginatedOfferBookRules {
+  rows: OfferBookRuleListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface OfferBookRuleDetail extends OfferBookRuleListItem {
+  priceBaseSources: PriceBaseSource[] | null;
+  classifications: string[] | null;
+  scheduledDays: number[] | null;
+  applyPriceRounding: boolean;
+  eans: string[];
+  pricingRules: CreatePricingRuleDto[];
+  priceLocks: CreatePriceLockDto[];
+}
 
 /**
  * Normalizes a classification path to its first two levels — the level at
@@ -147,6 +184,190 @@ export class OfferBookRulesService {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+  }
+
+  /**
+   * Persiste um conjunto de regras aplicado a um caderno de ofertas existente
+   * (uma regra por caderno). As mesmas guardas do preview + validação de que o
+   * caderno existe (tenant_offer_campaign, ativo). Roda na transação do request.
+   */
+  public async create(
+    em: EntityManager,
+    dto: CreateOfferBookRuleDto,
+  ): Promise<{ id: string }> {
+    const byEans = !!dto.eans?.length;
+    const byClassifications = !!dto.classifications?.length;
+    if (byEans === byClassifications)
+      throw new BadRequestException(
+        'Send either a list of eans or a list of classifications, but not both',
+      );
+    if (
+      dto.calculationBaseType === CalculationBaseType.COMPETITIVE_PRICE &&
+      !dto.priceBaseSources?.length
+    )
+      throw new BadRequestException(
+        'priceBaseSources must contain at least one source when calculationBaseType is COMPETITIVE_PRICE',
+      );
+    if (dto.scheduleEnabled && !dto.scheduledDays?.length)
+      throw new BadRequestException(
+        'scheduledDays must be provided when scheduleEnabled is true',
+      );
+
+    const infoId = String(dto.offerBookInfoId);
+    const campaign = await em.getRepository(TenantOfferCampaignEntity).findOne({
+      where: { externalId: infoId, active: true, deletedAt: IsNull() },
+      select: { id: true },
+    });
+    if (!campaign)
+      throw new NotFoundException(
+        `Caderno de ofertas ${dto.offerBookInfoId} não encontrado ou inativo`,
+      );
+
+    const ruleRepo = em.getRepository(OfferBookRuleEntity);
+    const existing = await ruleRepo.findOne({
+      where: { offerBookInfoId: infoId, deletedAt: IsNull() },
+      select: { id: true },
+    });
+    if (existing)
+      throw new ConflictException(
+        `Já existe regra para o caderno de ofertas ${dto.offerBookInfoId}`,
+      );
+
+    const classificationIndex = await this.loadClassificationIndex(em);
+    const pricingRules = this.normalizePricingRules(dto.pricingRules);
+    const priceLocks = this.normalizePriceLocks(dto.priceLocks);
+    const ruleClassifications = normalizeClassificationIds(dto.classifications);
+    this.assertKnownClassificationIds(
+      [
+        ...(ruleClassifications ?? []),
+        ...pricingRules.flatMap((r) => r.classifications ?? []),
+        ...priceLocks.flatMap((l) => l.classifications ?? []),
+      ],
+      classificationIndex,
+    );
+    this.validateNonOverlappingPricingRules(pricingRules, classificationIndex);
+    this.validateNonOverlappingPriceLocks(priceLocks, classificationIndex);
+
+    const rule = await this.saveOrConflict(
+      () =>
+        ruleRepo.save(
+          ruleRepo.create({
+            offerBookInfoId: infoId,
+            calculationBaseType: dto.calculationBaseType,
+            priceBaseSources: dto.priceBaseSources ?? null,
+            classifications: ruleClassifications ?? null,
+            scheduleEnabled: dto.scheduleEnabled ?? false,
+            scheduledDays: dto.scheduleEnabled ? dto.scheduledDays! : null,
+            applyPriceRounding: dto.applyPriceRounding ?? false,
+            pricingRules: pricingRules.map((r) => ({
+              classifications: r.classifications ?? null,
+              priceRangeMin: r.priceRangeMin ?? null,
+              priceRangeMax: r.priceRangeMax ?? null,
+              marginRangeMin: r.marginRangeMin ?? null,
+              marginRangeMax: r.marginRangeMax ?? null,
+              actionType: r.actionType,
+              percentageValue: r.percentageValue,
+              active: r.active ?? true,
+            })),
+            priceLocks: priceLocks.map((l) => ({
+              classifications: l.classifications ?? null,
+              minMargin: l.minMargin,
+              active: l.active ?? true,
+            })),
+          }),
+        ),
+      dto.offerBookInfoId,
+    );
+
+    const eans = [...new Set(dto.eans ?? [])];
+    if (eans.length)
+      await em
+        .getRepository(OfferBookRuleProductEntity)
+        .insert(eans.map((ean) => ({ ruleId: rule.id, ean })));
+
+    return { id: rule.id };
+  }
+
+  public async list(
+    em: EntityManager,
+    page = 1,
+    pageSize = 50,
+  ): Promise<PaginatedOfferBookRules> {
+    const size = Math.min(Math.max(pageSize, 1), 200);
+    const rows: Array<Record<string, unknown>> = await em.query(
+      `SELECT r.id AS id, r.offer_book_info_id AS "offerBookInfoId",
+              c.name AS "cadernoName",
+              r.calculation_base_type AS "calculationBaseType",
+              r.schedule_enabled AS "scheduleEnabled",
+              r.created_at AS "createdAt",
+              (SELECT count(*)::int FROM offer_book_rule_product p
+                WHERE p.rule_id = r.id) AS "productsCount"
+         FROM offer_book_rule r
+         LEFT JOIN tenant_offer_campaign c
+           ON c.external_id = r.offer_book_info_id
+        WHERE r.deleted_at IS NULL
+        ORDER BY r.created_at DESC
+        LIMIT $1 OFFSET $2`,
+      [size, (Math.max(page, 1) - 1) * size],
+    );
+    const totalRows: Array<{ count: number }> = await em.query(
+      `SELECT count(*)::int AS count FROM offer_book_rule WHERE deleted_at IS NULL`,
+    );
+    const total = totalRows[0]?.count ?? 0;
+    return {
+      rows: rows.map(toListItem),
+      total,
+      page: Math.max(page, 1),
+      pageSize: size,
+      totalPages: Math.ceil(total / size),
+    };
+  }
+
+  public async getOne(
+    em: EntityManager,
+    id: string,
+  ): Promise<OfferBookRuleDetail> {
+    const rule = await em.getRepository(OfferBookRuleEntity).findOne({
+      where: { id, deletedAt: IsNull() },
+      relations: { pricingRules: true, priceLocks: true, products: true },
+    });
+    if (!rule) throw new NotFoundException(`Regra ${id} não encontrada`);
+
+    const campaign = await em.getRepository(TenantOfferCampaignEntity).findOne({
+      where: { externalId: rule.offerBookInfoId },
+      select: { name: true },
+    });
+    return toDetail(rule, campaign?.name ?? null);
+  }
+
+  public async remove(em: EntityManager, id: string): Promise<{ id: string }> {
+    const result = await em.getRepository(OfferBookRuleEntity).delete({ id });
+    if (!result.affected)
+      throw new NotFoundException(`Regra ${id} não encontrada`);
+    return { id };
+  }
+
+  /**
+   * Fecha a corrida entre o pre-check de "uma regra por caderno" e o insert: a
+   * unique de offer_book_info_id (23505) vira 409 em vez de 500 quando dois
+   * creates concorrem para o mesmo caderno.
+   */
+  private async saveOrConflict<T>(
+    op: () => Promise<T>,
+    offerBookInfoId: number,
+  ): Promise<T> {
+    try {
+      return await op();
+    } catch (err) {
+      if (
+        err instanceof QueryFailedError &&
+        (err.driverError as { code?: string }).code === '23505'
+      )
+        throw new ConflictException(
+          `Já existe regra para o caderno de ofertas ${offerBookInfoId}`,
+        );
+      throw err;
+    }
   }
 
   public normalizePricingRules(
@@ -790,6 +1011,58 @@ const CLS_CTE = `WITH RECURSIVE cls AS (
     JOIN cls ON c.parent_id = cls.id
    WHERE c.deleted_at IS NULL
 )`;
+
+function toListItem(r: Record<string, unknown>): OfferBookRuleListItem {
+  return {
+    id: r.id as string,
+    offerBookInfoId: Number(r.offerBookInfoId),
+    cadernoName: (r.cadernoName as string | null) ?? null,
+    calculationBaseType: r.calculationBaseType as CalculationBaseType,
+    scheduleEnabled: Boolean(r.scheduleEnabled),
+    productsCount: Number(r.productsCount ?? 0),
+    createdAt: new Date(r.createdAt as string).toISOString(),
+  };
+}
+
+/** pg numeric comes back as string|null; rules treat absent ranges as undefined. */
+function numOrUndef(v: number | null | undefined): number | undefined {
+  return v == null ? undefined : Number(v);
+}
+
+function toDetail(
+  rule: OfferBookRuleEntity,
+  cadernoName: string | null,
+): OfferBookRuleDetail {
+  return {
+    id: rule.id,
+    offerBookInfoId: Number(rule.offerBookInfoId),
+    cadernoName,
+    calculationBaseType: rule.calculationBaseType,
+    scheduleEnabled: rule.scheduleEnabled,
+    productsCount: rule.products?.length ?? 0,
+    createdAt: rule.createdAt.toISOString(),
+    priceBaseSources: rule.priceBaseSources ?? null,
+    classifications: rule.classifications ?? null,
+    scheduledDays: rule.scheduledDays ?? null,
+    applyPriceRounding: rule.applyPriceRounding,
+    eans: (rule.products ?? []).map((p) => p.ean).sort(),
+    pricingRules: (rule.pricingRules ?? []).map((r) => ({
+      classifications: r.classifications ?? undefined,
+      priceRangeMin: numOrUndef(r.priceRangeMin),
+      priceRangeMax: numOrUndef(r.priceRangeMax),
+      marginRangeMin: numOrUndef(r.marginRangeMin),
+      marginRangeMax: numOrUndef(r.marginRangeMax),
+      actionType: r.actionType,
+      percentageValue: Number(r.percentageValue),
+      active: r.active,
+    })),
+    priceLocks: (rule.priceLocks ?? []).map((l) => ({
+      classifications: l.classifications ?? undefined,
+      minMargin: Number(l.minMargin),
+      active: l.active,
+    })),
+  };
+}
 
 function toPreviewProduct(r: Record<string, unknown>): PreviewProductInput {
   return {

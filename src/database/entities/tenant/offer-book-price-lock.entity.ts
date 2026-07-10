@@ -1,22 +1,26 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../base.entity';
-import { OfferBookEntity } from './offer-book.entity';
+import { OfferBookRuleEntity } from './offer-book-rule.entity';
 
+/** Trava de margem mínima de uma offer_book_rule (por classificação). */
 @Entity({ name: 'offer_book_price_lock' })
-@Index('UQ_PRICE_LOCK_BOOK', ['offerBookId'], { unique: true })
+@Index('IX_OFFER_BOOK_PRICE_LOCK_RULE', ['ruleId'])
 export class OfferBookPriceLockEntity extends BaseEntity {
-  @Column({ name: 'offer_book_id', type: 'uuid' })
-  public offerBookId!: string;
+  @Column({ name: 'rule_id', type: 'uuid' })
+  public ruleId!: string;
 
-  @Column({ name: 'locked_price', type: 'numeric', precision: 12, scale: 2 })
-  public lockedPrice!: string;
+  @Column({ type: 'jsonb', nullable: true })
+  public classifications?: string[] | null;
 
-  @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
-  public lockedUntil?: Date | null;
+  @Column({ name: 'min_margin', type: 'numeric', precision: 12, scale: 2 })
+  public minMargin!: number;
 
-  @ManyToOne(() => OfferBookEntity, (book) => book.priceLocks, {
+  @Column({ type: 'boolean', default: true })
+  public active!: boolean;
+
+  @ManyToOne(() => OfferBookRuleEntity, (rule) => rule.priceLocks, {
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'offer_book_id' })
-  public offerBook?: OfferBookEntity;
+  @JoinColumn({ name: 'rule_id' })
+  public rule?: OfferBookRuleEntity;
 }

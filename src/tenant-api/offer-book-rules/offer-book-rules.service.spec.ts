@@ -1,8 +1,17 @@
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
+import { ClassificationEntity } from '../../database/entities/tenant/classification.entity';
+import { OfferBookRuleEntity } from '../../database/entities/tenant/offer-book-rule.entity';
+import { OfferBookRuleProductEntity } from '../../database/entities/tenant/offer-book-rule-product.entity';
+import { TenantOfferCampaignEntity } from '../../database/entities/tenant/tenant-offer-campaign.entity';
 import { CalculationBaseType } from '../../database/enums/calculation-base-type.enum';
 import { PriceBaseSource } from '../../database/enums/price-base-source.enum';
 import { PricingActionType } from '../../database/enums/pricing-action-type.enum';
+import { CreateOfferBookRuleDto } from './dto/create-offer-book-rule.dto';
 import type { PriceRoundingService } from '../config/price-rounding.service';
 import { buildClassificationIndex } from '../classification/classification-index';
 import {
@@ -747,5 +756,148 @@ describe('OfferBookRulesService.preview', () => {
       pageSize: 1000,
       totalPages: 0,
     });
+  });
+});
+
+const makeCreateEm = (opts: {
+  campaign?: unknown;
+  existingRule?: unknown;
+  classifications?: Array<{
+    id: string;
+    name: string;
+    parentId: string | null;
+  }>;
+}): {
+  em: EntityManager;
+  save: jest.Mock;
+  insert: jest.Mock;
+} => {
+  const save = jest.fn((e: Record<string, unknown>) => ({
+    id: 'rule-id-1',
+    ...e,
+  }));
+  const insert = jest.fn().mockResolvedValue({});
+  const repos = new Map<unknown, unknown>([
+    [
+      TenantOfferCampaignEntity,
+      { findOne: jest.fn().mockResolvedValue(opts.campaign ?? null) },
+    ],
+    [
+      OfferBookRuleEntity,
+      {
+        findOne: jest.fn().mockResolvedValue(opts.existingRule ?? null),
+        create: (x: unknown) => x,
+        save,
+      },
+    ],
+    [OfferBookRuleProductEntity, { insert }],
+    [
+      ClassificationEntity,
+      { find: jest.fn().mockResolvedValue(opts.classifications ?? []) },
+    ],
+  ]);
+  return {
+    em: {
+      getRepository: jest.fn((entity: unknown) => repos.get(entity)),
+    } as unknown as EntityManager,
+    save,
+    insert,
+  };
+};
+
+const createDto = (
+  over: Partial<CreateOfferBookRuleDto> = {},
+): CreateOfferBookRuleDto => ({
+  offerBookInfoId: 47,
+  calculationBaseType: CalculationBaseType.SALE_PRICE,
+  eans: ['7890000000001'],
+  pricingRules: [],
+  priceLocks: [],
+  ...over,
+});
+
+describe('OfferBookRulesService.create', () => {
+  it('rejects sending both eans and classifications', async () => {
+    const { service } = makeService();
+    const { em } = makeCreateEm({});
+    await expect(
+      service.create(
+        em,
+        createDto({
+          classifications: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+        }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects sending neither eans nor classifications', async () => {
+    const { service } = makeService();
+    const { em } = makeCreateEm({});
+    await expect(
+      service.create(em, createDto({ eans: undefined })),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('requires priceBaseSources for COMPETITIVE_PRICE', async () => {
+    const { service } = makeService();
+    const { em } = makeCreateEm({});
+    await expect(
+      service.create(
+        em,
+        createDto({
+          calculationBaseType: CalculationBaseType.COMPETITIVE_PRICE,
+        }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('requires scheduledDays when scheduleEnabled', async () => {
+    const { service } = makeService();
+    const { em } = makeCreateEm({});
+    await expect(
+      service.create(em, createDto({ scheduleEnabled: true })),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('404s when the caderno does not exist or is inactive', async () => {
+    const { service } = makeService();
+    const { em } = makeCreateEm({ campaign: null });
+    await expect(service.create(em, createDto())).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('409s when a rule already exists for the caderno', async () => {
+    const { service } = makeService();
+    const { em } = makeCreateEm({
+      campaign: { id: 'campaign-id' },
+      existingRule: { id: 'existing-rule' },
+    });
+    await expect(service.create(em, createDto())).rejects.toThrow(
+      ConflictException,
+    );
+  });
+
+  it('persists the rule and bulk-inserts the eans', async () => {
+    const { service } = makeService();
+    const { em, save, insert } = makeCreateEm({
+      campaign: { id: 'campaign-id' },
+    });
+    const result = await service.create(
+      em,
+      createDto({
+        eans: ['7890000000001', '7890000000002'],
+        pricingRules: [
+          { actionType: PricingActionType.DISCOUNT, percentageValue: 5 },
+        ],
+      }),
+    );
+    expect(result).toEqual({ id: 'rule-id-1' });
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(insert.mock.calls[0][0]).toEqual([
+      { ruleId: 'rule-id-1', ean: '7890000000001' },
+      { ruleId: 'rule-id-1', ean: '7890000000002' },
+    ]);
   });
 });
