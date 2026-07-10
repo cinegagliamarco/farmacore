@@ -24,6 +24,7 @@ const ROOT_ID = '33333333-3333-4333-8333-333333333333';
 const CHILD_ID = '44444444-4444-4444-8444-444444444444';
 const EAN_A = '7893333333333';
 const EAN_B = '7894444444444';
+const CADERNO_ID = 47;
 
 const a7 = { changePrices: jest.fn(), upsertOffer: jest.fn() };
 const credentials = { baseUrl: 'https://erp.test', apiKey: 'key' };
@@ -55,6 +56,14 @@ describe('Offer book rules preview (e2e)', () => {
     request(app.getHttpServer())
       .post(path)
       .set('Authorization', `Bearer ${token}`);
+  const get = (path: string, token = adminToken) =>
+    request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', `Bearer ${token}`);
+  const del = (path: string, token = adminToken) =>
+    request(app.getHttpServer())
+      .delete(path)
+      .set('Authorization', `Bearer ${token}`);
 
   beforeAll(async () => {
     const mod: TestingModule = await Test.createTestingModule({
@@ -73,9 +82,12 @@ describe('Offer book rules preview (e2e)', () => {
     ds = app.get(DataSource);
 
     await ds.query(`CREATE SCHEMA IF NOT EXISTS "${SCHEMA}"`);
+    // `offer-book-rules` module granted so the @RequireModule gate lets the
+    // routes through (core.tenant.modules defaults to '{}').
     await ds.query(
-      `INSERT INTO core.tenant (slug, name, schema_name, status)
-       VALUES ($1, $1, $2, 'active') ON CONFLICT (slug) DO NOTHING`,
+      `INSERT INTO core.tenant (slug, name, schema_name, status, modules)
+       VALUES ($1, $1, $2, 'active', ARRAY['offer-book-rules'])
+       ON CONFLICT (slug) DO UPDATE SET modules = EXCLUDED.modules`,
       [SLUG, SCHEMA],
     );
     const hash = await argon2.hash('secret123');
@@ -106,6 +118,11 @@ describe('Offer book rules preview (e2e)', () => {
         (${EAN_A}, 'Dipirona 500mg', true, 10.00, 5.0000, 50.0000, $1, '6001', false, 'OK'),
         (${EAN_B}, 'Dipirona 1g',  true,  8.00, 5.0000, 37.5000, $1, '6002', false, 'OK')`,
       [CHILD_ID],
+    );
+    // Caderno de ofertas vigente que a regra vai aplicar (CADERNO_ID = external_id).
+    await ds.query(
+      `INSERT INTO ${SCHEMA}.tenant_offer_campaign (external_id, name, active)
+       VALUES (${CADERNO_ID}, 'KIT PERFUMARIA', true)`,
     );
 
     const login = async (email: string): Promise<string> => {
@@ -204,5 +221,87 @@ describe('Offer book rules preview (e2e)', () => {
         priceLocks: [],
       })
       .expect(400);
+  });
+
+  // CRUD da regra persistida (Fase 2): exercita a migration realinhada, o
+  // cascade dos filhos (pricingRules/priceLocks/eans) e o join do caderno —
+  // o que o unit test com `em` mockado não prova.
+  describe('persisted rule CRUD', () => {
+    let ruleId: string;
+
+    const createBody = {
+      offerBookInfoId: CADERNO_ID,
+      calculationBaseType: 'SALE_PRICE',
+      eans: [EAN_B, EAN_A],
+      pricingRules: [{ actionType: 'DISCOUNT', percentageValue: 5 }],
+      priceLocks: [{ classifications: [CHILD_ID], minMargin: 20 }],
+      scheduleEnabled: true,
+      scheduledDays: [0, 3],
+    };
+
+    it('404s creating a rule for an unknown caderno', async () => {
+      await post('/offer-book-rules')
+        .send({ ...createBody, offerBookInfoId: 9999 })
+        .expect(404);
+    });
+
+    it('creates the rule applied to the caderno', async () => {
+      const res = await post('/offer-book-rules').send(createBody).expect(201);
+      ruleId = (res.body as { id: string }).id;
+      expect(ruleId).toBeTruthy();
+    });
+
+    it('round-trips the rule with children and the caderno name', async () => {
+      const res = await get(`/offer-book-rules/${ruleId}`).expect(200);
+      const body = res.body as {
+        offerBookInfoId: number;
+        cadernoName: string;
+        calculationBaseType: string;
+        scheduleEnabled: boolean;
+        scheduledDays: number[];
+        productsCount: number;
+        eans: string[];
+        pricingRules: { actionType: string; percentageValue: number }[];
+        priceLocks: { classifications: string[]; minMargin: number }[];
+      };
+      expect(body.offerBookInfoId).toBe(CADERNO_ID);
+      expect(body.cadernoName).toBe('KIT PERFUMARIA');
+      expect(body.calculationBaseType).toBe('SALE_PRICE');
+      expect(body.scheduleEnabled).toBe(true);
+      expect(body.scheduledDays).toEqual([0, 3]);
+      expect(body.productsCount).toBe(2);
+      expect(body.eans).toEqual([EAN_A, EAN_B]); // sorted
+      expect(body.pricingRules).toHaveLength(1);
+      expect(body.pricingRules[0].actionType).toBe('DISCOUNT');
+      expect(body.pricingRules[0].percentageValue).toBe(5);
+      expect(body.priceLocks).toHaveLength(1);
+      expect(body.priceLocks[0].classifications).toEqual([CHILD_ID]);
+      expect(body.priceLocks[0].minMargin).toBe(20);
+    });
+
+    it('lists the rule with caderno name and product count', async () => {
+      const res = await get('/offer-book-rules').expect(200);
+      const body = res.body as {
+        rows: {
+          id: string;
+          cadernoName: string;
+          productsCount: number;
+        }[];
+        total: number;
+      };
+      const row = body.rows.find((r) => r.id === ruleId);
+      expect(row).toBeDefined();
+      expect(row!.cadernoName).toBe('KIT PERFUMARIA');
+      expect(row!.productsCount).toBe(2);
+    });
+
+    it('409s creating a second rule for the same caderno', async () => {
+      await post('/offer-book-rules').send(createBody).expect(409);
+    });
+
+    it('deletes the rule, then 404s on fetch', async () => {
+      await del(`/offer-book-rules/${ruleId}`).expect(200);
+      await get(`/offer-book-rules/${ruleId}`).expect(404);
+    });
   });
 });
