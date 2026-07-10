@@ -18,6 +18,7 @@ export const ACTIVE_BATCH_LOCK_MS = 5 * 60 * 1000;
 export const STEP_QUEUES: ReadonlyArray<PipelineStep> = [
   PipelineStep.SYNC_OFFER_BOOKS_INFO,
   PipelineStep.SYNC_STORES,
+  PipelineStep.EXECUTE_OFFER_BOOK_RULE,
 ];
 
 export const PIPELINE_START_QUEUE = 'pipeline.start';
@@ -102,6 +103,8 @@ export const allStepQueueNames = (): string[] => {
 export const STEP_PREFETCH: Readonly<Record<string, number>> = {
   [PipelineStep.SYNC_OFFER_BOOKS_INFO]: 1,
   [PipelineStep.SYNC_STORES]: 1,
+  // execução de regra de oferta: escrita no ERP é serial por segurança.
+  [PipelineStep.EXECUTE_OFFER_BOOK_RULE]: 1,
 
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT)]: 1,
   [dispatchStep(PipelineStep.SYNC_BASE_PRODUCT_STOCK)]: 1,

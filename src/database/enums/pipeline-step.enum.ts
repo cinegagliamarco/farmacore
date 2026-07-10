@@ -13,4 +13,8 @@ export enum PipelineStep {
   // ERP via CatalogMutationService. Disparado sob demanda (POST /pricing/apply),
   // fora do DAG diário (standalone).
   APPLY_PRICE = 'apply-price',
+  // Execução de regra de oferta (Fase 3 do offer-book-rules) — empurra os
+  // items `pending` do report à A7. Disparado por POST /offer-book-rules/:id/execute,
+  // fora do DAG diário (standalone).
+  EXECUTE_OFFER_BOOK_RULE = 'execute-offer-book-rule',
 }
