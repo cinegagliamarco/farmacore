@@ -44,8 +44,9 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | POST | `/admin/tenants/:slug/pipeline/start` | `src/admin/controllers/pipeline.controller.ts` |
 | GET | `/admin/tenants/:slug/pipeline/steps` | `src/admin/controllers/pipeline.controller.ts` |
 | POST | `/admin/tenants/:slug/pipeline/steps/:step` | `src/admin/controllers/pipeline.controller.ts` |
-| GET | `/admin/dlq/:step` | `src/admin/controllers/dlq.controller.ts` |
-| POST | `/admin/dlq/:step/replay` | `src/admin/controllers/dlq.controller.ts` |
+| GET | `/admin/dlq` | `src/admin/controllers/dlq.controller.ts` |
+| GET | `/admin/dlq/:queue` | `src/admin/controllers/dlq.controller.ts` |
+| POST | `/admin/dlq/:queue/replay` | `src/admin/controllers/dlq.controller.ts` |
 | GET | `/products` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
 | GET | `/products/crossed` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
 | GET | `/products/stock` | `src/tenant-api/catalog/catalog.controller.ts` (tenant) |
@@ -206,7 +207,7 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | Legacy | New | Status |
 |---|---|---|
 | `GET /import-process/running` | run rows in `core.pipeline_run` (no HTTP read yet) | 🔄 |
-| `DELETE /import-process/running` | DLQ: `GET/POST /admin/dlq/:step` | 🔄 |
+| `DELETE /import-process/running` | DLQ: `GET/POST /admin/dlq/:queue` | 🔄 |
 
 ---
 

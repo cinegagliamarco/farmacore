@@ -20,9 +20,12 @@ pipeline.start
                                   update-base-product-properties.dispatch ─► .batch  (terminal)
 ```
 
-All chain-boundary successors (last-batch, empty-dispatch) flow through
-`core.pipeline_outbox` → OutboxPublisher → AMQP. Per-batch publishes
-from dispatchers go direct.
+All step successors (v1 single-queue completions, last-batch,
+empty-dispatch) are staged in `core.pipeline_outbox` inside the same
+tenant transaction as the step's writes, then drained by
+OutboxPublisher → AMQP — a crash between "step done" and "successor
+published" can no longer strand the chain. Per-batch publishes from
+dispatchers go direct.
 
 ## Triggering a run
 
@@ -109,6 +112,11 @@ Possible causes:
   redelivery re-runs handle and bumps the counter. If the broker
   isn't redelivering, check that the channel ACK mode is set
   correctly (it should be auto ACK on success via @golevelup default).
+- **Duplicate delivery while the step is still running** (broker
+  requeue after a heartbeat stall): the consumer routes the duplicate
+  to the step's DLQ instead of dropping it. If the original delivery
+  finished, the DLQ copy is a harmless no-op on replay; if the worker
+  actually died, replay it to resume the run.
 - **Batch went to DLQ**: see the DLQ section below.
 
 ### 3. CALC never fires after both stock branches finished
@@ -199,7 +207,10 @@ Stuck:
 ## DLQ debugging
 
 The admin DLQ API operates on real queue names (every v1, v2 batched,
-and per-origin queue). Discover them, then peek/replay:
+and per-origin queue, plus `pipeline.start` and `migrate-tenant`).
+Discover them, then peek/replay (`limit`/`max` are capped at 200 per
+call; a non-JSON message at the DLQ head stops a replay instead of
+erroring):
 
 ```
 GET  /admin/dlq                        → { queues: [...] }
@@ -236,6 +247,22 @@ Once you've identified the bad message:
   await amqp.publish(EXCHANGE_NAME, `${tenantId}.${routingSegment}`, msg, {persistent:true});
   ```
 - Ack the DLQ message to remove it.
+
+## Deploying queue-argument changes
+
+RabbitMQ queue arguments are immutable: a release that changes them
+(e.g. DLX wiring) makes the redeclare fail with `PRECONDITION_FAILED`
+and consumers never attach. Sequence — order matters:
+
+1. **Stop the worker** (`fly scale count 0 --app farmacore-worker`).
+   While a main queue is missing, a publish is unroutable but still
+   confirmed — the outbox would mark rows published and lose them.
+   With the worker down, outbox rows just accumulate and drain later.
+2. `npm run queues:recreate` — deletes the main queues so the next
+   boot redeclares them with the new args. Empty queues only; rerun
+   with `-- --force` to drop pending messages. `.dlq` queues are left
+   untouched.
+3. Deploy / start the new worker — it redeclares the topology.
 
 ## Useful one-liners
 
