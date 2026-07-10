@@ -901,3 +901,83 @@ describe('OfferBookRulesService.create', () => {
     ]);
   });
 });
+
+describe('OfferBookRulesService.computeForRule', () => {
+  it('acumula todas as páginas e roda o motor com as regras persistidas', async () => {
+    const { service } = makeService();
+    const row = (ean: string, name: string) => ({
+      ean,
+      name,
+      externalId: '600' + ean.slice(-1),
+      price: '100.00',
+      cost: '50.0000',
+      margin: '50.0000',
+      classification: 'A > B',
+      classificationId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      offerPrice: null,
+    });
+    // Paginação: o count diz 2, mas cada página entrega 1 linha — o loop
+    // precisa buscar a segunda página.
+    let rowsCall = 0;
+    const query = jest.fn((sql: string) => {
+      if (sql.includes('count(*)::int')) return Promise.resolve([{ count: 2 }]);
+      if (sql.includes('p.ean AS ean')) {
+        rowsCall++;
+        return Promise.resolve(
+          rowsCall === 1
+            ? [row('7890000000001', 'Dipirona')]
+            : [row('7890000000002', 'Paracetamol')],
+        );
+      }
+      return Promise.resolve([]);
+    });
+    const find = jest.fn().mockResolvedValue([
+      { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', name: 'A', parentId: null },
+      {
+        id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        name: 'B',
+        parentId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      },
+    ]);
+    const em = {
+      query,
+      getRepository: jest.fn().mockReturnValue({ find }),
+    } as unknown as EntityManager;
+
+    const rule = {
+      offerBookInfoId: '47',
+      calculationBaseType: CalculationBaseType.SALE_PRICE,
+      priceBaseSources: null,
+      classifications: null,
+      applyPriceRounding: false,
+      // numéricos como string, como o pg devolve — prova o mapeamento.
+      pricingRules: [
+        {
+          classifications: null,
+          priceRangeMin: null,
+          priceRangeMax: null,
+          marginRangeMin: null,
+          marginRangeMax: null,
+          actionType: PricingActionType.DISCOUNT,
+          percentageValue: '10.00',
+          active: true,
+        },
+      ],
+      priceLocks: [],
+      products: [{ ean: '7890000000001' }, { ean: '7890000000002' }],
+    } as unknown as import('../../database/entities/tenant/offer-book-rule.entity').OfferBookRuleEntity;
+
+    const results = await service.computeForRule(em, 'slug', rule);
+
+    expect(rowsCall).toBe(2);
+    expect(results).toHaveLength(2);
+    expect(results.map((r) => r.ean).sort()).toEqual([
+      '7890000000001',
+      '7890000000002',
+    ]);
+    for (const r of results) {
+      expect(r.actionType).toBe(PricingActionType.DISCOUNT);
+      expect(r.finalPrice).toBe(90);
+    }
+  });
+});

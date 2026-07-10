@@ -8,6 +8,8 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { A7PharmaApiClient } from '../src/integration/a7-pharma-api.client';
 import { IntegrationConnectionService } from '../src/integration/integration-connection.service';
+import { ExecuteOfferBookRuleStep } from '../src/pipeline/steps/execute-offer-book-rule.step';
+import { TenantTransactionService } from '../src/tenant/tenant-transaction.service';
 
 /**
  * End-to-end coverage for POST /offer-book-rules/preview. The pricing math is
@@ -25,6 +27,7 @@ const CHILD_ID = '44444444-4444-4444-8444-444444444444';
 const EAN_A = '7893333333333';
 const EAN_B = '7894444444444';
 const CADERNO_ID = 47;
+const CADERNO_ID_2 = 48;
 
 const a7 = { changePrices: jest.fn(), upsertOffer: jest.fn() };
 const credentials = { baseUrl: 'https://erp.test', apiKey: 'key' };
@@ -119,10 +122,11 @@ describe('Offer book rules preview (e2e)', () => {
         (${EAN_B}, 'Dipirona 1g',  true,  8.00, 5.0000, 37.5000, $1, '6002', false, 'OK')`,
       [CHILD_ID],
     );
-    // Caderno de ofertas vigente que a regra vai aplicar (CADERNO_ID = external_id).
+    // Cadernos de ofertas vigentes que as regras vão aplicar (external_id).
     await ds.query(
       `INSERT INTO ${SCHEMA}.tenant_offer_campaign (external_id, name, active)
-       VALUES (${CADERNO_ID}, 'KIT PERFUMARIA', true)`,
+       VALUES (${CADERNO_ID}, 'KIT PERFUMARIA', true),
+              (${CADERNO_ID_2}, 'SEMANA DO CLIENTE', true)`,
     );
 
     const login = async (email: string): Promise<string> => {
@@ -302,6 +306,208 @@ describe('Offer book rules preview (e2e)', () => {
     it('deletes the rule, then 404s on fetch', async () => {
       await del(`/offer-book-rules/${ruleId}`).expect(200);
       await get(`/offer-book-rules/${ruleId}`).expect(404);
+    });
+  });
+
+  // Execução (Fase 3): o POST congela os preços como items pending; o step do
+  // worker (dirigido aqui direto, com a A7 mockada) empurra em lote, espelha e
+  // finaliza report + status da regra — tudo contra o schema migrado real.
+  describe('rule execution', () => {
+    let ruleId: string;
+    let reportId: string;
+
+    const runStep = async (): Promise<void> => {
+      const step = app.get(ExecuteOfferBookRuleStep);
+      const tx = app.get(TenantTransactionService);
+      await tx.runWithTenant(SCHEMA, (em) => step.run(em, SLUG, reportId));
+    };
+
+    it('404s executing an unknown rule', async () => {
+      await post(
+        '/offer-book-rules/99999999-9999-4999-8999-999999999999/execute',
+      ).expect(404);
+    });
+
+    it('202s the execute with a reportId (prices frozen as pending items)', async () => {
+      const created = await post('/offer-book-rules')
+        .send({
+          offerBookInfoId: CADERNO_ID,
+          calculationBaseType: 'SALE_PRICE',
+          eans: [EAN_A, EAN_B],
+          pricingRules: [{ actionType: 'DISCOUNT', percentageValue: 5 }],
+          priceLocks: [],
+        })
+        .expect(201);
+      ruleId = (created.body as { id: string }).id;
+
+      const res = await post(`/offer-book-rules/${ruleId}/execute`).expect(202);
+      reportId = (res.body as { reportId: string }).reportId;
+      expect(reportId).toBeTruthy();
+    });
+
+    it('409s a concurrent execute while the rule is RUNNING', async () => {
+      await post(`/offer-book-rules/${ruleId}/execute`).expect(409);
+    });
+
+    it('worker pushes the frozen prices to A7 in one batch and finalizes SUCCESS', async () => {
+      a7.upsertOffer.mockClear();
+      await runStep();
+
+      expect(a7.upsertOffer).toHaveBeenCalledTimes(1);
+      const [creds, caderno, items] = a7.upsertOffer.mock.calls[0] as [
+        unknown,
+        number,
+        { idEmbalagem: number; precoOferta: number }[],
+      ];
+      expect(creds).toEqual(credentials);
+      expect(caderno).toBe(CADERNO_ID);
+      expect(items).toEqual([
+        { idEmbalagem: 6001, precoOferta: 9.5 },
+        { idEmbalagem: 6002, precoOferta: 7.6 },
+      ]);
+
+      const rule = await get(`/offer-book-rules/${ruleId}`).expect(200);
+      expect((rule.body as { status: string }).status).toBe('SUCCEEDED');
+
+      const list = await get(
+        `/offer-book-rules/${ruleId}/execution-reports`,
+      ).expect(200);
+      const listBody = list.body as {
+        total: number;
+        rows: {
+          id: string;
+          outcome: string;
+          executionType: string;
+          totalProducts: number;
+          productsUpdated: number;
+          productsSkipped: number;
+        }[];
+      };
+      expect(listBody.total).toBe(1);
+      expect(listBody.rows[0].id).toBe(reportId);
+      expect(listBody.rows[0].outcome).toBe('SUCCESS');
+      expect(listBody.rows[0].executionType).toBe('MANUAL');
+      expect(listBody.rows[0].totalProducts).toBe(2);
+      expect(listBody.rows[0].productsUpdated).toBe(2);
+      expect(listBody.rows[0].productsSkipped).toBe(0);
+
+      const det = await get(
+        `/offer-book-rules/execution-reports/${reportId}?page=1&perPage=50`,
+      ).expect(200);
+      const detBody = det.body as {
+        totalItems: number;
+        items: {
+          ean: string;
+          finalPrice: number;
+          applyStatus: string;
+          wasUpdated: boolean;
+        }[];
+      };
+      expect(detBody.totalItems).toBe(2);
+      for (const item of detBody.items) {
+        expect(item.applyStatus).toBe('applied');
+        expect(item.wasUpdated).toBe(true);
+      }
+      expect(detBody.items.map((i) => i.finalPrice)).toEqual([9.5, 7.6]);
+
+      // Espelho local pós-push: offer_book global aponta pro caderno escrito.
+      const mirror: Array<{ ean: string; tp: string; ext: string }> =
+        await ds.query(
+          `SELECT ean::text AS ean, target_price AS tp, external_id::text AS ext
+             FROM ${SCHEMA}.offer_book ORDER BY ean`,
+        );
+      expect(mirror).toHaveLength(2);
+      expect(mirror.map((m) => Number(m.tp))).toEqual([9.5, 7.6]);
+      expect(mirror.every((m) => m.ext === String(CADERNO_ID))).toBe(true);
+    });
+
+    it('redelivery does not re-push applied items', async () => {
+      a7.upsertOffer.mockClear();
+      await runStep();
+      expect(a7.upsertOffer).not.toHaveBeenCalled();
+    });
+
+    it('400s the report detail without required pagination', async () => {
+      await get(`/offer-book-rules/execution-reports/${reportId}`).expect(400);
+    });
+
+    it('total A7 failure → report FAILURE, rule ERRORED, items erro_transitorio', async () => {
+      a7.upsertOffer.mockClear();
+      a7.upsertOffer.mockRejectedValueOnce(new Error('erp down'));
+
+      const res = await post(`/offer-book-rules/${ruleId}/execute`).expect(202);
+      reportId = (res.body as { reportId: string }).reportId;
+      await runStep();
+
+      const rule = await get(`/offer-book-rules/${ruleId}`).expect(200);
+      expect((rule.body as { status: string }).status).toBe('ERRORED');
+
+      const det = await get(
+        `/offer-book-rules/execution-reports/${reportId}?page=1&perPage=50`,
+      ).expect(200);
+      const detBody = det.body as {
+        report: { outcome: string; errorMessage: string | null };
+        items: { applyStatus: string; applyError: string | null }[];
+      };
+      expect(detBody.report.outcome).toBe('FAILURE');
+      expect(detBody.report.errorMessage).toContain('falharam');
+      for (const item of detBody.items) {
+        expect(item.applyStatus).toBe('failed');
+        expect(item.applyError).toBe('erro_transitorio');
+      }
+    });
+
+    it('global report list filters by outcome and ruleId', async () => {
+      const failures = await get(
+        `/offer-book-rules/execution-reports?outcome=FAILURE&ruleId=${ruleId}`,
+      ).expect(200);
+      const fBody = failures.body as { rows: { id: string }[] };
+      expect(fBody.rows.some((r) => r.id === reportId)).toBe(true);
+
+      const successes = await get(
+        `/offer-book-rules/execution-reports?outcome=SUCCESS&ruleId=${ruleId}`,
+      ).expect(200);
+      const sBody = successes.body as {
+        rows: { id: string; outcome: string }[];
+      };
+      expect(sBody.rows.every((r) => r.outcome === 'SUCCESS')).toBe(true);
+      expect(sBody.rows.some((r) => r.id === reportId)).toBe(false);
+    });
+
+    it('rule whose prices do not change → NO_CHANGES without any push', async () => {
+      const created = await post('/offer-book-rules')
+        .send({
+          offerBookInfoId: CADERNO_ID_2,
+          calculationBaseType: 'SALE_PRICE',
+          eans: [EAN_A],
+          pricingRules: [{ actionType: 'DISCOUNT', percentageValue: 0 }],
+          priceLocks: [],
+        })
+        .expect(201);
+      const noChangeRuleId = (created.body as { id: string }).id;
+
+      const res = await post(
+        `/offer-book-rules/${noChangeRuleId}/execute`,
+      ).expect(202);
+      reportId = (res.body as { reportId: string }).reportId;
+
+      a7.upsertOffer.mockClear();
+      await runStep();
+      expect(a7.upsertOffer).not.toHaveBeenCalled();
+
+      const rule = await get(`/offer-book-rules/${noChangeRuleId}`).expect(200);
+      expect((rule.body as { status: string }).status).toBe('SUCCEEDED');
+
+      const det = await get(
+        `/offer-book-rules/execution-reports/${reportId}?page=1&perPage=10`,
+      ).expect(200);
+      const detBody = det.body as {
+        report: { outcome: string; productsSkipped: number };
+        items: { applyStatus: string }[];
+      };
+      expect(detBody.report.outcome).toBe('NO_CHANGES');
+      expect(detBody.report.productsSkipped).toBe(1);
+      expect(detBody.items[0].applyStatus).toBe('skipped');
     });
   });
 });
