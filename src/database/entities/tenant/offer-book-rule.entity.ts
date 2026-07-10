@@ -1,6 +1,7 @@
 import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { CalculationBaseType } from '../../enums/calculation-base-type.enum';
 import { DayOfWeek } from '../../enums/day-of-week.enum';
+import { OfferBookRuleStatus } from '../../enums/offer-book-rule-status.enum';
 import { PriceBaseSource } from '../../enums/price-base-source.enum';
 import { BaseEntity } from '../base.entity';
 import { OfferBookRuleExecutionReportEntity } from './offer-book-rule-execution-report.entity';
@@ -39,6 +40,10 @@ export class OfferBookRuleEntity extends BaseEntity {
 
   @Column({ name: 'apply_price_rounding', type: 'boolean', default: false })
   public applyPriceRounding!: boolean;
+
+  /** Ciclo de vida da execução; RUNNING é o guard de concorrência do /execute. */
+  @Column({ type: 'text', default: OfferBookRuleStatus.IDLE })
+  public status!: OfferBookRuleStatus;
 
   @OneToMany(() => OfferBookRuleProductEntity, (product) => product.rule, {
     cascade: true,
