@@ -111,6 +111,18 @@ export class ImportCompetitorProductsDispatchConsumer extends DispatchPipelineCo
     return { batches };
   }
 
+  protected onDispatch(
+    message: PipelineMessage,
+    batches: PipelineMessage<unknown>[],
+  ): void {
+    const eansPerOrigin: Record<string, number> = {};
+    for (const b of batches) {
+      const p = b.payload as ImportCompetitorProductsBatchPayload;
+      eansPerOrigin[p.origin] = (eansPerOrigin[p.origin] ?? 0) + p.eans.length;
+    }
+    this.metrics.onScrapeDispatch(message.tenantId, eansPerOrigin);
+  }
+
   /** No work to do → close the competitor-stock branch directly so CALC
    *  can fire once the ERP-stock branch (stock-a) is also complete. */
   private async markStockB(

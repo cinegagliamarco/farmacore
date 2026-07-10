@@ -31,6 +31,11 @@ import { RetryService } from './retry.service';
  * kind of step (v1 single-queue, v2 batched dispatch+batch, v2
  * per-origin): the main queue with DLX wiring + a `.dlq` mirror under
  * the DLX. No retry/delay queues — a failed message dead-letters once.
+ *
+ * No x-dead-letter-routing-key on purpose: the broker then keeps the
+ * original `tenant.q` key, which matches the `.dlq` binding `*.${q}`
+ * (same shape RetryService publishes manually). A fixed key `q` would
+ * miss the topic binding and the dead-letter would be dropped.
  */
 const queueWithDlq = (q: string) => [
   {
@@ -42,7 +47,6 @@ const queueWithDlq = (q: string) => [
       durable: true,
       arguments: {
         'x-dead-letter-exchange': DLX_NAME,
-        'x-dead-letter-routing-key': q,
       },
     },
   },
@@ -135,20 +139,8 @@ const perOriginQueueNames = (): string[] => {
             ...queueWithDlq(batchStep(step)),
           ]),
           ...perOriginQueueNames().flatMap(queueWithDlq),
-          {
-            name: PIPELINE_START_QUEUE,
-            exchange: EXCHANGE_NAME,
-            routingKey: '*.pipeline.start',
-            createQueueIfNotExists: true,
-            options: { durable: true },
-          },
-          {
-            name: MIGRATE_TENANT_QUEUE,
-            exchange: EXCHANGE_NAME,
-            routingKey: '*.migrate-tenant',
-            createQueueIfNotExists: true,
-            options: { durable: true },
-          },
+          ...queueWithDlq(PIPELINE_START_QUEUE),
+          ...queueWithDlq(MIGRATE_TENANT_QUEUE),
         ],
       }),
     }),

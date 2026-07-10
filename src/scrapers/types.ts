@@ -14,9 +14,7 @@ export interface ScrapedProduct {
   origin: CompetitorOrigin;
   found: boolean;
   name?: string | null;
-  url?: string | null;
   price?: string | null;
-  unitSalePrice?: string | null;
   supplier?: string | null;
   brand?: string | null;
   sku?: string | null;
@@ -43,4 +41,16 @@ export async function scrapeProductsSequential(
     scrapes.push(await scraper.scrapeProduct(ean));
   }
   return scrapes;
+}
+
+export function toNumericString(
+  value: number | null | undefined,
+): string | null {
+  if (value == null) return null;
+  return Number.isFinite(value) ? String(value) : null;
+}
+
+export function stripHtml(html: string | undefined): string | undefined {
+  if (!html) return undefined;
+  return html.replace(/<[^>]*>/g, '').trim() || undefined;
 }

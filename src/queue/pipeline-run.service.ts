@@ -142,13 +142,15 @@ export class PipelineRunService {
           step: step as PipelineStep,
           batchSeq: DISPATCH_BATCH_SEQ,
         },
+        // batchesPlanned is preserved on purpose: slicing is deterministic,
+        // and nulling it would let an in-flight batch that closes during the
+        // restart window read planned=0, skip isLast, and stall the run.
         {
           status: PipelineRunStatus.RUNNING,
           attempt,
           startedAt: new Date(),
           finishedAt: null,
           error: null,
-          batchesPlanned: null,
         },
       );
     } else {

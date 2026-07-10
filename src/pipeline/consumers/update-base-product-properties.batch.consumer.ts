@@ -15,7 +15,6 @@ import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
-import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
 import type { UpdateBaseProductPropertiesBatchPayload } from './update-base-product-properties.dispatch.consumer';
 
 const BATCH_QUEUE = batchStep(PipelineStep.UPDATE_BASE_PRODUCT_PROPERTIES);
@@ -31,9 +30,8 @@ export class UpdateBaseProductPropertiesBatchConsumer extends BatchPipelineConsu
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(runs, retry, tx, tenants, integration, publisher);
+    super(runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({

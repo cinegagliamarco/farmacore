@@ -18,19 +18,14 @@ import type { ClassificationIndex } from '../classification/classification-index
 export type SuggestionTarget = 'precoVenda' | 'precoOferta';
 
 export interface SuggestionProduct {
-  id: number;
   ean: string;
-  nome: string;
-  fabricante: string;
   classificationId: string | null;
   classificacao: string;
-  cadernoOferta: string;
   custo: number;
   precoVenda: number;
   precoOferta: number;
   /** Preço de cada origem de concorrente (0 = sem preço). */
   competitorPrices: Partial<Record<CompetitorOrigin, number>>;
-  margem: number;
   pbm: boolean;
 }
 
@@ -57,7 +52,7 @@ export interface SuggestionRule {
   createdAt: string;
 }
 
-export interface PriceRoundingRule {
+interface PriceRoundingRule {
   decimal_min: number;
   decimal_max: number;
   round_to: number;
@@ -70,7 +65,7 @@ export interface PriceRoundingRange {
   rules: PriceRoundingRule[];
 }
 
-export interface PriceSuggestion {
+interface PriceSuggestion {
   price: number;
   margin: number;
   rule: SuggestionRule;
@@ -82,7 +77,7 @@ export interface PriceSuggestion {
     | null;
 }
 
-export type NoSuggestionReason =
+type NoSuggestionReason =
   | 'sem_regra'
   | 'sem_custo'
   | 'margem_ok'

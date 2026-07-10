@@ -24,23 +24,17 @@ export class CredentialEncryptionService {
     return Buffer.concat([nonce, tag, ct]);
   }
 
-  public decrypt(payload: Buffer): Promise<string> {
+  public decrypt(payload: Buffer): string {
     if (payload.length < NONCE_BYTES + TAG_BYTES) {
-      return Promise.reject(new Error('ciphertext too short'));
+      throw new Error('ciphertext too short');
     }
     const nonce = payload.subarray(0, NONCE_BYTES);
     const tag = payload.subarray(NONCE_BYTES, NONCE_BYTES + TAG_BYTES);
     const ct = payload.subarray(NONCE_BYTES + TAG_BYTES);
-    try {
-      const decipher = crypto.createDecipheriv('aes-256-gcm', this.key, nonce);
-      decipher.setAuthTag(tag);
-      const plain = Buffer.concat([
-        decipher.update(ct),
-        decipher.final(),
-      ]).toString('utf8');
-      return Promise.resolve(plain);
-    } catch (err) {
-      return Promise.reject(err as Error);
-    }
+    const decipher = crypto.createDecipheriv('aes-256-gcm', this.key, nonce);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ct), decipher.final()]).toString(
+      'utf8',
+    );
   }
 }

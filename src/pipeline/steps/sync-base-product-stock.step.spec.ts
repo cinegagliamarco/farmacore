@@ -1,4 +1,4 @@
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, ObjectLiteral, Repository } from 'typeorm';
 import { SyncBaseProductStockStep } from './sync-base-product-stock.step';
 import { EmbalagemEntity } from '../../integration/entities/a7pharma/embalagem.entity';
 import { EstoqueEntity } from '../../integration/entities/a7pharma/estoque.entity';
@@ -22,7 +22,8 @@ const buildIntegrationDs = (
               where: () => qb,
               andWhere: () => qb,
               orderBy: () => qb,
-              leftJoinAndSelect: () => qb,
+              leftJoin: () => qb,
+              addSelect: () => qb,
               getMany: () => Promise.resolve(embalagens),
             };
             return qb;
@@ -43,7 +44,7 @@ const buildIntegrationDs = (
       }
       // Other A7Pharma repos are built by the bundle constructor but
       // never called by this step — return a noop stub.
-      return {} as Repository<unknown>;
+      return {} as Repository<ObjectLiteral>;
     },
   }) as unknown as DataSource;
 

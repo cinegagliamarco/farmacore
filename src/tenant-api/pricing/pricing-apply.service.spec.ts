@@ -5,7 +5,9 @@ import type {
   SuggestionRuleApi,
 } from './suggestion-rules.service';
 import type { ClustersService } from './clusters.service';
+import type { CompetitorOriginsService } from './competitor-origins.service';
 import type { ClassificationsService } from '../config/classifications.service';
+import { buildClassificationIndex } from '../classification/classification-index';
 import type { OutboxRepository } from '../../queue/outbox.repository';
 
 interface ProductSeed {
@@ -97,8 +99,11 @@ const buildService = (
     } as unknown as ClustersService,
     outbox,
     {
-      list: jest.fn().mockResolvedValue([]),
+      index: jest.fn().mockResolvedValue(buildClassificationIndex([])),
     } as unknown as ClassificationsService,
+    {
+      enabledOrigins: jest.fn().mockResolvedValue([]),
+    } as unknown as CompetitorOriginsService,
   );
 
 const PRODUCT: ProductSeed = {

@@ -74,26 +74,36 @@ export class SyncProductItemsStep {
     }
     const produtoIds = [...new Set(produtoIdByEmbalagem.values())];
 
-    // One query resolves the winning caderno offer of every (embalagem × store).
+    // ERP reads go to the integration DataSource (own pool), so all stores
+    // can be fetched in parallel (plus ONE query resolving the winning
+    // caderno offer of every embalagem × store); the tenant upserts stay
+    // sequential below because the transactional em is a single connection.
+    const [erpReads, storeOffers] = await Promise.all([
+      Promise.all(
+        stores.map(async (store) => {
+          const unidade = Number(store.externalId);
+          const [priceRows, costRows] = await Promise.all([
+            a7.precoEmbalagemUnidadeNegocio.findByEmbalagemIdsAndUnidade(
+              embalagemIds,
+              unidade,
+            ),
+            a7.custoProduto.findByProdutoIdsAndUnidade(produtoIds, unidade),
+          ]);
+          return { store, priceRows, costRows };
+        }),
+      ),
+      a7.itemCadernoOferta.findStoreOffers(
+        embalagemIds,
+        stores.map((s) => Number(s.externalId)),
+      ),
+    ]);
     const offerByStoreEmbalagem = new Map(
-      (
-        await a7.itemCadernoOferta.findStoreOffers(
-          embalagemIds,
-          stores.map((s) => Number(s.externalId)),
-        )
-      ).map((o) => [`${o.unidadenegocioid}|${o.embalagemid}`, o]),
+      storeOffers.map((o) => [`${o.unidadenegocioid}|${o.embalagemid}`, o]),
     );
 
     let processed = 0;
-    for (const store of stores) {
+    for (const { store, priceRows, costRows } of erpReads) {
       const unidade = Number(store.externalId);
-      const [priceRows, costRows] = await Promise.all([
-        a7.precoEmbalagemUnidadeNegocio.findByEmbalagemIdsAndUnidade(
-          embalagemIds,
-          unidade,
-        ),
-        a7.custoProduto.findByProdutoIdsAndUnidade(produtoIds, unidade),
-      ]);
       const priceByEmbalagem = new Map(
         priceRows.map((r) => [r.embalagemid, r.precovenda]),
       );

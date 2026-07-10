@@ -36,7 +36,6 @@ export {
 export type { ItemCadernoOfertaWithPrice } from './item-caderno-oferta.repository';
 export type { LatestReceiptDate } from './item-recebimento-fisico.repository';
 export { chunkEmbalagensByEan, parseEan } from './embalagem-chunker';
-export type { EmbalagemBatchSlice } from './embalagem-chunker';
 
 /**
  * Per-call bundle of A7Pharma read repositories bound to the tenant's

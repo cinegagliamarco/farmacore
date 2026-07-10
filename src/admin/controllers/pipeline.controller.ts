@@ -6,8 +6,6 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../database/enums/user-role.enum';
 import { SystemAdminGuard } from '../guards/system-admin.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { AdminPipelineService } from '../../pipeline/admin-pipeline.service';
@@ -18,7 +16,6 @@ const TRIGGERABLE_STEPS = Object.values(PipelineStep);
 
 @Controller('admin/tenants/:slug/pipeline')
 @UseGuards(SystemAdminGuard)
-@Roles(UserRole.ADMIN)
 export class PipelineController {
   constructor(private readonly svc: AdminPipelineService) {}
 

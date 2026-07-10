@@ -56,8 +56,10 @@ export class ProductsController {
    */
   @Post(':ean/import')
   public import(@Param('ean') ean: string): Promise<ProductDetailsView> {
-    if (!/^\d+$/.test(ean)) {
-      throw new BadRequestException('ean must be numeric');
+    // ≤14 digits: GTIN-14 is the widest EAN/GTIN format — anything longer
+    // is not a barcode (bigint itself would fit up to 18 digits).
+    if (!/^\d{1,14}$/.test(ean)) {
+      throw new BadRequestException('ean must be numeric (up to 14 digits)');
     }
     return this.products.importProduct(ean);
   }

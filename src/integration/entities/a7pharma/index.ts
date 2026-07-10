@@ -14,24 +14,6 @@ import { ProdutoEntity } from './produto.entity';
 import { RecebimentoFisicoEntity } from './recebimento-fisico.entity';
 import { UnidadeNegocioEntity } from './unidade-negocio.entity';
 
-export {
-  CadernoOfertaEntity,
-  ClassificacaoEntity,
-  ClassificacaoProdutoEntity,
-  CustoProdutoEntity,
-  EmbalagemEntity,
-  EstoqueEntity,
-  FabricanteEntity,
-  ItemCadernoOfertaEntity,
-  ItemCadernoOfertaQuantidadeEntity,
-  ItemRecebimentoFisicoEntity,
-  PessoaEntity,
-  PrecoEmbalagemUnidadeNegocioEntity,
-  ProdutoEntity,
-  RecebimentoFisicoEntity,
-  UnidadeNegocioEntity,
-};
-
 export const A7PHARMA_ENTITIES = [
   CadernoOfertaEntity,
   ClassificacaoEntity,

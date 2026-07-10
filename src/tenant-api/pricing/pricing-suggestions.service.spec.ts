@@ -2,8 +2,10 @@ import { BadRequestException } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { PricingSuggestionsService } from './pricing-suggestions.service';
 import type { ClassificationsService } from '../config/classifications.service';
+import { buildClassificationIndex } from '../classification/classification-index';
 import type { PriceRoundingService } from '../config/price-rounding.service';
 import type { ClustersService } from './clusters.service';
+import type { CompetitorOriginsService } from './competitor-origins.service';
 import type {
   SuggestionRuleApi,
   SuggestionRulesService,
@@ -46,8 +48,11 @@ const buildService = (rules: SuggestionRuleApi[]) =>
       list: jest.fn().mockResolvedValue([]),
     } as unknown as PriceRoundingService,
     {
-      list: jest.fn().mockResolvedValue([]),
+      index: jest.fn().mockResolvedValue(buildClassificationIndex([])),
     } as unknown as ClassificationsService,
+    {
+      enabledOrigins: jest.fn().mockResolvedValue([]),
+    } as unknown as CompetitorOriginsService,
   );
 
 /** Mock em: tenant, loja (parametrizável), origens vazias e um produto. */

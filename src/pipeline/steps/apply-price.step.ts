@@ -49,15 +49,33 @@ export class ApplyPriceStep {
       [runId, batchSeq],
     );
 
+    // Uma query por batch (não por item): campanhas ativas de todos os EANs
+    // precoVenda de uma vez (global) + caderno vencedor por (ean, loja) dos
+    // itens de loja + campanhas desses cadernos — checagem em memória no loop.
+    const venda = items.filter((i) => i.target === 'precoVenda');
+    const inCampaign = await this.activeCampaignEans(
+      em,
+      venda.map((i) => i.ean),
+    );
+    const storeCadernos = await this.storeCadernos(
+      em,
+      venda.filter((i) => i.storeId !== null),
+    );
+    const campaignCadernos = await this.activeCampaignCadernos(em, [
+      ...new Set([...storeCadernos.values()].filter((c): c is string => !!c)),
+    ]);
+
     let applied = 0;
     let skipped = 0;
     let failed = 0;
     for (const item of items) {
-      // Campanha de oferta ativa: não sobrescrever o preço de VENDA promocional.
-      // Item por loja checa o caderno DA LOJA; global checa qualquer campanha.
+      // Campanha de oferta ativa: não sobrescrever o preço de VENDA
+      // promocional. Item de loja checa o caderno vencedor DA LOJA (caderno
+      // de outra loja não trava esta); loja SEM linha product_item (estado
+      // desconhecido, pré-sync) cai na checagem GLOBAL conservadora.
       if (
         item.target === 'precoVenda' &&
-        (await this.inActiveCampaign(em, item.ean, item.storeId))
+        this.emCampanha(item, inCampaign, storeCadernos, campaignCadernos)
       ) {
         await this.mark(em, item.id, 'skipped', 'em_campanha', null);
         skipped++;
@@ -150,46 +168,75 @@ export class ApplyPriceStep {
     return rows.map((r) => r.name);
   }
 
-  private async inActiveCampaign(
+  private async activeCampaignEans(
     em: EntityManager,
-    ean: string,
-    storeId: string | null,
-  ): Promise<boolean> {
-    if (storeId) {
-      const pi: Array<{ offerExternalId: string | null }> = await em.query(
-        `SELECT pi.offer_external_id AS "offerExternalId"
-           FROM product_item pi
-           JOIN product p ON p.id = pi.product_id
-          WHERE p.ean = $1::bigint AND pi.store_id = $2::uuid
-          LIMIT 1`,
-        [ean, storeId],
-      );
-      // Loja com linha: campanha só se o caderno vencedor DELA estiver ativo
-      // (caderno de outra loja não trava esta). Sem linha (loja recém-ativada,
-      // estado desconhecido): cai na checagem GLOBAL conservadora abaixo.
-      if (pi.length) {
-        if (pi[0].offerExternalId == null) return false;
-        const rows: unknown[] = await em.query(
-          `SELECT 1 FROM tenant_offer_campaign c
-            WHERE c.external_id = $1::bigint AND c.active = true
-              AND (c.start_date IS NULL OR c.start_date <= now())
-              AND (c.expiration_date IS NULL OR c.expiration_date > now())
-            LIMIT 1`,
-          [pi[0].offerExternalId],
-        );
-        return rows.length > 0;
-      }
-    }
-    const rows: unknown[] = await em.query(
-      `SELECT 1 FROM offer_book ob
+    eans: string[],
+  ): Promise<Set<string>> {
+    if (eans.length === 0) return new Set();
+    const rows: Array<{ ean: string }> = await em.query(
+      `SELECT DISTINCT ob.ean::text AS ean FROM offer_book ob
          JOIN tenant_offer_campaign c ON c.external_id = ob.external_id
-        WHERE ob.ean = $1::bigint AND c.active = true
+        WHERE ob.ean = ANY($1::bigint[]) AND c.active = true
           AND (c.start_date IS NULL OR c.start_date <= now())
-          AND (c.expiration_date IS NULL OR c.expiration_date > now())
-        LIMIT 1`,
-      [ean],
+          AND (c.expiration_date IS NULL OR c.expiration_date > now())`,
+      [eans],
     );
-    return rows.length > 0;
+    return new Set(rows.map((r) => r.ean));
+  }
+
+  /** Caderno vencedor por (ean, loja) dos itens de loja, keyed `ean|storeId`.
+   *  Chave ausente = loja SEM linha product_item (estado desconhecido). */
+  private async storeCadernos(
+    em: EntityManager,
+    storeItems: ItemRow[],
+  ): Promise<Map<string, string | null>> {
+    if (storeItems.length === 0) return new Map();
+    const rows: Array<{
+      ean: string;
+      storeId: string;
+      offerExternalId: string | null;
+    }> = await em.query(
+      `SELECT p.ean::text AS ean, pi.store_id AS "storeId",
+              pi.offer_external_id::text AS "offerExternalId"
+         FROM product_item pi
+         JOIN product p ON p.id = pi.product_id
+        WHERE p.ean = ANY($1::bigint[]) AND pi.store_id = ANY($2::uuid[])`,
+      [
+        [...new Set(storeItems.map((i) => i.ean))],
+        [...new Set(storeItems.map((i) => i.storeId!))],
+      ],
+    );
+    return new Map(
+      rows.map((r) => [`${r.ean}|${r.storeId}`, r.offerExternalId]),
+    );
+  }
+
+  private async activeCampaignCadernos(
+    em: EntityManager,
+    cadernos: string[],
+  ): Promise<Set<string>> {
+    if (cadernos.length === 0) return new Set();
+    const rows: Array<{ id: string }> = await em.query(
+      `SELECT DISTINCT c.external_id::text AS id FROM tenant_offer_campaign c
+        WHERE c.external_id = ANY($1::bigint[]) AND c.active = true
+          AND (c.start_date IS NULL OR c.start_date <= now())
+          AND (c.expiration_date IS NULL OR c.expiration_date > now())`,
+      [cadernos],
+    );
+    return new Set(rows.map((r) => r.id));
+  }
+
+  private emCampanha(
+    item: ItemRow,
+    inCampaign: Set<string>,
+    storeCadernos: Map<string, string | null>,
+    campaignCadernos: Set<string>,
+  ): boolean {
+    if (!item.storeId) return inCampaign.has(item.ean);
+    const key = `${item.ean}|${item.storeId}`;
+    if (!storeCadernos.has(key)) return inCampaign.has(item.ean);
+    const caderno = storeCadernos.get(key);
+    return caderno != null && campaignCadernos.has(caderno);
   }
 
   private async mark(

@@ -321,6 +321,32 @@ describe('OfferBookRulesService.calculatePreviews', () => {
     expect(r.appliedPercentageValue).toBe(12.41);
   });
 
+  it('bumps a rounding bucket that would dip below the price-lock floor', () => {
+    const [r] = service.calculatePreviews(
+      // Lock floor = 70 / (1 - 0.2) = 87.5; discount lands below it.
+      [product({ salePrice: 200, cost: 70, offerPrice: 100 })],
+      params({
+        calculationBaseType: CalculationBaseType.OFFER_PRICE,
+        pricingRules: [
+          { actionType: PricingActionType.DISCOUNT, percentageValue: 30 },
+        ],
+        priceLocks: [{ minMargin: 20 }],
+        priceRoundingRules: [
+          {
+            priceMin: 0,
+            priceMax: 1000,
+            // 87.5 → bucket says .49, i.e. 87.49 < floor → up a unit: 88.49.
+            decimals: [{ from: 0.4, to: 0.59, roundTo: 0.49 }],
+          },
+        ],
+      }),
+    );
+    expect(r.priceLockApplied).toBe(true);
+    expect(r.priceRoundingApplied).toBe(true);
+    expect(r.finalPrice).toBe(88.49);
+    expect(r.newMargin).toBeGreaterThanOrEqual(20);
+  });
+
   it('keeps newMargin finite when a 100% discount drives the price to zero', () => {
     const [r] = service.calculatePreviews(
       [product({ salePrice: 100, cost: 50 })],

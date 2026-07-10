@@ -84,7 +84,7 @@ export class BaseProductRepository {
   }
 
   public async findEansMissingWeight(): Promise<string[]> {
-    return this.findEansMissingPredicate('weight IS NULL');
+    return this.findEansMissingPredicate('bp.weight IS NULL');
   }
 
   /**
@@ -94,7 +94,7 @@ export class BaseProductRepository {
    */
   public async findEansMissingMeasures(): Promise<string[]> {
     return this.findEansMissingPredicate(
-      'height IS NULL AND length IS NULL AND width IS NULL',
+      'bp.height IS NULL AND bp.length IS NULL AND bp.width IS NULL',
     );
   }
 
@@ -231,14 +231,22 @@ export class BaseProductRepository {
     return res.affected ?? 0;
   }
 
+  /**
+   * Candidate EANs for the weight/measures passes, scoped to the calling
+   * tenant's catalog (join with the tenant-schema `product` via the
+   * tenant EM's search_path, like the supplier/name passes). Without the
+   * scope every tenant would re-enqueue the whole shared catalog daily
+   * and EANs with no scrape data would never converge.
+   */
   private async findEansMissingPredicate(predicate: string): Promise<string[]> {
-    const rows: Array<{ ean: string }> = await this.em
-      .getRepository(BaseProductEntity)
-      .createQueryBuilder('bp')
-      .select('bp.ean', 'ean')
-      .where(predicate)
-      .orderBy('bp.ean', 'ASC')
-      .getRawMany();
+    const rows: Array<{ ean: string }> = await this.em.query(
+      `SELECT bp.ean::text AS ean
+         FROM shared_catalog.base_product bp
+         JOIN product p ON p.ean = bp.ean
+        WHERE ${predicate}
+          AND p.deleted_at IS NULL
+        ORDER BY bp.ean ASC`,
+    );
     return rows.map((r) => String(r.ean));
   }
 }

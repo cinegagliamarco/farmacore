@@ -33,18 +33,13 @@ const product = (
     competitorPrices?: Partial<Record<CompetitorOrigin, number>>;
   } = {},
 ): SuggestionProduct => ({
-  id: 1,
   ean: '7891234567890',
-  nome: 'Dipirona 500mg',
-  fabricante: 'Lab X',
   classificationId: DOR,
   classificacao: 'MEDICAMENTOS > GENÉRICOS > DOR',
-  cadernoOferta: '',
   custo: 6,
   precoVenda: 8,
   precoOferta: 0,
   competitorPrices: {},
-  margem: 25,
   pbm: false,
   ...over,
 });

@@ -36,6 +36,6 @@ import { ModulesGuard } from './guards/modules.guard';
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: ModulesGuard },
   ],
-  exports: [AuthService, PasswordService],
+  exports: [PasswordService],
 })
 export class AuthModule {}

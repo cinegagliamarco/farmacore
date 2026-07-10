@@ -3,12 +3,11 @@ import { EntityManager } from 'typeorm';
 import { BatchPipelineConsumer } from './batch-pipeline.consumer';
 import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService, BatchIncrement } from './pipeline-run.service';
-import { RetryService } from './retry.service';
+import { DuplicateDeliveryRepublishError, RetryService } from './retry.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
 import { TenantService } from '../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../integration/integration-data-source.factory';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
-import { PipelinePublisher } from './pipeline-publisher.service';
 import { PipelineMessage } from './types';
 import { noopPipelineMetrics } from '../observability/pipeline-metrics.test-utils';
 import { PipelineMetricsRegistry } from '../observability/pipeline-metrics.registry';
@@ -43,7 +42,6 @@ describe('BatchPipelineConsumer', () => {
   let tx: { runWithTenant: jest.Mock };
   let tenants: { findActive: jest.Mock };
   let factory: { forTenantSlug: jest.Mock };
-  let publisher: { publishStep: jest.Mock };
   let outbox: { insertMany: jest.Mock };
 
   const buildMsg = (batchSeq: number): PipelineMessage<{ ids: number[] }> => ({
@@ -78,7 +76,6 @@ describe('BatchPipelineConsumer', () => {
       }),
     };
     factory = { forTenantSlug: jest.fn().mockResolvedValue(null) };
-    publisher = { publishStep: jest.fn() };
     outbox = { insertMany: jest.fn() };
 
     const mod = await Test.createTestingModule({
@@ -89,7 +86,6 @@ describe('BatchPipelineConsumer', () => {
         { provide: TenantTransactionService, useValue: tx },
         { provide: TenantService, useValue: tenants },
         { provide: IntegrationDataSourceFactory, useValue: factory },
-        { provide: PipelinePublisher, useValue: publisher },
         { provide: OutboxRepository, useValue: outbox },
         { provide: PipelineMetricsRegistry, useValue: noopPipelineMetrics() },
       ],
@@ -132,7 +128,7 @@ describe('BatchPipelineConsumer', () => {
     });
     await consumer.process(buildMsg(2));
     expect(consumer.successorsCalled).toBe(0);
-    expect(publisher.publishStep).not.toHaveBeenCalled();
+    expect(outbox.insertMany).not.toHaveBeenCalled();
   });
 
   it('calls successors() once and publishes them when isLast', async () => {
@@ -159,13 +155,36 @@ describe('BatchPipelineConsumer', () => {
       'acme',
       [successor],
     );
-    expect(publisher.publishStep).not.toHaveBeenCalled();
   });
 
   it('skips handle when start returns already-completed', async () => {
     runs.start.mockResolvedValue('already-completed');
     await consumer.process(buildMsg(1));
     expect(consumer.lastInvoked).toBe(0);
+    expect(runs.completeBatchAndIncrement).not.toHaveBeenCalled();
+  });
+
+  it('routes a duplicate delivery of an in-progress batch to the DLQ without touching the batch row', async () => {
+    runs.start.mockResolvedValue('in-progress');
+    const msg = buildMsg(2);
+    await consumer.process(msg);
+    expect(consumer.lastInvoked).toBe(0);
+    expect(retry.republishOnFailure).toHaveBeenCalledWith(msg);
+    expect(runs.completeBatchAndIncrement).not.toHaveBeenCalled();
+    // fail() here would flip the original delivery's RUNNING row to FAILED
+    // and its fan-in increment would never land — silent run stall.
+    expect(runs.fail).not.toHaveBeenCalled();
+  });
+
+  it('rethrows a failed in-progress republish so the broker DLX takes over (no fail row)', async () => {
+    runs.start.mockResolvedValue('in-progress');
+    retry.republishOnFailure.mockRejectedValue(new Error('channel closed'));
+    await expect(consumer.process(buildMsg(2))).rejects.toBeInstanceOf(
+      DuplicateDeliveryRepublishError,
+    );
+    // Must bypass the generic catch: its fail() would flip the original
+    // delivery's RUNNING batch row to FAILED and stall the fan-in counter.
+    expect(runs.fail).not.toHaveBeenCalled();
     expect(runs.completeBatchAndIncrement).not.toHaveBeenCalled();
   });
 

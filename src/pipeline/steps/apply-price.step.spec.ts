@@ -45,17 +45,27 @@ function makeEm(
       if (/core\.tenant_store/.test(sql)) {
         return cadernoStores.map((name) => ({ name }));
       }
-      if (/offer_external_id AS "offerExternalId"/.test(sql)) {
-        const key = `${String(params[0])}|${String(params[1])}`;
-        return opts.piOffers?.has(key)
-          ? [{ offerExternalId: opts.piOffers.get(key) }]
-          : [];
+      if (/AS "offerExternalId"/.test(sql)) {
+        // Batched (storeCadernos): params = [eans[], storeIds[]].
+        const eans = new Set((params[0] as string[]).map(String));
+        const lojas = new Set((params[1] as string[]).map(String));
+        return [...(opts.piOffers ?? new Map<string, string | null>())]
+          .map(([key, offerExternalId]) => {
+            const [ean, storeId] = key.split('|');
+            return { ean, storeId, offerExternalId };
+          })
+          .filter((r) => eans.has(r.ean) && lojas.has(r.storeId));
       }
       if (/FROM offer_book/.test(sql)) {
-        return campaignEans.has(String(params[0])) ? [{ x: 1 }] : [];
+        return (params[0] as string[])
+          .filter((ean) => campaignEans.has(String(ean)))
+          .map((ean) => ({ ean: String(ean) }));
       }
       if (/FROM tenant_offer_campaign/.test(sql)) {
-        return opts.campaignCadernos?.has(String(params[0])) ? [{ x: 1 }] : [];
+        // Batched (activeCampaignCadernos): params[0] = cadernos[].
+        return (params[0] as string[])
+          .filter((c) => opts.campaignCadernos?.has(String(c)))
+          .map((id) => ({ id: String(id) }));
       }
       if (/UPDATE pricing_apply_item/.test(sql)) {
         marks.push({

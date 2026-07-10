@@ -23,12 +23,9 @@ import {
   resolveWinner,
   type SuggestionProduct,
 } from './pricing-suggestion.engine';
-import {
-  buildClassificationIndex,
-  type ClassificationIndex,
-} from '../classification/classification-index';
 import { ClassificationsService } from '../config/classifications.service';
 import { ClustersService } from './clusters.service';
+import { CompetitorOriginsService } from './competitor-origins.service';
 import {
   applyCascadePriority,
   originPriorities,
@@ -163,6 +160,7 @@ export class PricingApplyService {
     private readonly clusters: ClustersService,
     private readonly outbox: OutboxRepository,
     private readonly classifications: ClassificationsService,
+    private readonly competitorOrigins: CompetitorOriginsService,
   ) {}
 
   public async apply(
@@ -397,7 +395,9 @@ export class PricingApplyService {
       status: item.status,
       reason: item.reason,
       basis: item.basis,
-      priceOld: item.priceOldSell,
+      // priceOld mirrors the item's target — same distinction rollback makes.
+      priceOld:
+        item.target === 'precoOferta' ? item.priceOldOffer : item.priceOldSell,
       cadernoId: item.cadernoId,
       ruleId: item.ruleId,
       erpResult: item.erpResult,
@@ -545,7 +545,7 @@ export class PricingApplyService {
     items: ApplyItemDto[],
   ): Promise<{ accepted: AcceptedItem[]; rejected: ApplyRejection[] }> {
     const eans = [...new Set(items.map((i) => i.ean))];
-    const origins = await this.enabledOrigins(em, slug);
+    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const rows = await this.loadEansData(em, origins, eans);
     const byEan = new Map(rows.map((r) => [r.ean, r]));
 
@@ -567,7 +567,7 @@ export class PricingApplyService {
     const membership = usesClusters
       ? await this.clusters.loadActiveClusterMembership(em)
       : new Map<string, string[]>();
-    const classificationIndex = await this.classificationIndex(em);
+    const classificationIndex = await this.classifications.index(em);
     const rulesFor = (storeId: string | null): SuggestionRuleApi[] =>
       active.filter((r) => ruleParticipates(r, storeId));
 
@@ -775,40 +775,11 @@ export class PricingApplyService {
     return new Map(rows.map((r) => [`${r.ean}|${r.storeId}`, r]));
   }
 
-  private async classificationIndex(
-    em: EntityManager,
-  ): Promise<ClassificationIndex> {
-    const rows = await this.classifications.list(em);
-    return buildClassificationIndex(
-      rows.map((row) => ({
-        id: row.id,
-        name: row.name,
-        parentId: row.parentId,
-      })),
-    );
-  }
-
-  /** Origens de concorrente habilitadas do tenant (core, fora do search_path). */
-  private async enabledOrigins(
-    em: EntityManager,
-    slug: string,
-  ): Promise<CompetitorOrigin[]> {
-    const tenantId = await resolveTenantId(em, slug);
-    const rows: Array<{ origin: CompetitorOrigin }> = await em.query(
-      `SELECT origin FROM core.tenant_competitor_origin
-        WHERE tenant_id = $1 AND enabled = true
-        ORDER BY priority ASC, origin ASC`,
-      [tenantId],
-    );
-    return rows
-      .map((r) => r.origin)
-      .filter((o): o is CompetitorOrigin =>
-        Object.values(CompetitorOrigin).includes(o),
-      );
-  }
-
   /** Dados dos EANs do apply: produto + caderno + preço/PBM de cada origem
-   *  habilitada (join dinâmico, valores do enum — seguro interpolar). */
+   *  habilitada (join dinâmico, valores do enum — seguro interpolar).
+   *  Sem filtro de p.active: o FE deliberadamente permite repricing de produto
+   *  inativo (toggle "Ativos" desligado no grid) — filtrar aqui rejeitava esses
+   *  itens como 'nao_encontrado' e podia abortar o run via circuit breaker. */
   private async loadEansData(
     em: EntityManager,
     origins: CompetitorOrigin[],
@@ -817,7 +788,7 @@ export class PricingApplyService {
     const joins = origins
       .map(
         (o) =>
-          `LEFT JOIN shared_catalog.product o_${o} ON o_${o}.ean = p.ean AND o_${o}.origin = '${o}'`,
+          `LEFT JOIN shared_catalog.product o_${o} ON o_${o}.ean = p.ean AND o_${o}.origin = '${o}' AND o_${o}.deleted_at IS NULL`,
       )
       .join('\n         ');
     const selects = origins
@@ -836,7 +807,8 @@ export class PricingApplyService {
          LEFT JOIN classification c ON c.id = p.classification_id
          LEFT JOIN offer_book ob ON ob.ean = p.ean
          ${joins}
-        WHERE p.ean = ANY($1::bigint[])`,
+        WHERE p.ean = ANY($1::bigint[])
+          AND p.deleted_at IS NULL`,
       [eans],
     );
     return rows.map((r) => {
@@ -868,18 +840,13 @@ export class PricingApplyService {
     precoOferta: number,
   ): SuggestionProduct {
     return {
-      id: 0,
       ean: row.ean,
-      nome: '',
-      fabricante: '',
       classificationId: row.classificationId,
       classificacao: row.classificacao ?? '',
-      cadernoOferta: '',
       custo,
       precoVenda,
       precoOferta,
       competitorPrices: row.competitorPrices,
-      margem: 0,
       pbm: row.pbm,
     };
   }

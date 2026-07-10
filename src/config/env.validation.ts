@@ -56,8 +56,9 @@ class EnvVars {
   @IsString()
   R2_BUCKET!: string;
 
+  @IsOptional()
   @IsString()
-  R2_KEY_PREFIX!: string;
+  R2_KEY_PREFIX?: string;
 
   @IsOptional()
   @IsString()

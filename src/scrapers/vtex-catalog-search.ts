@@ -1,9 +1,9 @@
 import { HttpService } from '@nestjs/axios';
 import { Logger } from '@nestjs/common';
 import { CompetitorOrigin } from '../database/enums/competitor-origin.enum';
-import { ScrapedProduct } from './types';
+import { ScrapedProduct, stripHtml, toNumericString } from './types';
 
-export const VTEX_CATALOG_HEADERS = {
+const HEADERS = {
   'User-Agent': 'Mozilla/5.0',
   accept: '*/*',
   'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -16,9 +16,9 @@ export const VTEX_CATALOG_HEADERS = {
   'sec-fetch-dest': 'empty',
 } as const;
 
-export const VTEX_CATALOG_TIMEOUT_MS = 30_000;
+const TIMEOUT_MS = 30_000;
 
-export interface VtexCatalogItem {
+interface VtexCatalogItem {
   ean?: string;
   images?: Array<{ imageUrl?: string }>;
   sellers?: Array<{
@@ -61,13 +61,39 @@ function eansFromProduct(product: VtexCatalogProduct): string[] {
   return out;
 }
 
-export function mapVtexProductsToScrapes<T extends VtexCatalogProduct>(
-  requestedEans: string[],
-  products: T[],
+export function mapVtexProduct(
+  ean: string,
+  p: VtexCatalogProduct,
   origin: CompetitorOrigin,
-  mapProduct: (ean: string, product: T) => ScrapedProduct,
+): ScrapedProduct {
+  const item = p.items?.[0];
+  const offer = item?.sellers?.[0]?.commertialOffer;
+  if (!offer) return { ean, origin, found: false };
+  return {
+    ean,
+    origin,
+    found: true,
+    name: p.productName ?? null,
+    brand: p.brand ?? null,
+    sku:
+      p.productReferenceCode ??
+      item.referenceId?.find((r) => r.Key === 'RefId')?.Value ??
+      null,
+    price: toNumericString(offer.Price),
+    metadata: {
+      description: stripHtml(p.description),
+      image: item.images?.[0]?.imageUrl,
+      observation: offer.PromotionTeasers?.[0]?.Name,
+    },
+  };
+}
+
+export function mapVtexProductsToScrapes(
+  requestedEans: string[],
+  products: VtexCatalogProduct[],
+  origin: CompetitorOrigin,
 ): ScrapedProduct[] {
-  const eanToProduct = new Map<string, T>();
+  const eanToProduct = new Map<string, VtexCatalogProduct>();
   for (const product of products) {
     const productEans = eansFromProduct(product);
     for (const ean of productEans) {
@@ -80,49 +106,34 @@ export function mapVtexProductsToScrapes<T extends VtexCatalogProduct>(
     products.length === 1 &&
     !eanToProduct.has(requestedEans[0])
   ) {
-    return [mapProduct(requestedEans[0], products[0])];
+    return [mapVtexProduct(requestedEans[0], products[0], origin)];
   }
 
   return requestedEans.map((ean) => {
     const product = eanToProduct.get(ean);
     if (!product) return { ean, origin, found: false };
-    return mapProduct(ean, product);
+    return mapVtexProduct(ean, product, origin);
   });
 }
 
-export async function fetchVtexCatalogProducts<T extends VtexCatalogProduct>(
-  http: HttpService,
-  catalogSearchBase: string,
-  eans: string[],
-): Promise<T[]> {
-  const url = buildMultiEanSearchUrl(catalogSearchBase, eans);
-  const { data } = await http.axiosRef.get<T[]>(url, {
-    headers: VTEX_CATALOG_HEADERS,
-    timeout: VTEX_CATALOG_TIMEOUT_MS,
-  });
-  return data ?? [];
-}
-
-export async function scrapeVtexCatalogProducts<T extends VtexCatalogProduct>(
+export async function scrapeVtexCatalogProducts(
   http: HttpService,
   catalogSearchBase: string,
   eans: string[],
   origin: CompetitorOrigin,
-  mapProduct: (ean: string, product: T) => ScrapedProduct,
   logger: Logger,
-  label: string,
 ): Promise<ScrapedProduct[]> {
   if (eans.length === 0) return [];
   try {
-    const products = await fetchVtexCatalogProducts<T>(
-      http,
-      catalogSearchBase,
-      eans,
-    );
-    return mapVtexProductsToScrapes(eans, products, origin, mapProduct);
+    const url = buildMultiEanSearchUrl(catalogSearchBase, eans);
+    const { data } = await http.axiosRef.get<VtexCatalogProduct[]>(url, {
+      headers: HEADERS,
+      timeout: TIMEOUT_MS,
+    });
+    return mapVtexProductsToScrapes(eans, data ?? [], origin);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error(`${label} scrapeProducts failed: ${message}`);
+    logger.error(`scrapeProducts failed: ${message}`);
     return eans.map((ean) => ({
       ean,
       origin,

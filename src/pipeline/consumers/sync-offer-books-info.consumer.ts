@@ -15,7 +15,6 @@ import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
-import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
 
 @Injectable()
 export class SyncOfferBooksInfoConsumer extends BasePipelineConsumer {
@@ -28,9 +27,8 @@ export class SyncOfferBooksInfoConsumer extends BasePipelineConsumer {
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(runs, retry, tx, tenants, integration, publisher);
+    super(runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({

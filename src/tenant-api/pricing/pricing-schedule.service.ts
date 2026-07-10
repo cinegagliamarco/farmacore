@@ -59,7 +59,7 @@ const nextOccurrence = (cronExpr: string): Date =>
   new CronTime(cronExpr, 'UTC').sendAt().toJSDate();
 
 /**
- * CRUD dos agendamentos de aplicação (one-shot). `claimDue`/`markFired` são o
+ * CRUD dos agendamentos de aplicação (one-shot). `claimNext`/`markFired` são o
  * caminho do cron — separados do apply para o service não depender dele.
  */
 @Injectable()
@@ -130,18 +130,20 @@ export class PricingScheduleService {
     );
   }
 
-  /** Agendamentos vencidos e ainda pendentes, travados (SKIP LOCKED) para esta
-   *  transação — só uma réplica de API pega cada um. */
-  public async claimDue(em: EntityManager): Promise<DueSchedule[]> {
-    return em.query(
+  /** Next due-and-pending schedule, locked (SKIP LOCKED) for this transaction
+   *  — only one API replica processes each one. The cron runs one transaction
+   *  per schedule, so it claims one at a time. */
+  public async claimNext(em: EntityManager): Promise<DueSchedule | null> {
+    const rows: DueSchedule[] = await em.query(
       `SELECT id, run_at AS "runAt", requested_by AS "requestedBy", items,
               cron_expr AS "cronExpr", recalc
          FROM pricing_schedule
         WHERE status = 'pending' AND deleted_at IS NULL AND run_at <= now()
         ORDER BY run_at ASC
-        LIMIT 100
+        LIMIT 1
         FOR UPDATE SKIP LOCKED`,
     );
+    return rows[0] ?? null;
   }
 
   public async markFired(
@@ -154,6 +156,23 @@ export class PricingScheduleService {
           SET status='fired', apply_run_id=$2, fired_at=now(), updated_at=now()
         WHERE id=$1`,
       [id, applyRunId],
+    );
+  }
+
+  /** A schedule whose apply threw (e.g. circuit breaker) — parks it as
+   *  'failed' so the cron doesn't retry it forever. Guarded on the claimed
+   *  (status, run_at): the failing claim's tx already rolled back, so
+   *  another replica may have re-claimed and FIRED the schedule in the
+   *  gap — an unguarded park would kill a schedule that actually applied. */
+  public async markFailed(
+    em: EntityManager,
+    id: string,
+    claimedRunAt: Date,
+  ): Promise<void> {
+    await em.query(
+      `UPDATE pricing_schedule SET status='failed', updated_at=now()
+        WHERE id=$1 AND status='pending' AND run_at=$2`,
+      [id, claimedRunAt],
     );
   }
 

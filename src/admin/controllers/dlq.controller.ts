@@ -8,14 +8,11 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../database/enums/user-role.enum';
 import { SystemAdminGuard } from '../guards/system-admin.guard';
 import { DlqService } from '../services/dlq.service';
 
 @Controller('admin/dlq')
 @UseGuards(SystemAdminGuard)
-@Roles(UserRole.ADMIN)
 export class DlqController {
   constructor(private readonly svc: DlqService) {}
 

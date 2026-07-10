@@ -3,8 +3,6 @@ import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
-import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import {
   ATTR_SERVICE_NAME,
@@ -51,13 +49,6 @@ export function startOtel(): void {
       url: `${endpoint}/v1/traces`,
       headers,
     }),
-    metricReader: new PeriodicExportingMetricReader({
-      exporter: new OTLPMetricExporter({
-        url: `${endpoint}/v1/metrics`,
-        headers,
-      }),
-      exportIntervalMillis: 30_000,
-    }),
     instrumentations: [
       getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-fs': { enabled: false },
@@ -66,14 +57,11 @@ export function startOtel(): void {
   });
 
   sdk.start();
+}
 
-  const shutdown = (): void => {
-    if (!sdk) return;
-    sdk
-      .shutdown()
-      .catch((err) => console.error('OTel shutdown error', err))
-      .finally(() => process.exit(0));
-  };
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+/** Flush pending spans; no-op when the SDK never started. */
+export async function shutdownOtel(): Promise<void> {
+  await sdk
+    ?.shutdown()
+    .catch((err) => console.error('OTel shutdown error', err));
 }

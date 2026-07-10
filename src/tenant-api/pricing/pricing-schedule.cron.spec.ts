@@ -1,50 +1,58 @@
-import { EntityManager } from 'typeorm';
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import type { EntityManager } from 'typeorm';
 import { ModuleCode } from '../../database/enums/module-code.enum';
-import { PricingScheduleCron } from './pricing-schedule.cron';
-import type { PricingApplyService } from './pricing-apply.service';
-import type {
-  PricingScheduleService,
-  DueSchedule,
-} from './pricing-schedule.service';
-import type { PricingSuggestionsService } from './pricing-suggestions.service';
 import type { TenantService } from '../../tenant/tenant.service';
 import type { TenantTransactionService } from '../../tenant/tenant-transaction.service';
-
-type PriceEntry = { target: 'precoVenda' | 'precoOferta'; price: number };
+import type { PricingApplyService } from './pricing-apply.service';
+import type { PricingScheduleService } from './pricing-schedule.service';
+import type { PricingSuggestionsService } from './pricing-suggestions.service';
+import { PricingScheduleCron } from './pricing-schedule.cron';
 
 // Uuid de loja ativa do tenant (o recalcMaps valida contra core.tenant_store).
 const S1 = '11111111-1111-4111-8111-111111111111';
 
-const build = (
-  due: DueSchedule[],
-  priceMaps: Record<string, Map<string, PriceEntry>>,
-  activeStoreIds: string[] = [S1],
-) => {
+const schedule = (id: string) => ({
+  id,
+  runAt: new Date(),
+  requestedBy: 'ops',
+  items: [{ ean: '789', target: 'precoVenda' as const, price: 10 }],
+  cronExpr: null,
+  recalc: false,
+});
+
+describe('PricingScheduleCron', () => {
+  let activeStoreIds: string[];
   const em = {
     query: jest.fn((sql: string) => {
       if (/core\.tenant_store/.test(sql)) {
         return Promise.resolve(activeStoreIds.map((id) => ({ id })));
       }
-      return Promise.resolve([]); // SAVEPOINT / RELEASE / ROLLBACK TO
+      return Promise.resolve([]);
     }),
   } as unknown as EntityManager;
-  const apply = { apply: jest.fn().mockResolvedValue({ applyRunId: 'run-1' }) };
-  const schedules = {
-    claimDue: jest.fn().mockResolvedValue(due),
-    markFired: jest.fn().mockResolvedValue(undefined),
-    reArm: jest.fn().mockResolvedValue(undefined),
+  let schedules: {
+    claimNext: jest.Mock;
+    markFired: jest.Mock;
+    markFailed: jest.Mock;
+    reArm: jest.Mock;
   };
-  const suggestions = {
-    priceMap: jest.fn(
-      (_em: EntityManager, _slug: string, store: string | null) =>
-        Promise.resolve(
-          priceMaps[store ?? ''] ?? new Map<string, PriceEntry>(),
-        ),
-    ),
-  };
-  const cron = new PricingScheduleCron(
-    {
+  let apply: { apply: jest.Mock };
+  let suggestions: { priceMap: jest.Mock };
+  let cron: PricingScheduleCron;
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    delete process.env.WORKER_MODE;
+    activeStoreIds = [S1];
+    schedules = {
+      claimNext: jest.fn().mockResolvedValue(null),
+      markFired: jest.fn(),
+      markFailed: jest.fn(),
+      reArm: jest.fn(),
+    };
+    apply = { apply: jest.fn().mockResolvedValue({ applyRunId: 'run1' }) };
+    suggestions = { priceMap: jest.fn().mockResolvedValue(new Map()) };
+    const tenants = {
       listActive: jest.fn().mockResolvedValue([
         {
           slug: 'acme',
@@ -52,69 +60,133 @@ const build = (
           modules: [ModuleCode.PRICING_RULES],
         },
       ]),
-    } as unknown as TenantService,
-    {
+    };
+    const tx = {
       runWithTenant: jest.fn(
-        (_schema: string, fn: (em: EntityManager) => Promise<void>) => fn(em),
+        (_schema: string, fn: (e: EntityManager) => unknown) => fn(em),
       ),
-    } as unknown as TenantTransactionService,
-    schedules as unknown as PricingScheduleService,
-    apply as unknown as PricingApplyService,
-    suggestions as unknown as PricingSuggestionsService,
-  );
-  return { cron, em, apply, schedules, suggestions };
-};
-
-const schedule = (over: Partial<DueSchedule> = {}): DueSchedule => ({
-  id: 'sch-1',
-  runAt: new Date('2026-07-09T12:00:00Z'),
-  requestedBy: 'user-1',
-  items: [],
-  cronExpr: null,
-  recalc: false,
-  ...over,
-});
-
-describe('PricingScheduleCron', () => {
-  beforeEach(() => {
-    delete process.env.WORKER_MODE;
+    };
+    cron = new PricingScheduleCron(
+      tenants as unknown as TenantService,
+      tx as unknown as TenantTransactionService,
+      schedules as unknown as PricingScheduleService,
+      apply as unknown as PricingApplyService,
+      suggestions as unknown as PricingSuggestionsService,
+    );
+    warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    jest.spyOn(Logger.prototype, 'log').mockImplementation();
   });
 
-  it('recalc resolve o preço no mapa DA LOJA do item, escopado aos EANs agendados', async () => {
-    const { cron, apply, suggestions } = build(
-      [
-        schedule({
-          recalc: true,
-          items: [
-            { ean: '111', target: 'precoVenda', price: 5, storeId: S1 },
-            { ean: '222', target: 'precoVenda', price: 5, cadernoId: 55 },
-            { ean: '333', target: 'precoVenda', price: 5, storeId: S1 }, // sem sugestão na loja
-          ],
-        }),
-      ],
-      {
-        // '333' tem sugestão GLOBAL mas não na loja S1 — deve ser descartado.
-        '': new Map([
-          ['222', { target: 'precoVenda', price: 22 }],
-          ['333', { target: 'precoVenda', price: 33 }],
-        ]),
-        [S1]: new Map([['111', { target: 'precoOferta', price: 11 }]]),
-      },
+  afterEach(() => jest.restoreAllMocks());
+
+  it('stops the loop when claimNext returns null', async () => {
+    await cron.fire();
+    expect(schedules.claimNext).toHaveBeenCalledTimes(1);
+    expect(apply.apply).not.toHaveBeenCalled();
+  });
+
+  it('parks a schedule whose apply throws and continues to the next one', async () => {
+    schedules.claimNext
+      .mockResolvedValueOnce(schedule('s1'))
+      .mockResolvedValueOnce(schedule('s2'))
+      .mockResolvedValue(null);
+    apply.apply.mockRejectedValueOnce(new Error('circuit breaker'));
+    await cron.fire();
+    expect(schedules.markFailed).toHaveBeenCalledWith(
+      em,
+      's1',
+      expect.any(Date),
+    );
+    expect(schedules.markFired).toHaveBeenCalledWith(em, 's2', 'run1');
+  });
+
+  it('keeps the markFired of earlier schedules when a later one fails', async () => {
+    schedules.claimNext
+      .mockResolvedValueOnce(schedule('s1'))
+      .mockResolvedValueOnce(schedule('s2'))
+      .mockResolvedValue(null);
+    apply.apply
+      .mockResolvedValueOnce({ applyRunId: 'run1' })
+      .mockRejectedValueOnce(new Error('boom'));
+    await cron.fire();
+    expect(schedules.markFired).toHaveBeenCalledWith(em, 's1', 'run1');
+    expect(schedules.markFailed).toHaveBeenCalledWith(
+      em,
+      's2',
+      expect.any(Date),
+    );
+  });
+
+  it('recalc roda por agendamento, ESCOPADO aos EANs, e descarta item sem sugestão', async () => {
+    schedules.claimNext
+      .mockResolvedValueOnce({
+        ...schedule('s1'),
+        recalc: true,
+        items: [
+          { ean: '789', target: 'precoVenda' as const, price: 10 },
+          { ean: '111', target: 'precoVenda' as const, price: 5 },
+        ],
+      })
+      .mockResolvedValue(null);
+    suggestions.priceMap.mockResolvedValue(
+      new Map([['789', { target: 'precoOferta' as const, price: 12.9 }]]),
     );
     await cron.fire();
-    expect(suggestions.priceMap).toHaveBeenCalledTimes(2);
-    expect(suggestions.priceMap).toHaveBeenCalledWith(
-      expect.anything(),
+    // Escopado aos EANs do agendamento — sem passe de catálogo inteiro.
+    expect(suggestions.priceMap).toHaveBeenCalledWith(em, 'acme', null, [
+      '789',
+      '111',
+    ]);
+    // Frozen price/target replaced by the fresh suggestion; the EAN without
+    // a suggestion is dropped.
+    expect(apply.apply).toHaveBeenCalledWith(
+      em,
       'acme',
-      S1,
-      ['111', '333'],
+      'ops',
+      expect.objectContaining({
+        items: [
+          {
+            ean: '789',
+            target: 'precoOferta',
+            price: 12.9,
+            cadernoId: undefined,
+            storeId: undefined,
+          },
+        ],
+      }),
     );
-    expect(suggestions.priceMap).toHaveBeenCalledWith(
-      expect.anything(),
-      'acme',
-      null,
-      ['222'],
+    expect(schedules.markFired).toHaveBeenCalledWith(em, 's1', 'run1');
+  });
+
+  it('recalc resolve o preço no mapa DA LOJA do item (caderno não congelado)', async () => {
+    schedules.claimNext
+      .mockResolvedValueOnce({
+        ...schedule('s1'),
+        recalc: true,
+        items: [
+          { ean: '111', target: 'precoVenda' as const, price: 5, storeId: S1 },
+          {
+            ean: '222',
+            target: 'precoVenda' as const,
+            price: 5,
+            cadernoId: 55,
+          },
+        ],
+      })
+      .mockResolvedValue(null);
+    suggestions.priceMap.mockImplementation(
+      (_em: EntityManager, _slug: string, store: string | null) =>
+        Promise.resolve(
+          store === S1
+            ? new Map([['111', { target: 'precoOferta', price: 11 }]])
+            : new Map([['222', { target: 'precoVenda', price: 22 }]]),
+        ),
     );
+    await cron.fire();
+    expect(suggestions.priceMap).toHaveBeenCalledWith(em, 'acme', S1, ['111']);
+    expect(suggestions.priceMap).toHaveBeenCalledWith(em, 'acme', null, [
+      '222',
+    ]);
     expect(apply.apply.mock.calls[0][3].items).toEqual([
       {
         ean: '111',
@@ -135,76 +207,54 @@ describe('PricingScheduleCron', () => {
   });
 
   it('loja com uuid malformado ou inativa não paga passe de catálogo: itens descartados', async () => {
-    const { cron, apply, suggestions, schedules } = build(
-      [
-        schedule({
-          recalc: true,
-          items: [
-            { ean: '111', target: 'precoVenda', price: 5, storeId: 'lixo' },
-            {
-              ean: '222',
-              target: 'precoVenda',
-              price: 5,
-              storeId: '22222222-2222-4222-8222-222222222222', // inativa/alheia
-            },
-          ],
-        }),
-      ],
-      {},
-      [], // nenhuma loja ativa resolve
-    );
+    activeStoreIds = []; // nenhuma loja resolve como ativa do tenant
+    schedules.claimNext
+      .mockResolvedValueOnce({
+        ...schedule('s1'),
+        recalc: true,
+        items: [
+          {
+            ean: '111',
+            target: 'precoVenda' as const,
+            price: 5,
+            storeId: 'lixo',
+          },
+          {
+            ean: '222',
+            target: 'precoVenda' as const,
+            price: 5,
+            storeId: '22222222-2222-4222-8222-222222222222',
+          },
+        ],
+      })
+      .mockResolvedValue(null);
     await cron.fire();
     expect(suggestions.priceMap).not.toHaveBeenCalled();
     expect(apply.apply).not.toHaveBeenCalled(); // itens descartados → sem lote
-    expect(schedules.markFired).toHaveBeenCalledWith(
-      expect.anything(),
-      'sch-1',
-      null,
+    expect(schedules.markFired).toHaveBeenCalledWith(em, 's1', null);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('pulou loja inválida/inativa'),
     );
   });
 
-  it('apply que lança (ex.: circuit breaker por loja inativa) não envenena o lote: marca o disparo e segue', async () => {
-    const { cron, em, apply, schedules } = build(
-      [
-        schedule({
-          id: 'sch-ruim',
-          items: [
-            {
-              ean: '111',
-              target: 'precoVenda',
-              price: 5,
-              storeId: 's-inativa',
-            },
-          ],
-        }),
-        schedule({
-          id: 'sch-bom',
-          items: [{ ean: '222', target: 'precoVenda', price: 6 }],
-        }),
-      ],
-      {},
-    );
-    apply.apply
-      .mockRejectedValueOnce(
-        new HttpException({ aborted: true }, HttpStatus.UNPROCESSABLE_ENTITY),
-      )
-      .mockResolvedValueOnce({ applyRunId: 'run-bom' });
+  it('re-arms a recurring schedule (cronExpr) instead of marking it fired', async () => {
+    schedules.claimNext
+      .mockResolvedValueOnce({ ...schedule('s1'), cronExpr: '0 3 * * *' })
+      .mockResolvedValue(null);
+    await cron.fire();
+    expect(schedules.reArm).toHaveBeenCalledWith(em, 's1', '0 3 * * *', 'run1');
+    expect(schedules.markFired).not.toHaveBeenCalled();
+  });
 
-    await expect(cron.fire()).resolves.toBeUndefined();
-
-    expect(schedules.markFired).toHaveBeenCalledWith(
-      expect.anything(),
-      'sch-ruim',
-      null,
+  it('ends the tick with a warn when markFailed itself fails (no livelock)', async () => {
+    // claimNext keeps returning the same schedule — only bailing out ends the tick.
+    schedules.claimNext.mockResolvedValue(schedule('s1'));
+    apply.apply.mockRejectedValue(new Error('circuit breaker'));
+    schedules.markFailed.mockRejectedValue(new Error('chk_psch_status'));
+    await cron.fire();
+    expect(apply.apply).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('markFailed(s1) failed for acme'),
     );
-    expect(schedules.markFired).toHaveBeenCalledWith(
-      expect.anything(),
-      'sch-bom',
-      'run-bom',
-    );
-    // Erro de Postgres dentro do apply abortaria a tx do claim — o savepoint
-    // isola a falha ao agendamento (rollback parcial, claim commita).
-    expect(em.query).toHaveBeenCalledWith('ROLLBACK TO SAVEPOINT sched_apply');
-    expect(em.query).toHaveBeenCalledWith('RELEASE SAVEPOINT sched_apply');
   });
 });

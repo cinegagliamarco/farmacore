@@ -2,13 +2,11 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { resolveTenantId } from '../../tenant/tenant-lookup';
-import {
-  buildClassificationIndex,
-  type ClassificationIndex,
-} from '../classification/classification-index';
+import type { ClassificationIndex } from '../classification/classification-index';
 import { ClassificationsService } from '../config/classifications.service';
 import { PriceRoundingService } from '../config/price-rounding.service';
 import { ClustersService } from './clusters.service';
+import { CompetitorOriginsService } from './competitor-origins.service';
 import {
   applyCascadePriority,
   originPriorities,
@@ -109,6 +107,7 @@ export class PricingSuggestionsService {
     private readonly clusters: ClustersService,
     private readonly priceRounding: PriceRoundingService,
     private readonly classifications: ClassificationsService,
+    private readonly competitorOrigins: CompetitorOriginsService,
   ) {}
 
   /**
@@ -141,7 +140,7 @@ export class PricingSuggestionsService {
       .filter(Boolean);
 
     const storeUuid = await this.storeUuid(em, slug, q.store);
-    const origins = await this.enabledOrigins(em, slug);
+    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const allRows = await this.loadProducts(
       em,
       origins,
@@ -214,7 +213,7 @@ export class PricingSuggestionsService {
     storeUuid: string | null,
     eans?: string[],
   ): Promise<SuggestedPriceMap> {
-    const origins = await this.enabledOrigins(em, slug);
+    const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const allRows = await this.loadProducts(
       em,
       origins,
@@ -280,21 +279,8 @@ export class PricingSuggestionsService {
       roundingRanges: activeRules.some((r) => r.applyRounding)
         ? await this.roundingRanges(em, slug)
         : [],
-      classificationIndex: await this.classificationIndex(em),
+      classificationIndex: await this.classifications.index(em),
     };
-  }
-
-  private async classificationIndex(
-    em: EntityManager,
-  ): Promise<ClassificationIndex> {
-    const rows = await this.classifications.list(em);
-    return buildClassificationIndex(
-      rows.map((row) => ({
-        id: row.id,
-        name: row.name,
-        parentId: row.parentId,
-      })),
-    );
   }
 
   private computeRow(
@@ -373,25 +359,6 @@ export class PricingSuggestionsService {
     return rows[0].id;
   }
 
-  /** Origens de concorrente habilitadas do tenant (core, fora do search_path). */
-  private async enabledOrigins(
-    em: EntityManager,
-    slug: string,
-  ): Promise<CompetitorOrigin[]> {
-    const tenantId = await resolveTenantId(em, slug);
-    const rows: Array<{ origin: CompetitorOrigin }> = await em.query(
-      `SELECT origin FROM core.tenant_competitor_origin
-        WHERE tenant_id = $1 AND enabled = true
-        ORDER BY priority ASC, origin ASC`,
-      [tenantId],
-    );
-    return rows
-      .map((r) => r.origin)
-      .filter((o): o is CompetitorOrigin =>
-        Object.values(CompetitorOrigin).includes(o),
-      );
-  }
-
   /**
    * Catálogo do tenant cruzado com o preço/metadata de cada origem habilitada.
    * Modelo do `catalog.crossed()`, mas com um LEFT JOIN dinâmico por origem
@@ -416,7 +383,7 @@ export class PricingSuggestionsService {
     origins.forEach((origin) => {
       const a = `o_${origin}`;
       joins.push(
-        `LEFT JOIN shared_catalog.product ${a} ON ${a}.ean = p.ean AND ${a}.origin = '${origin}'`,
+        `LEFT JOIN shared_catalog.product ${a} ON ${a}.ean = p.ean AND ${a}.origin = '${origin}' AND ${a}.deleted_at IS NULL`,
       );
       selects.push(
         `${a}.price AS "${origin}__price",
@@ -447,7 +414,11 @@ export class PricingSuggestionsService {
            ELSE NULL END`;
     }
 
-    const where: string[] = [`(${cost} > 0 OR ${price} > 0 OR ${offer} > 0)`];
+    const where: string[] = [
+      `p.active = true`,
+      `p.deleted_at IS NULL`,
+      `(${cost} > 0 OR ${price} > 0 OR ${offer} > 0)`,
+    ];
     if (eans?.length) {
       params.push(eans);
       where.push(`p.ean = ANY($${params.length}::bigint[])`);
@@ -509,18 +480,13 @@ export class PricingSuggestionsService {
       if (c.isPbm) pbm = true;
     }
     return {
-      id: 0,
       ean: p.ean,
-      nome: p.name,
-      fabricante: p.supplier ?? '',
       classificationId: p.classificationId,
       classificacao: p.classification ?? '',
-      cadernoOferta: p.book ?? '',
       custo: money(p.cost),
       precoVenda: money(p.priceForSell),
       precoOferta: money(p.priceForOffer),
       competitorPrices,
-      margem: money(p.margin),
       pbm,
     };
   }

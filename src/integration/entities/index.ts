@@ -2,7 +2,6 @@ import { IntegrationOrigin } from '../../database/enums/integration-origin.enum'
 import { A7PHARMA_ENTITIES } from './a7pharma';
 
 export { A7PHARMA_ENTITIES } from './a7pharma';
-export { NumericColumn, numericTransformer } from './numeric-column.decorator';
 
 // TypeORM's DataSource `entities` accepts class constructors. Our entity
 // arrays are arrays of decorated classes, so a Function[] alias models that

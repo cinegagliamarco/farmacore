@@ -23,8 +23,11 @@ export function buildCompetitorCrossJoins(
   const selects: string[] = [];
   safe.forEach((origin, i) => {
     const a = alias(i);
+    // deleted_at filter: the (ean, origin) unique index is partial (WHERE
+    // deleted_at IS NULL), so a live and a soft-deleted row can coexist and
+    // would duplicate the joined rows.
     joins.push(
-      `LEFT JOIN shared_catalog.product ${a} ON ${a}.ean = p.ean AND ${a}.origin = '${origin}'`,
+      `LEFT JOIN shared_catalog.product ${a} ON ${a}.ean = p.ean AND ${a}.origin = '${origin}' AND ${a}.deleted_at IS NULL`,
     );
     selects.push(
       `${a}.price AS "${origin}__price"`,

@@ -3,8 +3,7 @@ import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { EntityManager, DataSource } from 'typeorm';
 import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService } from './pipeline-run.service';
-import { RetryService } from './retry.service';
-import { PipelinePublisher } from './pipeline-publisher.service';
+import { DuplicateDeliveryRepublishError, RetryService } from './retry.service';
 import { TenantService } from '../tenant/tenant.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
 import { IntegrationDataSourceFactory } from '../integration/integration-data-source.factory';
@@ -62,7 +61,6 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
     protected readonly tx: TenantTransactionService,
     protected readonly tenants: TenantService,
     protected readonly integrationFactory: IntegrationDataSourceFactory,
-    protected readonly publisher: PipelinePublisher,
   ) {}
 
   /**
@@ -111,13 +109,39 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
             this.logger.debug(
               `Skipping ${this.logicalStep}#${batchSeq} for run ${message.pipelineRunId}: already completed`,
             );
+            // start+end pair: a bare 'skip' end would decrement the
+            // original delivery's in-flight gauge and close its wave early.
+            this.metrics.onConsumeStart(message.tenantId, queue);
             this.metrics.onConsumeEnd(message.tenantId, queue, 'skip', 0);
             return;
           }
           if (outcome === 'in-progress') {
-            this.logger.debug(
-              `Deferring ${this.logicalStep}#${batchSeq} for run ${message.pipelineRunId}: duplicate delivery while batch is active`,
+            // Duplicate delivery while the original may still be
+            // executing (broker requeue after a heartbeat stall). Ack
+            // would silently drop it — if the previous worker actually
+            // crashed the run would stall — so route it to the DLQ for
+            // replay. Straight to the DLQ, NOT through the generic
+            // catch: its runs.fail() would flip the original delivery's
+            // RUNNING batch row to FAILED, making its
+            // completeBatchAndIncrement CTE (WHERE status='running')
+            // match nothing — the fan-in counter never closes and the
+            // run stalls with all work committed.
+            this.logger.warn(
+              `${this.logicalStep}#${batchSeq} for run ${message.pipelineRunId} is already in progress; duplicate delivery routed to DLQ for replay`,
             );
+            this.metrics.onConsumeStart(message.tenantId, queue);
+            this.metrics.onConsumeEnd(message.tenantId, queue, 'skip', 0);
+            try {
+              await this.retry.republishOnFailure(message);
+            } catch (republishErr) {
+              // Republish failed (e.g. channel drop right after the
+              // reconnect that caused this redelivery): rethrow PAST the
+              // generic catch so golevelup nacks and the broker itself
+              // dead-letters via the queue's DLX.
+              throw new DuplicateDeliveryRepublishError(
+                (republishErr as Error).message,
+              );
+            }
             return;
           }
 
@@ -185,6 +209,7 @@ export abstract class BatchPipelineConsumer<TPayload = unknown> {
             (Date.now() - t0) / 1000,
           );
         } catch (err) {
+          if (err instanceof DuplicateDeliveryRepublishError) throw err;
           const errMessage = (err as Error).message || String(err);
           this.logger.error(
             `${this.logicalStep}#${batchSeq} failed for run ${message.pipelineRunId}: ${errMessage}`,

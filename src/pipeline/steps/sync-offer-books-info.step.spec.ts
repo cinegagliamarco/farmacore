@@ -1,4 +1,4 @@
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, ObjectLiteral, Repository } from 'typeorm';
 import { SyncOfferBooksInfoStep } from './sync-offer-books-info.step';
 import { CadernoOfertaEntity } from '../../integration/entities/a7pharma/caderno-oferta.entity';
 import { TenantOfferCampaignEntity } from '../../database/entities/tenant/tenant-offer-campaign.entity';
@@ -19,7 +19,7 @@ const buildIntegrationDs = (
           },
         } as unknown as Repository<CadernoOfertaEntity>;
       }
-      return {} as Repository<unknown>;
+      return {} as Repository<ObjectLiteral>;
     },
   }) as unknown as DataSource;
 

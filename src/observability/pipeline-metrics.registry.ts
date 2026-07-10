@@ -337,7 +337,6 @@ export class PipelineMetricsRegistry implements OnModuleInit {
 
   onModuleInit(): void {
     this.refreshNextDailyRun();
-    this.resetStaleWavesOnBoot();
   }
 
   public onPublish(
@@ -571,12 +570,10 @@ export class PipelineMetricsRegistry implements OnModuleInit {
   public refreshDerivedGauges(): void {
     this.refreshNextDailyRun();
     const now = Date.now();
-    const activeProducers = new Set<string>();
 
     for (const p of this.producers.values()) {
       const ageSec = (now - p.lastPublishMs) / 1000;
       const isActive = ageSec < PRODUCER_ACTIVE_SECONDS;
-      if (isActive) activeProducers.add(`${p.producer}:${p.tenant}`);
       this.producerActive.set(
         { producer: p.producer, tenant: p.tenant },
         isActive ? 1 : 0,
@@ -594,17 +591,6 @@ export class PipelineMetricsRegistry implements OnModuleInit {
         this.finishWave(wave, 'failed');
       }
     }
-
-    for (const wave of this.queueWaves.values()) {
-      if (
-        wave.status === 'completed' &&
-        wave.queue.includes('import-competitor-products.')
-      ) {
-        const origin = wave.queue.split('.').pop()!;
-        const duration = (wave.lastActivityMs - wave.startedAtMs) / 1000;
-        this.scrapeWaveDuration.set({ tenant: wave.tenant, origin }, duration);
-      }
-    }
   }
 
   private refreshNextDailyRun(): void {
@@ -620,10 +606,6 @@ export class PipelineMetricsRegistry implements OnModuleInit {
       ),
     );
     this.nextDailyRun.set(next.getTime() / 1000);
-  }
-
-  private resetStaleWavesOnBoot(): void {
-    this.queueRunInProgress.reset();
   }
 
   private tryFinishWaveFromRmq(wave: QueueWaveState): void {

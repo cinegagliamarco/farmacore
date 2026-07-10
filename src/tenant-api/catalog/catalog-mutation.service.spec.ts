@@ -319,6 +319,20 @@ describe('CatalogMutationService.upsertOffer', () => {
       ['789', 8.5, 7],
     );
   });
+
+  it('leaves description out of the upsert when the dto omits it', async () => {
+    const { service, em, product, offer } = build();
+    product.findOne.mockResolvedValue({ externalId: '55' });
+    await service.upsertOffer(em, 't', '789', {
+      cadernoId: 7,
+      targetPrice: 8.5,
+    });
+    // No `description` key at all — the upsert must not clear the stored one.
+    expect(offer.upsert).toHaveBeenCalledWith(
+      { ean: '789', targetPrice: '8.5', externalId: '7' },
+      ['ean'],
+    );
+  });
 });
 
 describe('CatalogMutationService.removeOffer', () => {

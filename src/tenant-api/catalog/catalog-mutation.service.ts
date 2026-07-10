@@ -171,7 +171,11 @@ export class CatalogMutationService {
           ean,
           targetPrice: String(dto.targetPrice),
           externalId: String(dto.cadernoId),
-          description: dto.description ?? null,
+          // An omitted description keeps the stored one (bulk apply must not
+          // wipe it); the column only joins the upsert when the dto sends it.
+          ...(dto.description !== undefined && {
+            description: dto.description,
+          }),
         },
         ['ean'],
       );

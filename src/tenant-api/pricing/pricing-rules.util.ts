@@ -11,7 +11,8 @@ export async function originPriorities(
   const tenantId = await resolveTenantId(em, slug);
   const rows: Array<{ origin: CompetitorOrigin; priority: number }> =
     await em.query(
-      `SELECT origin, priority FROM core.tenant_competitor_origin WHERE tenant_id = $1`,
+      `SELECT origin, priority FROM core.tenant_competitor_origin
+        WHERE tenant_id = $1 AND deleted_at IS NULL`,
       [tenantId],
     );
   return new Map(rows.map((r) => [r.origin, Number(r.priority)]));
