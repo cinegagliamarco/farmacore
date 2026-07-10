@@ -11,6 +11,7 @@ interface ItemRow {
   id: string;
   ean: string;
   target: 'precoVenda' | 'precoOferta';
+  storeId: string | null;
   price: string;
   cadernoId: string | null;
 }
@@ -41,7 +42,8 @@ export class ApplyPriceStep {
     batchSeq: number,
   ): Promise<void> {
     const items: ItemRow[] = await em.query(
-      `SELECT id, ean::text AS ean, target, price, caderno_id::text AS "cadernoId"
+      `SELECT id, ean::text AS ean, target, store_id AS "storeId", price,
+              caderno_id::text AS "cadernoId"
          FROM pricing_apply_item
         WHERE apply_run_id = $1 AND batch_seq = $2 AND status = 'pending'`,
       [runId, batchSeq],
@@ -52,9 +54,10 @@ export class ApplyPriceStep {
     let failed = 0;
     for (const item of items) {
       // Campanha de oferta ativa: não sobrescrever o preço de VENDA promocional.
+      // Item por loja checa o caderno DA LOJA; global checa qualquer campanha.
       if (
         item.target === 'precoVenda' &&
-        (await this.inActiveCampaign(em, item.ean))
+        (await this.inActiveCampaign(em, item.ean, item.storeId))
       ) {
         await this.mark(em, item.id, 'skipped', 'em_campanha', null);
         skipped++;
@@ -100,20 +103,83 @@ export class ApplyPriceStep {
         tenantSlug,
         item.ean,
         Number(item.price),
+        item.storeId ?? undefined,
       );
-      return `precoVenda=${r.price}`;
+      return item.storeId
+        ? `precoVenda=${r.price}@loja=${item.storeId}`
+        : `precoVenda=${r.price}`;
     }
-    const r = await this.mutation.upsertOffer(em, tenantSlug, item.ean, {
-      targetPrice: Number(item.price),
-      cadernoId: Number(item.cadernoId),
-    });
-    return `precoOferta=${r.targetPrice}@caderno=${r.cadernoId}`;
+    // Oferta vive no caderno: a escrita vale para TODA loja participante dele,
+    // não só a loja do item — anota as afetadas para o relatório (D5).
+    // Computado ANTES do push: se falhasse depois, o item viraria 'failed'
+    // com o preço JÁ escrito no ERP (double-write num reenvio manual).
+    const affected = item.storeId
+      ? await this.storesInCaderno(em, tenantSlug, item.ean, item.cadernoId!)
+      : null;
+    // storeScoped: escrita por loja NÃO reescreve o espelho global offer_book
+    // (o caderno da loja pode nem ser/cobrir a melhor oferta da rede).
+    const r = await this.mutation.upsertOffer(
+      em,
+      tenantSlug,
+      item.ean,
+      { targetPrice: Number(item.price), cadernoId: Number(item.cadernoId) },
+      item.storeId !== null,
+    );
+    return affected
+      ? `precoOferta=${r.targetPrice}@caderno=${r.cadernoId};lojas=${affected.join(',') || '?'}`
+      : `precoOferta=${r.targetPrice}@caderno=${r.cadernoId}`;
+  }
+
+  /** Lojas DO TENANT cujo caderno vencedor para este EAN é o caderno escrito
+   *  (estado do último sync — o alcance honesto da escrita). */
+  private async storesInCaderno(
+    em: EntityManager,
+    tenantSlug: string,
+    ean: string,
+    cadernoId: string,
+  ): Promise<string[]> {
+    const rows: Array<{ name: string }> = await em.query(
+      `SELECT ts.name FROM product_item pi
+         JOIN product p ON p.id = pi.product_id
+         JOIN core.tenant_store ts ON ts.id = pi.store_id
+         JOIN core.tenant t ON t.id = ts.tenant_id AND t.slug = $3
+        WHERE p.ean = $1::bigint AND pi.offer_external_id = $2::bigint
+        ORDER BY ts.name`,
+      [ean, cadernoId, tenantSlug],
+    );
+    return rows.map((r) => r.name);
   }
 
   private async inActiveCampaign(
     em: EntityManager,
     ean: string,
+    storeId: string | null,
   ): Promise<boolean> {
+    if (storeId) {
+      const pi: Array<{ offerExternalId: string | null }> = await em.query(
+        `SELECT pi.offer_external_id AS "offerExternalId"
+           FROM product_item pi
+           JOIN product p ON p.id = pi.product_id
+          WHERE p.ean = $1::bigint AND pi.store_id = $2::uuid
+          LIMIT 1`,
+        [ean, storeId],
+      );
+      // Loja com linha: campanha só se o caderno vencedor DELA estiver ativo
+      // (caderno de outra loja não trava esta). Sem linha (loja recém-ativada,
+      // estado desconhecido): cai na checagem GLOBAL conservadora abaixo.
+      if (pi.length) {
+        if (pi[0].offerExternalId == null) return false;
+        const rows: unknown[] = await em.query(
+          `SELECT 1 FROM tenant_offer_campaign c
+            WHERE c.external_id = $1::bigint AND c.active = true
+              AND (c.start_date IS NULL OR c.start_date <= now())
+              AND (c.expiration_date IS NULL OR c.expiration_date > now())
+            LIMIT 1`,
+          [pi[0].offerExternalId],
+        );
+        return rows.length > 0;
+      }
+    }
     const rows: unknown[] = await em.query(
       `SELECT 1 FROM offer_book ob
          JOIN tenant_offer_campaign c ON c.external_id = ob.external_id
@@ -153,6 +219,8 @@ export class ApplyPriceStep {
     const msg = (err.message || '').toLowerCase();
     if (msg.includes('monitored'))
       return { status: 'skipped', reason: 'monitored' };
+    if (msg.includes('inactive'))
+      return { status: 'skipped', reason: 'loja_inativa' };
     if (msg.includes('external_id'))
       return { status: 'skipped', reason: 'sem_external_id' };
     if (msg.includes('not configured'))
