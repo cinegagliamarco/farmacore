@@ -339,11 +339,11 @@ branch `chore/postman-store-endpoints`.
 > (cópias do preço global feitas pelo sync antigo); o sync noturno seguinte repõe os preços
 > por loja genuínos do ERP. Resta:
 
-- **B5 — `POST /pricing/apply` é store-blind** (`ApplyItemDto` sem `storeId`; o worker aplica
-  global — e o motor de sugestão/rollback também raciocinam sobre o preço global). Aplicar em
-  massa a partir de contexto de loja muda **todas** as lojas. **Correção mínima:** `storeId`
-  opcional no `ApplyItemDto` (exige tornar sugestão/guarda-corpos/rollback store-aware);
-  até lá, o FE só avisa (§3c).
+- **B5 — RESOLVIDO** (branch `cinegagliamarco/regra-preco-por-loja`): `storeId` opcional no
+  `ApplyItemDto`, sugestão/guarda-corpos/rollback/agendamento store-aware, regras de sugestão
+  com `storeIds`, e oferta por loja via caderno vencedor. Contrato completo em
+  [`plano-regras-preco-por-loja-2026-07-09.md`](./plano-regras-preco-por-loja-2026-07-09.md).
+  O aviso do §3c ("aplica em todas as lojas") só vale para itens SEM `storeId`.
 
 ## 6. Dados e frescor (para a UI comunicar staleness)
 

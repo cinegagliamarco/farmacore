@@ -4,6 +4,13 @@
 > **Principle:** stay as lean as possible. Reuse what already exists
 > (`core.tenant_store`, the existing per-tenant A7Pharma connection + API
 > key, the write-back client) instead of creating parallel concepts.
+>
+> ⚠️ **SUPERSEDED in part (2026-07-09):** every claim here that offers are
+> global (§3, §9, `product_item.price_offer` as a global mirror) was reversed —
+> offers ARE per-store via the caderno↔store participation table
+> `unidadenegocioparticipantecadernooferta`, and `price_offer` now holds the
+> store's real winning-caderno offer. See
+> [`plano-regras-preco-por-loja-2026-07-09.md`](./plano-regras-preco-por-loja-2026-07-09.md).
 
 ## 1. Executive summary
 
