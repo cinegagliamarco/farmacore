@@ -6,7 +6,9 @@ import { PipelinePublisher } from '../src/queue/pipeline-publisher.service';
 async function main(): Promise<void> {
   const slug = process.argv[2] ?? 'acme';
   const app = await NestFactory.createApplicationContext(AppModule);
-  const runId = await app.get(PipelinePublisher).publishStart(slug, { reason: 'manual' });
+  const runId = await app
+    .get(PipelinePublisher)
+    .publishStart(slug, { reason: 'manual' });
   console.log('runId =', runId);
   await app.close();
 }

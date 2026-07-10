@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
-import { execSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
 async function main(): Promise<void> {
   const url = process.env.DATABASE_DIRECT_URL ?? process.env.DATABASE_URL;
@@ -9,7 +9,10 @@ async function main(): Promise<void> {
   const ds = new DataSource({
     type: 'postgres',
     url,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    ssl:
+      process.env.NODE_ENV === 'production'
+        ? { rejectUnauthorized: false }
+        : false,
     entities: [],
     synchronize: false,
   });
@@ -28,13 +31,26 @@ async function main(): Promise<void> {
   let cursor = 0;
   const failures: Array<{ slug: string; error: string }> = [];
 
+  // spawn (not execSync): execSync blocks the event loop, which would
+  // serialize the workers and make CONCURRENCY meaningless.
+  const migrate = (slug: string): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const child = spawn('npm', ['run', 'migration:tenant', slug], {
+        stdio: 'inherit',
+      });
+      child.on('error', reject);
+      child.on('close', (code) =>
+        code === 0 ? resolve() : reject(new Error(`exit code ${code}`)),
+      );
+    });
+
   async function worker(): Promise<void> {
     while (true) {
       const i = cursor++;
       if (i >= tenants.length) return;
       const slug = tenants[i].slug;
       try {
-        execSync(`npm run migration:tenant ${slug}`, { stdio: 'inherit' });
+        await migrate(slug);
       } catch (err) {
         failures.push({ slug, error: (err as Error).message });
       }

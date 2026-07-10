@@ -4,13 +4,20 @@ import * as argon2 from 'argon2';
 
 async function main(): Promise<void> {
   const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@system.local';
-  const password = process.env.SEED_ADMIN_PASSWORD ?? 'changeme-please-32-chars-or-more';
-  if (password.length < 12) throw new Error('SEED_ADMIN_PASSWORD must be at least 12 chars');
+  const password =
+    process.env.SEED_ADMIN_PASSWORD ?? 'changeme-please-32-chars-or-more';
+  if (password.length < 12)
+    throw new Error('SEED_ADMIN_PASSWORD must be at least 12 chars');
 
   const url = process.env.DATABASE_DIRECT_URL ?? process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_DIRECT_URL or DATABASE_URL must be set');
 
-  const ds = new DataSource({ type: 'postgres', url, entities: [], synchronize: false });
+  const ds = new DataSource({
+    type: 'postgres',
+    url,
+    entities: [],
+    synchronize: false,
+  });
   await ds.initialize();
   try {
     const hash = await argon2.hash(password, { type: argon2.argon2id });

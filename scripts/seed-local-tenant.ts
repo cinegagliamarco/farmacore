@@ -51,7 +51,8 @@ async function main(): Promise<void> {
     throw new Error('INTEGRATION_DB_KEY must decode to 32 bytes');
 
   const directUrl = process.env.DATABASE_DIRECT_URL ?? process.env.DATABASE_URL;
-  if (!directUrl) throw new Error('DATABASE_DIRECT_URL or DATABASE_URL must be set');
+  if (!directUrl)
+    throw new Error('DATABASE_DIRECT_URL or DATABASE_URL must be set');
   assertLocalDatabase(directUrl);
 
   // Schema + tenant row + tenant migrations.
@@ -60,13 +61,19 @@ async function main(): Promise<void> {
   const ds = new DataSource({
     type: 'postgres',
     url: directUrl,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    ssl:
+      process.env.NODE_ENV === 'production'
+        ? { rejectUnauthorized: false }
+        : false,
     entities: [],
     synchronize: false,
   });
   await ds.initialize();
   try {
-    const [tenant] = await ds.query(`SELECT id, schema_name FROM core.tenant WHERE slug = $1`, [SLUG]);
+    const [tenant] = await ds.query(
+      `SELECT id, schema_name FROM core.tenant WHERE slug = $1`,
+      [SLUG],
+    );
     if (!tenant) throw new Error(`tenant ${SLUG} not found after create`);
 
     await ds.query(
@@ -99,7 +106,9 @@ async function main(): Promise<void> {
         INTEGRATION.sslMode,
       ],
     );
-    console.log(`Tenant ${SLUG} integration wired → ${INTEGRATION.host}:${INTEGRATION.port}/${INTEGRATION.database}`);
+    console.log(
+      `Tenant ${SLUG} integration wired → ${INTEGRATION.host}:${INTEGRATION.port}/${INTEGRATION.database}`,
+    );
 
     // Mirror tenant-onboarding.service.ts: seed every origin disabled so the
     // admin competitor-origins PUT (UPDATE-only) has rows to flip.
@@ -111,7 +120,9 @@ async function main(): Promise<void> {
         [tenant.id, origin],
       );
     }
-    console.log(`Tenant ${SLUG} competitor origins seeded (${Object.values(CompetitorOrigin).length} disabled)`);
+    console.log(
+      `Tenant ${SLUG} competitor origins seeded (${Object.values(CompetitorOrigin).length} disabled)`,
+    );
   } finally {
     await ds.destroy();
   }

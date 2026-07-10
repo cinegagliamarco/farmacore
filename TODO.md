@@ -10,6 +10,15 @@ Items consciously deferred while building the tenant presentation API (Plan 10).
 - [ ] **Offer-book rule engine** — the whole `/offer-book-rules` surface (rules, pricing-rules, price-locks, execution-reports + async execution) is **Plan 11** (net-new tables; large). Not part of Plan 10.
 - [ ] **Scheduling executor** — `core.scheduling` exists but has no executor. `/scheduling` deferred until a cron applies the actions.
 
+## Deferred from code review (2026-07-10)
+- [ ] **Purge de `core.refresh_token`** — a tabela só cresce (todo login/refresh insere; logout apenas revoga). Um job periódico deletando linhas com `expires_at < now()` mantém a tabela e o índice `UQ_REFRESH_TOKEN_HASH` pequenos.
+- [ ] **`importProduct` segura a transação durante uploads de imagem** — `products.service.ts` roda `images.project` (download + sharp + R2, até 9 origens) dentro de `dataSource.transaction`. Separar o upload (fora da tx) do insert (dentro) libera a conexão do pool.
+- [ ] **Assimetria PAUSED** — login/refresh só bloqueiam `SUSPENDED`; o `ModulesGuard` 403a qualquer não-ACTIVE. Um tenant pausado loga e vê 403 em tudo. Decidir se pausado deve logar.
+- [ ] **Token DI para os 9 scrapers** — `ProductsService` e `ImportCompetitorProductsStep` duplicam a lista de 9 scrapers concretos no construtor; um multi-provider `PRODUCT_SCRAPERS: ProductScraper[]` elimina a dupla manutenção e o cast de tupla no spec.
+- [ ] **FE: label para `pricing_schedule.status = 'failed'`** — o status novo chega ao FE (zod tolera), mas a tela de agendamentos não tem badge/ação de retry para ele.
+
 ## Operational (your side)
 - [ ] Confirm Fly secrets `R2_PUBLIC_DOMAIN` + `SEED_ADMIN_PASSWORD` are set on `farmacore-api` and `farmacore-worker` (`fly secrets list`).
+- [ ] **Rotacionar a senha do usuário ERP `leitura_053401619_101224`** — a connection string hardcoded foi removida de `scripts/dump-a7pharma-sample.ts` (revisão 2026-07-10), mas continua no histórico do git.
+- [ ] **Deploy do fix de DLX**: parar o worker → `npm run queues:recreate` → subir o worker novo → `npm run migration:tenant:all` (args de fila são imutáveis; ver header de `scripts/recreate-queues.ts`).
 - [ ] **Auditoria do cadastro interno** — as escritas system-admin em `shared_catalog.base_product` (PATCH por EAN, rename em massa) não têm trilha de quem/quando/o quê; um rename A→B onde B já existe funde grupos sem registro de quais EANs eram A. Deferido na revisão do PR #68 (2026-07-07): avaliar um `audit_log` do shared catalog se a curadoria ganhar mais operadores.
