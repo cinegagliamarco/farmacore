@@ -12,7 +12,7 @@
   },
   {
    "key": "tenantSlug",
-   "value": "macfarma"
+   "value": "acme"
   },
   {
    "key": "step",
@@ -28,7 +28,15 @@
   },
   {
    "key": "ean",
-   "value": "7894916508353"
+   "value": "EXAMPLE_EAN"
+  },
+  {
+   "key": "ean2",
+   "value": "EXAMPLE_EAN_2"
+  },
+  {
+   "key": "adminEmail",
+   "value": ""
   },
   {
    "key": "ruleId",
@@ -40,6 +48,34 @@
   },
   {
    "key": "scheduleId",
+   "value": ""
+  },
+  {
+   "key": "queue",
+   "value": "sync-base-product.batch"
+  },
+  {
+   "key": "storeId",
+   "value": ""
+  },
+  {
+   "key": "storeExternalId",
+   "value": "3"
+  },
+  {
+   "key": "storeClusterId",
+   "value": ""
+  },
+  {
+   "key": "pricingClusterId",
+   "value": ""
+  },
+  {
+   "key": "suggestionRuleId",
+   "value": ""
+  },
+  {
+   "key": "offerBookRuleId",
    "value": ""
   }
  ],
@@ -74,7 +110,7 @@
         "health"
        ]
       },
-      "description": "Public liveness endpoint. Returns `{ \"status\": \"ok\" }`. Defined in `src/health/health.controller.ts` (Plan 00 / 07). Marked @Public() so the global JwtAuthGuard does not block it."
+      "description": "Public liveness endpoint (Terminus). Returns `{ status, info, error, details }` with indicators `postgres` (real ping, gates the check) and `rabbitmq` (always reports up so a broker outage never pulls the API from rotation; monitoring should alert on `details.rabbitmq.connected`). Defined in `src/health/health.controller.ts`. Marked @Public()."
      },
      "response": []
     }
@@ -114,7 +150,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"email\": \"admin@system.local\",\n  \"password\": \"changeme-please-32-chars-or-more\",\n  \"tenantSlug\": \"system\"\n}"
+       "raw": "{\n  \"email\": \"<seed-admin-email>\",\n  \"password\": \"<seed-admin-password>\",\n  \"tenantSlug\": \"system\"\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/auth/login",
@@ -126,7 +162,7 @@
         "login"
        ]
       },
-      "description": "Returns `{ accessToken, refreshToken, expiresIn }`. The test script stores both tokens as collection variables for subsequent requests."
+      "description": "Returns `{ accessToken, refreshToken, expiresIn }`. The test script stores both tokens as collection variables for subsequent requests. Fill in the system-admin credentials (locally: the values you set via SEED_ADMIN_EMAIL/SEED_ADMIN_PASSWORD for scripts/seed-system-admin.ts — never commit real credentials here)."
      },
      "response": []
     },
@@ -237,7 +273,7 @@
         "me"
        ]
       },
-      "description": "Returns the decoded JwtPayload (`sub`, `tenantId`, `role`). Bearer token required."
+      "description": "Returns the decoded JwtPayload plus the tenant’s enabled modules: `{ sub, tenantId, role, iat, exp, modules }`. The FE reads `modules` to decide what to show; system-admin tokens get all modules. Bearer token required; 401 if the tenant was offboarded."
      },
      "response": []
     },
@@ -278,7 +314,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"slug\": \"acme\",\n  \"name\": \"Acme\",\n  \"adminEmail\": \"admin@acme.test\"\n}"
+       "raw": "{\n  \"slug\": \"acme\",\n  \"name\": \"Acme\",\n  \"adminEmail\": \"{{adminEmail}}\"\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/admin/tenants",
@@ -309,7 +345,7 @@
         "tenants"
        ]
       },
-      "description": "Lists all tenants ordered by slug."
+      "description": "Lists non-deleted tenants (includes paused/suspended; soft-deleted rows are filtered out by the deletedAt column) ordered by slug."
      },
      "response": []
     },
@@ -445,7 +481,7 @@
         "integration"
        ]
       },
-      "description": "Upserts the tenant's ERP connection. `origin` selects the vendor entity set (v1: `a7pharma`). Password is encrypted with AES-256-GCM via CredentialEncryptionService. Invalidates the per-tenant DataSource cache. Returns `{ status }`. Optional apiBaseUrl + apiKey enable A7Pharma REST write-back (price/offer); apiKey is encrypted at rest."
+      "description": "Upserts the tenant's ERP connection. `origin` selects the vendor entity set (v1: `a7pharma`). Password is encrypted with AES-256-GCM via CredentialEncryptionService. Invalidates the per-tenant DataSource cache. Returns `{ status }`. Optional apiBaseUrl + apiKey enable A7Pharma REST write-back (price/offer); apiKey is encrypted at rest. `sslMode`: disable | require | verify-full; optional `sslCaCert` (PEM) and `connectionOptions` (free-form object merged into the pg driver config). Omitted apiBaseUrl/apiKey keep the previously stored values. WARNING: this UPSERT REPLACES the tenant’s live connection (host/port/database/username/password/sslMode and any API fields present in the body) — sending the example body as-is against a configured tenant wipes its real ERP config."
      },
      "response": []
     },
@@ -491,6 +527,26 @@
       "description": "Marks the connection `status=disabled` and invalidates the cache."
      },
      "response": []
+    },
+    {
+     "name": "GET /admin/integrations/health",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/admin/integrations/health",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "admin",
+        "integrations",
+        "health"
+       ]
+      },
+      "description": "Fleet-wide integration health: pings every ACTIVE tenant ERP connection (concurrency-limited, short-TTL single-flight ping cache) and returns `{ checkedAt, total, healthy, unhealthy, connections: [{ tenantSlug, origin, status, ok, lastVerifiedAt, error }] }`. Deliberately separate from GET /health so a tenant ERP outage never pulls the API out of rotation. System admin."
+     },
+     "response": []
     }
    ]
   },
@@ -515,7 +571,7 @@
         "competitor-origins"
        ]
       },
-      "description": "Lists the tenant's competitor origins for the admin panel. Returns `[{ origin, enabled, priority }]` ordered by priority ASC, origin ASC. Soft-deleted rows excluded. System-admin only."
+      "description": "Lists the tenant’s competitor origins for the admin panel. Returns `[{ origin, label, enabled, priority }]` ordered by priority ASC, origin ASC (`label` is the human-readable name from the origin registry). Soft-deleted rows excluded. System-admin only."
      },
      "response": []
     },
@@ -626,7 +682,7 @@
   },
   {
    "name": "Admin — DLQ",
-   "description": "Plan 06 — `src/admin/controllers/dlq.controller.ts`. Inspect and replay messages in `<step>.dlq`.",
+   "description": "Plan 06 — `src/admin/controllers/dlq.controller.ts`. Inspect and replay messages in `<queue>.dlq`. `:queue` is a REAL queue name from GET /admin/dlq (e.g. `sync-base-product.batch`, `import-competitor-products.DROGAL`), not a PipelineStep.",
    "item": [
     {
      "name": "GET /admin/dlq",
@@ -643,24 +699,24 @@
         "dlq"
        ]
       },
-      "description": "Lists every queue whose DLQ can be peeked/replayed — returns `{ queues: [...] }`. Use one of these names as `:queue` (e.g. `import-competitor-products.DROGAL`, `sync-base-product.batch`) in the requests below."
+      "description": "Lists every queue whose DLQ can be peeked/replayed — returns `{ queues: [...] }` with real queue names: v1 single-queue steps (e.g. `sync-stores`), v2 dispatch/batch pairs (e.g. `sync-base-product.dispatch`/`.batch`), per-origin scrape queues (e.g. `import-competitor-products.DROGAL (origin part is UPPERCASE)`), plus `pipeline.start` and `migrate-tenant`. Use one as `:queue` in the requests below."
      },
      "response": []
     },
     {
-     "name": "GET /admin/dlq/:step",
+     "name": "GET /admin/dlq/:queue",
      "request": {
       "method": "GET",
       "header": [],
       "url": {
-       "raw": "{{baseUrl}}/admin/dlq/{{step}}?limit=50",
+       "raw": "{{baseUrl}}/admin/dlq/{{queue}}?limit=50",
        "host": [
         "{{baseUrl}}"
        ],
        "path": [
         "admin",
         "dlq",
-        "{{step}}"
+        "{{queue}}"
        ],
        "query": [
         {
@@ -669,24 +725,24 @@
         }
        ]
       },
-      "description": "Peek without consuming: basicGet + nack(requeue=true). Returns up to `limit` messages with `{ routingKey, body, redelivered, headers }`. `step` must match `PipelineStep`."
+      "description": "Peek without consuming: basicGet + one nack(requeue) at the end. Returns up to `limit` (default 50, capped 200) messages with `{ routingKey, body, redelivered, headers }`. 404 if `:queue` is not in the list from GET /admin/dlq."
      },
      "response": []
     },
     {
-     "name": "POST /admin/dlq/:step/replay",
+     "name": "POST /admin/dlq/:queue/replay",
      "request": {
       "method": "POST",
       "header": [],
       "url": {
-       "raw": "{{baseUrl}}/admin/dlq/{{step}}/replay?max=100",
+       "raw": "{{baseUrl}}/admin/dlq/{{queue}}/replay?max=100",
        "host": [
         "{{baseUrl}}"
        ],
        "path": [
         "admin",
         "dlq",
-        "{{step}}",
+        "{{queue}}",
         "replay"
        ],
        "query": [
@@ -696,7 +752,7 @@
         }
        ]
       },
-      "description": "Pops up to `max` messages from `<step>.dlq` and re-publishes them to the main exchange with `attempt=1`. Returns `{ replayed }`."
+      "description": "Pops up to `max` (default 100, capped 200) messages from `<queue>.dlq` and re-publishes them to the main exchange with their original routing key and `attempt=1`. Returns `{ replayed }`. 404 if `:queue` is unknown."
      },
      "response": []
     }
@@ -717,7 +773,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": true, \"priority\": 100 },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": false }\n  ]\n}"
+       "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": true, \"priority\": 100 },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": false },\n    { \"origin\": \"PACHECO\", \"enabled\": false },\n    { \"origin\": \"SAO_PAULO\", \"enabled\": false },\n    { \"origin\": \"VENANCIO\", \"enabled\": false },\n    { \"origin\": \"INDIANA\", \"enabled\": false }\n  ]\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
@@ -731,7 +787,7 @@
         "competitor-origins"
        ]
       },
-      "description": "Step 1 — enable just DROGAL (disable the rest), so the next import-competitor-products run scrapes only DROGAL."
+      "description": "Step 1 — enable just DROGAL and disable ALL other 8 origins (the PUT is UPDATE-only: an origin you don’t send keeps its current state), so the next import-competitor-products run scrapes only DROGAL."
      },
      "response": []
     },
@@ -747,7 +803,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": true, \"priority\": 90 },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": false }\n  ]\n}"
+       "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": true, \"priority\": 90 },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": false },\n    { \"origin\": \"PACHECO\", \"enabled\": false },\n    { \"origin\": \"SAO_PAULO\", \"enabled\": false },\n    { \"origin\": \"VENANCIO\", \"enabled\": false },\n    { \"origin\": \"INDIANA\", \"enabled\": false }\n  ]\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
@@ -761,7 +817,7 @@
         "competitor-origins"
        ]
       },
-      "description": "Step 1 — enable just DROGASIL (disable the rest), so the next import-competitor-products run scrapes only DROGASIL."
+      "description": "Step 1 — enable just DROGASIL and disable ALL other 8 origins (the PUT is UPDATE-only: an origin you don’t send keeps its current state), so the next import-competitor-products run scrapes only DROGASIL."
      },
      "response": []
     },
@@ -777,7 +833,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": true, \"priority\": 80 },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": false }\n  ]\n}"
+       "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": true, \"priority\": 80 },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": false },\n    { \"origin\": \"PACHECO\", \"enabled\": false },\n    { \"origin\": \"SAO_PAULO\", \"enabled\": false },\n    { \"origin\": \"VENANCIO\", \"enabled\": false },\n    { \"origin\": \"INDIANA\", \"enabled\": false }\n  ]\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
@@ -791,7 +847,7 @@
         "competitor-origins"
        ]
       },
-      "description": "Step 1 — enable just MICHELASSI (disable the rest), so the next import-competitor-products run scrapes only MICHELASSI."
+      "description": "Step 1 — enable just MICHELASSI and disable ALL other 8 origins (the PUT is UPDATE-only: an origin you don’t send keeps its current state), so the next import-competitor-products run scrapes only MICHELASSI."
      },
      "response": []
     },
@@ -807,7 +863,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": true, \"priority\": 70 },\n    { \"origin\": \"IKESAKI\", \"enabled\": false }\n  ]\n}"
+       "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": true, \"priority\": 70 },\n    { \"origin\": \"IKESAKI\", \"enabled\": false },\n    { \"origin\": \"PACHECO\", \"enabled\": false },\n    { \"origin\": \"SAO_PAULO\", \"enabled\": false },\n    { \"origin\": \"VENANCIO\", \"enabled\": false },\n    { \"origin\": \"INDIANA\", \"enabled\": false }\n  ]\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
@@ -821,7 +877,7 @@
         "competitor-origins"
        ]
       },
-      "description": "Step 1 — enable just PAGUE_MENOS (disable the rest), so the next import-competitor-products run scrapes only PAGUE_MENOS."
+      "description": "Step 1 — enable just PAGUE_MENOS and disable ALL other 8 origins (the PUT is UPDATE-only: an origin you don’t send keeps its current state), so the next import-competitor-products run scrapes only PAGUE_MENOS."
      },
      "response": []
     },
@@ -837,7 +893,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": true, \"priority\": 60 }\n  ]\n}"
+       "raw": "{\n  \"origins\": [\n    { \"origin\": \"DROGAL\", \"enabled\": false },\n    { \"origin\": \"DROGASIL\", \"enabled\": false },\n    { \"origin\": \"MICHELASSI\", \"enabled\": false },\n    { \"origin\": \"PAGUE_MENOS\", \"enabled\": false },\n    { \"origin\": \"IKESAKI\", \"enabled\": true, \"priority\": 60 },\n    { \"origin\": \"PACHECO\", \"enabled\": false },\n    { \"origin\": \"SAO_PAULO\", \"enabled\": false },\n    { \"origin\": \"VENANCIO\", \"enabled\": false },\n    { \"origin\": \"INDIANA\", \"enabled\": false }\n  ]\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/competitor-origins",
@@ -851,7 +907,7 @@
         "competitor-origins"
        ]
       },
-      "description": "Step 1 — enable just IKESAKI (disable the rest), so the next import-competitor-products run scrapes only IKESAKI."
+      "description": "Step 1 — enable just IKESAKI and disable ALL other 8 origins (the PUT is UPDATE-only: an origin you don’t send keeps its current state), so the next import-competitor-products run scrapes only IKESAKI."
      },
      "response": []
     },
@@ -879,7 +935,7 @@
      "response": []
     }
    ],
-   "description": "Trigger one competitor at a time: run **1. Enable only <ORIGIN>** then **2. Run import-competitor-products**. To run all enabled at once use `Admin — Pipeline → pipeline/start` (full run) or this step trigger with all origins enabled."
+   "description": "Trigger one competitor at a time: run **1. Enable only <ORIGIN>** then **2. Run import-competitor-products**. To run all enabled at once use `Admin — Pipeline → pipeline/start` (full run) or this step trigger with all origins enabled. IMPORTANT: this persistently rewrites the tenant’s origin config — GET the current config first and PUT it back afterwards, or the nightly pipeline keeps scraping only the one origin you left enabled."
   },
   {
    "name": "Admin — Catalog (shared catalog ops)",
@@ -902,7 +958,7 @@
         "import"
        ]
       },
-      "description": "Live-scrape EVERY implemented competitor for one EAN, persist into shared_catalog (product, product_image→R2, base_product), and return the merged cross-origin view. JWT-guarded, not tenant-scoped (the catalog is global). `:ean` must be numeric."
+      "description": "Live-scrape EVERY implemented competitor for one EAN, persist into shared_catalog (product, product_image→R2, base_product), and return the merged cross-origin view. System admin only (SystemAdminGuard); not tenant-scoped — the catalog is global. `:ean` must be numeric."
      },
      "response": []
     },
@@ -937,7 +993,7 @@
         }
        ]
       },
-      "description": "Paginated bulk export of shared_catalog competitor data: each product with its primary image. `origin` optional (one of DROGAL/DROGASIL/MICHELASSI/PAGUE_MENOS/IKESAKI); `limit` ≤ 1000. JWT-guarded."
+      "description": "Paginated bulk export of shared_catalog competitor data: `{ total, limit, offset, items }`, each item a product with its primary image. `origin` optional (DROGAL, DROGASIL, MICHELASSI, PAGUE_MENOS, IKESAKI, PACHECO, SAO_PAULO, VENANCIO, INDIANA); `limit` ≤ 1000. System admin."
      },
      "response": []
     },
@@ -1070,7 +1126,7 @@
   },
   {
    "name": "Tenant — Catalog",
-   "description": "The authenticated tenant's OWN products (scoped by JWT). Any tenant user (viewer/operator/admin). Log in via Auth → POST /auth/login (tenant admin) with your tenantSlug first.",
+   "description": "The authenticated tenant’s OWN products (scoped by JWT). Reads are open to any tenant role EXCEPT the module-gated grids (noted per request); writes are operator/admin (price/offer additionally need one of the pricing modules) and DELETE /products/:ean is admin. Log in via Auth → POST /auth/login (tenant admin) with your tenantSlug first.",
    "item": [
     {
      "name": "GET /products",
@@ -1108,10 +1164,15 @@
          "key": "eans",
          "value": "",
          "disabled": true
+        },
+        {
+         "key": "store",
+         "value": "{{storeExternalId}}",
+         "disabled": true
         }
        ]
       },
-      "description": "Tenant catalog list (no competitor cross). Filters: name, supplier, classification, eans (csv), status (csv), monitored. Returns { rows, count, page, perPage }."
+      "description": "Tenant catalog list (no competitor cross). Filters: name, supplier, classification, eans (csv), status (csv), monitored. Returns { rows, count, page, perPage }. Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost over the global values."
      },
      "response": []
     },
@@ -1161,10 +1222,15 @@
          "key": "name",
          "value": "",
          "disabled": true
+        },
+        {
+         "key": "store",
+         "value": "{{storeExternalId}}",
+         "disabled": true
         }
        ]
       },
-      "description": "Tenant products CROSSED with competitors: per row cost/price/margin/status + targetPrice + drogal/drogasil/michelassi prices & observations. Same filters as /products plus sortBy (ean,name,supplier,classification,cost,price,margin,averageVariation,status,targetPrice,receiptDate)."
+      "description": "Tenant products CROSSED with competitors: per row cost/price/margin/status + priceOffer (current offer price) + one price/observation column per enabled competitor origin (response includes origins: string[]). Same filters as /products plus sortBy (ean,name,supplier,classification,book,cost,price,margin,averageVariation,status,priceOffer,receiptDate). Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost over the global values. Requires module crossed-products (403 without it)."
      },
      "response": []
     },
@@ -1234,6 +1300,25 @@
      "response": []
     },
     {
+     "name": "GET /products/stores",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/products/stores",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "products",
+        "stores"
+       ]
+      },
+      "description": "Store selector: distinct stores that have stock, labelled from core.tenant_store. Returns `[{ storeId (uuid — what POST /products/:ean/price expects; null when unknown), storeExternalId, label, active }]`."
+     },
+     "response": []
+    },
+    {
      "name": "PATCH /products/:ean",
      "request": {
       "method": "PATCH",
@@ -1245,7 +1330,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"name\": \"New name\",\n  \"supplier\": \"New supplier\",\n  \"monitored\": false,\n  \"active\": true\n}"
+       "raw": "{\n  \"name\": \"New name\",\n  \"supplier\": \"New supplier\",\n  \"monitored\": false,\n  \"active\": true,\n  \"cost\": 12.35,\n  \"averageUnitCost\": 11.9,\n  \"unitSalePrice\": 29.9,\n  \"classificationId\": \"1b6d2c1e-9f4a-4c3b-8e2d-7a5f6b1c2d3e\"\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/products/{{ean}}",
@@ -1257,7 +1342,7 @@
         "{{ean}}"
        ]
       },
-      "description": "Edit a tenant product's fields (operator/admin). NOT price — use /price. curve/book/mat deferred."
+      "description": "Edit a tenant product’s fields (operator/admin): name, supplier, monitored, active, cost, averageUnitCost, unitSalePrice, classificationId. NOT price — use /price (pushes to the ERP). Identity facts (princípio ativo, generic) live in /admin/catalog/base-products."
      },
      "response": []
     },
@@ -1286,7 +1371,7 @@
         "price"
        ]
       },
-      "description": "Set the per-store sell price (operator/admin): pushes to A7Pharma (POST /webapi/api/preco/) then mirrors into product_item. storeId = uuid from GET /products/stores. 409 if monitored, no ERP external_id, store inactive, or no A7Pharma API configured; 404 unknown store; 502 when the ERP write fails."
+      "description": "Set the per-store sell price (operator/admin): pushes to A7Pharma (POST /webapi/api/preco/) then mirrors into product_item. storeId = uuid from GET /products/stores. 409 if monitored, no ERP external_id, store inactive, or no A7Pharma API configured; 404 unknown store; 502 when the ERP write fails. Requires operator/admin + one of crossed-products | active-ingredient-analysis | strategic-pricing. Preencha a variável de collection `storeId` antes (uuid de GET /products/stores) — vazio dá 400 (IsUUID)."
      },
      "response": []
     },
@@ -1331,10 +1416,15 @@
         {
          "key": "perPage",
          "value": "50"
+        },
+        {
+         "key": "store",
+         "value": "{{storeExternalId}}",
+         "disabled": true
         }
        ]
       },
-      "description": "Crossed products with a deal — competitor observation (DROGAL/DROGASIL) OR tenant deals. Includes deals + drogalDeal/drogasilDeal text."
+      "description": "Crossed products with a deal worth reacting to — a competitor observation on ANY enabled origin OR tenant deals. Returns `{ rows, count, page, perPage }` with `deals` plus each competitor’s price/observation (no per-origin deal fields). Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost. Requires module strategic-pricing."
      },
      "response": []
     },
@@ -1354,7 +1444,7 @@
        ],
        "query": []
       },
-      "description": "Distinct active ingredients in the tenant catalog: { activeIngredients: [...] }."
+      "description": "Distinct active ingredients in the tenant catalog: { activeIngredients: [...] }. Requires module active-ingredient-analysis."
      },
      "response": []
     },
@@ -1364,7 +1454,7 @@
       "method": "GET",
       "header": [],
       "url": {
-       "raw": "{{baseUrl}}/products/active-ingredients/crossed?page=1&perPage=50",
+       "raw": "{{baseUrl}}/products/active-ingredients/crossed?store={{storeExternalId}}&page=1&perPage=50",
        "host": [
         "{{baseUrl}}"
        ],
@@ -1374,6 +1464,10 @@
         "crossed"
        ],
        "query": [
+        {
+         "key": "store",
+         "value": "{{storeExternalId}}"
+        },
         {
          "key": "page",
          "value": "1"
@@ -1386,10 +1480,56 @@
          "key": "activeIngredient",
          "value": "",
          "disabled": true
+        },
+        {
+         "key": "tolerance",
+         "value": "5",
+         "disabled": true
+        },
+        {
+         "key": "decision",
+         "value": "subir",
+         "disabled": true
         }
        ]
       },
-      "description": "Products grouped by active ingredient (paginated by ingredient): each group has variants (with drogal/drogasil prices) + targetPrice (min variant price)."
+      "description": "Products grouped by active ingredient for ONE store (`store` = numeric external id, REQUIRED — 400 without it): each group has its combate (cheapest in-stock variant), lowest-cost variant, cheapest competitor, derived decision (subir/abaixar/ok/mix/sem-estoque), priceOffer and variants. `tolerance` (%) widens the ok band; `decision` filters groups. Requires module active-ingredient-analysis."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /products/active-ingredients/decision-counts",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/products/active-ingredients/decision-counts?store={{storeExternalId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "products",
+        "active-ingredients",
+        "decision-counts"
+       ],
+       "query": [
+        {
+         "key": "store",
+         "value": "{{storeExternalId}}"
+        },
+        {
+         "key": "activeIngredient",
+         "value": "",
+         "disabled": true
+        },
+        {
+         "key": "tolerance",
+         "value": "5",
+         "disabled": true
+        }
+       ]
+      },
+      "description": "Decision tally over the (active ingredient × store) groups — powers the filter chips. Returns `{ subir, abaixar, ok, mix, \"sem-estoque\", total }`. `store` (numeric external id) is REQUIRED; honors activeIngredient/tolerance. Module active-ingredient-analysis."
      },
      "response": []
     },
@@ -1417,10 +1557,15 @@
          "key": "classification",
          "value": "",
          "disabled": true
+        },
+        {
+         "key": "store",
+         "value": "{{storeExternalId}}",
+         "disabled": true
         }
        ]
       },
-      "description": "Tenant catalog crossed with competitors as CSV (text/csv, capped 50k). Filters same as /products."
+      "description": "Tenant catalog crossed with competitors as CSV (text/csv, capped 50k). Filters same as /products. Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost over the global values. Requires module crossed-products."
      },
      "response": []
     },
@@ -1463,7 +1608,7 @@
         "offer"
        ]
       },
-      "description": "Upsert an offer (operator/admin). Pushes precoOferta to the product's caderno on A7Pharma (idCadernoOferta=cadernoId, idEmbalagem=product.external_id), then mirrors it in tenant.offer_book. 409 if product has no ERP id or the tenant has no A7Pharma API configured; 502 when the ERP write fails.",
+      "description": "Upsert an offer (operator/admin). Pushes precoOferta to the product's caderno on A7Pharma (idCadernoOferta=cadernoId, idEmbalagem=product.external_id), then mirrors it in tenant.offer_book. 409 if product has no ERP id or the tenant has no A7Pharma API configured; 502 when the ERP write fails. Requires operator/admin + one of crossed-products | active-ingredient-analysis | strategic-pricing.",
       "body": {
        "mode": "raw",
        "raw": "{\n  \"targetPrice\": 9.9,\n  \"cadernoId\": 123,\n  \"description\": \"Oferta da semana\"\n}"
@@ -1487,7 +1632,151 @@
         "offer"
        ]
       },
-      "description": "Remove the offer (operator/admin). Sends precoOferta=null to the caderno on A7Pharma, then deletes the local offer_book row. 404 if no offer exists; 502 when the ERP write fails."
+      "description": "Remove the offer (operator/admin). Sends precoOferta=null to the caderno on A7Pharma, then deletes the local offer_book row. 404 if no offer exists; 502 when the ERP write fails. Requires operator/admin + one of crossed-products | active-ingredient-analysis | strategic-pricing."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "Tenant — Stores",
+   "description": "Lojas do tenant e clusters de loja — `src/tenant-api/stores/stores.controller.ts`. Lojas são sincronizadas do ERP (nascem active=false); o admin ativa e agrupa em clusters. Todas as rotas exigem role ADMIN do tenant.",
+   "item": [
+    {
+     "name": "GET /stores",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/stores",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "stores"
+       ]
+      },
+      "description": "Lista as lojas não deletadas do tenant, ordenadas por nome: `[{ id, externalId, name, cnpj, active, clusterId, clusterName }]`. clusterId/clusterName são null quando a loja não está em cluster."
+     },
+     "response": []
+    },
+    {
+     "name": "PUT /stores/:id",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"active\": true,\n  \"clusterId\": \"{{storeClusterId}}\"\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/stores/{{storeId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "stores",
+        "{{storeId}}"
+       ]
+      },
+      "description": "Atualiza `active` e/ou o cluster da loja; campo omitido fica como está, `clusterId: null` desanexa. Reativar uma loja apaga os product_item congelados dela (leituras voltam ao preço global até o próximo sync do ERP). 400 body vazio; 404 loja ou cluster inexistente."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /store-clusters",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/store-clusters",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "store-clusters"
+       ]
+      },
+      "description": "Lista os clusters de loja: `[{ id, name, storeCount, createdAt, updatedAt }]`."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /store-clusters",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Lojas Centro\"\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/store-clusters",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "store-clusters"
+       ]
+      },
+      "description": "Cria um cluster de loja (name 1–120 chars). Retorna `{ id, name, storeCount: 0, createdAt, updatedAt }`."
+     },
+     "response": []
+    },
+    {
+     "name": "PUT /store-clusters/:id",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Lojas Litoral\"\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/store-clusters/{{storeClusterId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "store-clusters",
+        "{{storeClusterId}}"
+       ]
+      },
+      "description": "Renomeia o cluster. 404 se não existe no tenant."
+     },
+     "response": []
+    },
+    {
+     "name": "DELETE /store-clusters/:id",
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/store-clusters/{{storeClusterId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "store-clusters",
+        "{{storeClusterId}}"
+       ]
+      },
+      "description": "Soft-delete do cluster; limpa cluster_id das lojas membros. Retorna `{ id, name }`."
      },
      "response": []
     }
@@ -1576,7 +1865,7 @@
         "grouped"
        ]
       },
-      "description": "Classifications as a one-level tree: root nodes each with a `children` array. FE renders this directly."
+      "description": "Classifications as a nested tree (up to 3 levels): nodes `{ id, name, parentId, visible, children }`. FE renders this directly."
      },
      "response": []
     },
@@ -1595,7 +1884,7 @@
         "price-rounding"
        ]
       },
-      "description": "List price-rounding rules for the tenant, each with its decimal-range buckets, ordered by priority."
+      "description": "List the tenant’s price-rounding ranges ordered by priceMin: `[{ id, priceMin, priceMax, rules: [{ decimalMin, decimalMax, roundTo }] }]`. A product whose price falls in [priceMin, priceMax] has its decimals rounded by the matching bucket. Module pricing-rules OR offer-book-rules."
      },
      "response": []
     },
@@ -1615,7 +1904,7 @@
         "{{ruleId}}"
        ]
       },
-      "description": "One price-rounding rule with its ranges. 404 if not this tenant's rule."
+      "description": "One price-rounding range with its decimal buckets. 404 if not this tenant’s range. Module pricing-rules OR offer-book-rules."
      },
      "response": []
     },
@@ -1639,10 +1928,10 @@
         "price-rounding"
        ]
       },
-      "description": "Create a price-rounding rule (ADMIN). `ranges` are decimal buckets: a product's price decimals in [minDecimal,maxDecimal] round to targetDecimal.",
+      "description": "Create a price band [priceMin, priceMax] with optional decimal-bucket rules (ADMIN): a price with decimals in [decimalMin, decimalMax] rounds to roundTo. 400 if priceMin > priceMax or any rule has decimalMin > decimalMax.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"name\": \"Arredondar centavos\",\n  \"enabled\": true,\n  \"priority\": 10,\n  \"ranges\": [\n    {\n      \"minDecimal\": 0,\n      \"maxDecimal\": 0.49,\n      \"targetDecimal\": 0.49\n    },\n    {\n      \"minDecimal\": 0.5,\n      \"maxDecimal\": 0.99,\n      \"targetDecimal\": 0.9\n    }\n  ]\n}"
+       "raw": "{\n  \"priceMin\": 10,\n  \"priceMax\": 49.99,\n  \"rules\": [\n    {\n      \"decimalMin\": 0,\n      \"decimalMax\": 0.49,\n      \"roundTo\": 0.29\n    },\n    {\n      \"decimalMin\": 0.5,\n      \"decimalMax\": 0.99,\n      \"roundTo\": 0.89\n    }\n  ]\n}"
       }
      },
      "response": []
@@ -1668,10 +1957,10 @@
         "{{ruleId}}"
        ]
       },
-      "description": "Update a rule (ADMIN). Omitted scalar fields are preserved; if `ranges` is provided it replaces all buckets wholesale.",
+      "description": "Update a range (ADMIN). Omitted priceMin/priceMax are preserved; if `rules` is provided it replaces all decimal buckets wholesale.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"enabled\": false,\n  \"ranges\": [\n    {\n      \"minDecimal\": 0,\n      \"maxDecimal\": 0.99,\n      \"targetDecimal\": 0.99\n    }\n  ]\n}"
+       "raw": "{\n  \"priceMax\": 59.99,\n  \"rules\": [\n    {\n      \"decimalMin\": 0,\n      \"decimalMax\": 0.99,\n      \"roundTo\": 0.99\n    }\n  ]\n}"
       }
      },
      "response": []
@@ -1692,15 +1981,166 @@
         "{{ruleId}}"
        ]
       },
-      "description": "Delete a rule and its ranges (ADMIN, cascade)."
+      "description": "Delete a range and its rules (ADMIN, cascade). Returns `{ id, deleted: true }`."
      },
      "response": []
     }
    ]
   },
   {
+   "name": "Tenant — Integration",
+   "item": [
+    {
+     "name": "GET /integration/health",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/integration/health",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "integration",
+        "health"
+       ]
+      },
+      "description": "Saúde da integração ERP do PRÓPRIO tenant (admin do tenant). Retorna `{ ok, lastVerifiedAt }` sanitizado — sem erro bruto do driver (a conexão é infra gerida pela Farmacore). Integração desabilitada responde ok:false sem tocar o ERP; o ping tem cache single-flight de TTL curto, então pode ser usado em polling. 404 se o tenant não tem integração configurada. `src/tenant-api/integration/integration.controller.ts`."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "Tenant — Offer book rules",
+   "item": [
+    {
+     "name": "POST /offer-book-rules/preview",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"calculationBaseType\": \"COMPETITIVE_PRICE\",\n  \"priceBaseSources\": [\"OWN_PRICE\", \"DROGASIL\", \"PAGUE_MENOS\"],\n  \"eans\": [\"{{ean}}\", \"{{ean2}}\"],\n  \"pricingRules\": [\n    {\n      \"classifications\": [],\n      \"priceRangeMin\": 10,\n      \"priceRangeMax\": 49.9,\n      \"marginRangeMin\": 20,\n      \"marginRangeMax\": 60,\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 12.5,\n      \"active\": true\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"classifications\": [],\n      \"minMargin\": 25,\n      \"active\": true\n    }\n  ],\n  \"applyPriceRounding\": true,\n  \"page\": 1,\n  \"pageSize\": 100\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/preview",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "preview"
+       ]
+      },
+      "description": "Dry-run do motor de caderno de ofertas (operator/admin, módulo offer-book-rules): calcula o preço que cada produto selecionado teria sob as regras + locks (+ arredondamento opcional), sem persistir nada. Selecione produtos com EXATAMENTE UM de `eans` OU `classifications` (ambos/nenhum = 400). `calculationBaseType`: COMPETITIVE_PRICE | SALE_PRICE | OFFER_PRICE — com COMPETITIVE_PRICE, `priceBaseSources` (OWN_PRICE + concorrentes) é obrigatório. `actionType`: DISCOUNT | INCREASE; regra sem classifications/ranges vale para todos. Retorna paginado `{ rows, total, page, pageSize, totalPages }` com preços base/atual/final, margens e flags de skip/lock/rounding. 400 para regras ativas sobrepostas ou locks conflitantes; pageSize cap 1000."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /offer-book-rules",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"offerBookInfoId\": 118,\n  \"calculationBaseType\": \"COMPETITIVE_PRICE\",\n  \"priceBaseSources\": [\"OWN_PRICE\", \"DROGASIL\", \"PAGUE_MENOS\"],\n  \"eans\": [\"{{ean}}\", \"{{ean2}}\"],\n  \"pricingRules\": [\n    {\n      \"classifications\": [],\n      \"priceRangeMin\": 10,\n      \"priceRangeMax\": 49.9,\n      \"marginRangeMin\": 20,\n      \"marginRangeMax\": 60,\n      \"actionType\": \"DISCOUNT\",\n      \"percentageValue\": 12.5,\n      \"active\": true\n    }\n  ],\n  \"priceLocks\": [\n    {\n      \"classifications\": [],\n      \"minMargin\": 25,\n      \"active\": true\n    }\n  ],\n  \"scheduleEnabled\": true,\n  \"scheduledDays\": [1, 3, 5],\n  \"applyPriceRounding\": true\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules"
+       ]
+      },
+      "description": "Salva o conjunto de regras aplicado a um caderno de ofertas EXISTENTE (`offerBookInfoId` = id de GET /offer-campaigns; não cria caderno). Produtos-alvo: exatamente UM de `eans` OU `classifications` (subárvore). `scheduledDays` usa índice Postgres dow (0=domingo…6=sábado) e é obrigatório quando `scheduleEnabled=true`. Retorna `{ id }`. 404 caderno inexistente/inativo; 409 já existe regra para o caderno (uma por caderno, unique fecha a corrida)."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules?page=1&pageSize=50",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "pageSize",
+         "value": "50"
+        }
+       ]
+      },
+      "description": "Lista paginada das regras: `{ rows: [{ id, offerBookInfoId, cadernoName, calculationBaseType, scheduleEnabled, productsCount, createdAt }], total, page, pageSize, totalPages }`. `pageSize` default 50, máx 200 (valores maiores são reduzidos em silêncio)."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/:id",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{offerBookRuleId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{offerBookRuleId}}"
+       ]
+      },
+      "description": "Detalhe completo de uma regra: o item da lista + priceBaseSources, classifications, scheduledDays, applyPriceRounding, eans, pricingRules e priceLocks. 400 se :id não é UUID; 404 se não existe."
+     },
+     "response": []
+    },
+    {
+     "name": "DELETE /offer-book-rules/:id",
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{offerBookRuleId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{offerBookRuleId}}"
+       ]
+      },
+      "description": "Remove a regra (hard delete — apaga regras, locks e produtos associados). Retorna `{ id }`. 404 se não existe."
+     },
+     "response": []
+    }
+   ],
+   "description": "Regras de precificação de caderno de ofertas — `src/tenant-api/offer-book-rules/offer-book-rules.controller.ts`. Preview (dry-run) + CRUD do conjunto de regras aplicado a um caderno existente (uma regra por caderno). Operator/admin + módulo offer-book-rules em tudo."
+  },
+  {
    "name": "Tenant — Pricing (apply & schedule)",
-   "description": "Aplicação de preço em massa e agendamento. `target: precoVenda` altera o preço de venda (change price); `target: precoOferta` altera o preço de oferta no caderno (change offer price). O agendamento (one-shot ou recorrente via `cronExpr`) dispara o mesmo apply em `runAt` através do `PricingScheduleCron`. Operator/admin; aprovação/reject exigem admin.",
+   "description": "Aplicação de preço em massa e agendamento. `target: precoVenda` altera o preço de venda (change price); `target: precoOferta` altera o preço de oferta no caderno (change offer price). O agendamento (one-shot ou recorrente via `cronExpr`) dispara o mesmo apply em `runAt` através do `PricingScheduleCron`. Operator/admin; aprovação/reject exigem admin. Cada item aceita `storeId` (uuid de core.tenant_store, o mesmo de GET /products/stores) para aplicar o preço só naquela loja; sem storeId o preço é global. Módulo pricing-rules obrigatório em todas as rotas.",
    "item": [
     {
      "name": "POST /pricing/apply",
@@ -1714,7 +2154,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"idempotencyKey\": \"apply-2026-06-23-001\",\n  \"mode\": \"agora\",\n  \"items\": [\n    {\n      \"ean\": \"{{ean}}\",\n      \"target\": \"precoVenda\",\n      \"price\": 29.9\n    },\n    {\n      \"ean\": \"7890987654321\",\n      \"target\": \"precoOferta\",\n      \"price\": 19.9,\n      \"cadernoId\": 100006091838\n    }\n  ]\n}"
+       "raw": "{\n  \"idempotencyKey\": \"apply-{{$timestamp}}\",\n  \"mode\": \"agora\",\n  \"items\": [\n    {\n      \"ean\": \"{{ean}}\",\n      \"target\": \"precoVenda\",\n      \"storeId\": \"{{storeId}}\",\n      \"price\": 29.9\n    },\n    {\n      \"ean\": \"{{ean2}}\",\n      \"target\": \"precoOferta\",\n      \"price\": 19.9,\n      \"cadernoId\": 118\n    }\n  ]\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/pricing/apply",
@@ -1726,7 +2166,7 @@
         "apply"
        ]
       },
-      "description": "Aplica preços aprovados em massa (precoVenda e/ou precoOferta) e empurra ao ERP A7Pharma. `idempotencyKey` torna o reenvio um no-op. 202. Se PRICING_APPLY_REQUIRES_APPROVAL=1, fica pendente até /approve."
+      "description": "Aplica preços aprovados em massa (precoVenda e/ou precoOferta) e empurra ao ERP A7Pharma. `idempotencyKey` torna o reenvio um no-op. 202. Se PRICING_APPLY_REQUIRES_APPROVAL=1, fica pendente até /approve. O exemplo usa `{{$timestamp}}` para gerar uma chave nova por envio — reusar uma chave devolve o run existente com `idempotent: true` (no-op silencioso)."
      },
      "response": []
     },
@@ -1742,7 +2182,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"items\": [\n    {\n      \"ean\": \"{{ean}}\",\n      \"target\": \"precoVenda\",\n      \"price\": 29.9\n    },\n    {\n      \"ean\": \"7890987654321\",\n      \"target\": \"precoOferta\",\n      \"price\": 19.9,\n      \"cadernoId\": 100006091838\n    }\n  ]\n}"
+       "raw": "{\n  \"items\": [\n    {\n      \"ean\": \"{{ean}}\",\n      \"target\": \"precoVenda\",\n      \"storeId\": \"{{storeId}}\",\n      \"price\": 29.9\n    },\n    {\n      \"ean\": \"{{ean2}}\",\n      \"target\": \"precoOferta\",\n      \"price\": 19.9,\n      \"cadernoId\": 118\n    }\n  ]\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/pricing/apply/preview",
@@ -1908,7 +2348,7 @@
       ],
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"runAt\": \"2026-06-24T03:00:00.000Z\",\n  \"items\": [\n    {\n      \"ean\": \"{{ean}}\",\n      \"target\": \"precoVenda\",\n      \"price\": 29.9\n    },\n    {\n      \"ean\": \"7890987654321\",\n      \"target\": \"precoOferta\",\n      \"price\": 19.9,\n      \"cadernoId\": 100006091838\n    }\n  ],\n  \"cronExpr\": \"0 3 * * *\",\n  \"recalc\": false\n}"
+       "raw": "{\n  \"runAt\": \"2027-01-15T03:00:00.000Z\",\n  \"items\": [\n    {\n      \"ean\": \"{{ean}}\",\n      \"target\": \"precoVenda\",\n      \"storeId\": \"{{storeId}}\",\n      \"price\": 29.9\n    },\n    {\n      \"ean\": \"{{ean2}}\",\n      \"target\": \"precoOferta\",\n      \"price\": 19.9,\n      \"cadernoId\": 118\n    }\n  ],\n  \"cronExpr\": \"0 3 * * *\",\n  \"recalc\": false\n}"
       },
       "url": {
        "raw": "{{baseUrl}}/pricing/schedules",
@@ -1920,7 +2360,7 @@
         "schedules"
        ]
       },
-      "description": "Agenda uma aplicação. One-shot por padrão (preços congelados); `cronExpr` torna recorrente (re-arma após disparar); `recalc=true` recalcula pelo motor no disparo. O cron dispara em `runAt`."
+      "description": "Agenda uma aplicação. One-shot por padrão (preços congelados); `cronExpr` torna recorrente (re-arma após disparar); `recalc=true` recalcula pelo motor no disparo. O cron dispara em `runAt`. ATENÇÃO: `runAt` no PASSADO é reivindicado pelo cron imediatamente (run_at <= now()) — o push ao ERP dispara na hora. Use sempre uma data futura."
      },
      "response": []
     },
@@ -1980,6 +2420,420 @@
        ]
       },
       "description": "Cancela um agendamento pendente. 409 se já disparado/cancelado."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "Tenant — Pricing (sugestões & regras)",
+   "description": "Sugestão de preços por regra (B5) — `src/tenant-api/pricing/*.controller.ts`. O motor calcula o preço sugerido por produto a partir das regras ativas (estratégia margem/concorrência, por classificação ou cluster, opcionalmente por loja). Operator/admin + módulo pricing-rules, exceto onde indicado.",
+   "item": [
+    {
+     "name": "GET /pricing/suggestions",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/suggestions?page=1&perPage=50",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "suggestions"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "perPage",
+         "value": "50"
+        },
+        {
+         "key": "name",
+         "value": "",
+         "disabled": true
+        },
+        {
+         "key": "store",
+         "value": "{{storeExternalId}}",
+         "disabled": true
+        },
+        {
+         "key": "classification",
+         "value": "",
+         "disabled": true
+        },
+        {
+         "key": "books",
+         "value": "",
+         "disabled": true
+        },
+        {
+         "key": "onlyWithSuggestion",
+         "value": "true",
+         "disabled": true
+        },
+        {
+         "key": "direction",
+         "value": "todas",
+         "disabled": true
+        },
+        {
+         "key": "origem",
+         "value": "todas",
+         "disabled": true
+        }
+       ]
+      },
+      "description": "Produtos do tenant com o preço sugerido pelo motor sobre TODAS as regras ativas, com filtro e paginação server-side. Retorna `{ rows: [{ product, result, origem }], count, suggestionCount, lockCount, activeRuleCount, availableBooks }` (contadores sobre o conjunto pré-paginação). `store` (external id numérico de loja ATIVA, senão 400) escopa preços/custos/ofertas à loja e só aplica regras que a incluem; sem ele, visão global. `direction`: todas|subir|abaixar; `origem`: todas|cluster|classificacao. Cache-Control: private, max-age=30."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /pricing/suggestions/preview",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Genéricos — concorrência\",\n  \"classifications\": [\"1b6d2c1e-8f4a-4c2b-9e7d-3a5f6b8c9d0e\"],\n  \"clusterId\": null,\n  \"excludeClusterIds\": [],\n  \"storeIds\": [],\n  \"strategy\": \"concorrencia\",\n  \"minMargin\": 30,\n  \"competitorMode\": \"weighted\",\n  \"competitors\": [\n    { \"competitor\": \"DROGASIL\", \"weight\": 60 },\n    { \"competitor\": \"PAGUE_MENOS\", \"weight\": 40 }\n  ],\n  \"variationPct\": -5,\n  \"noCompetitorMargin\": 35,\n  \"priceControlled\": false,\n  \"ignorePbm\": false,\n  \"blockPbmInMargin\": false,\n  \"cascadeByPriority\": false,\n  \"applyRounding\": true,\n  \"active\": true\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/pricing/suggestions/preview?page=1&perPage=50",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "suggestions",
+        "preview"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "perPage",
+         "value": "50"
+        },
+        {
+         "key": "name",
+         "value": "",
+         "disabled": true
+        },
+        {
+         "key": "store",
+         "value": "{{storeExternalId}}",
+         "disabled": true
+        },
+        {
+         "key": "classification",
+         "value": "",
+         "disabled": true
+        },
+        {
+         "key": "books",
+         "value": "",
+         "disabled": true
+        },
+        {
+         "key": "onlyWithSuggestion",
+         "value": "true",
+         "disabled": true
+        },
+        {
+         "key": "direction",
+         "value": "todas",
+         "disabled": true
+        },
+        {
+         "key": "origem",
+         "value": "todas",
+         "disabled": true
+        }
+       ]
+      },
+      "description": "Dry-run de uma regra NÃO salva: calcula sugestões para a base inteira usando só a regra do body, com o mesmo pipeline e filtros de GET /pricing/suggestions (incluindo ?store=). Mesmo shape de resposta. O body passa pela mesma validação cross-field de create/update (400 para combinação inválida), EXCETO a checagem de storeIds contra as lojas do tenant — loja alheia passa no preview mas falha no create. Regras cross-field: a regra mira `classifications` XOR `clusterId` (nunca ambos; nenhum = catch-all); `strategy`: margem | concorrencia — concorrencia exige ao menos um competitor; `noCompetitorMargin` só tem efeito em concorrencia (fora dela é coagido a null, sem erro); `competitorMode`: weighted (pesos > 0 e ≤ 100) | cascade | lowest; competitors precisam estar no enum de origens conhecidas (a lista de HABILITADAS do tenant não é checada); `storeIds` vazio/ausente = todas as lojas ativas."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /pricing/suggestion-rules",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/suggestion-rules",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "suggestion-rules"
+       ]
+      },
+      "description": "Lista as regras de sugestão não deletadas, ordenadas por updatedAt DESC. Cada regra: id, name, classifications[], storeIds[], clusterId, clusterName, excludeClusterIds[], strategy, minMargin, competitorMode, competitors[{competitor, weight}], variationPct, noCompetitorMargin, priceControlled, ignorePbm, blockPbmInMargin, cascadeByPriority, applyRounding, active, createdAt/updatedAt."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /pricing/suggestion-rules",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Genéricos — concorrência\",\n  \"classifications\": [\"1b6d2c1e-8f4a-4c2b-9e7d-3a5f6b8c9d0e\"],\n  \"clusterId\": null,\n  \"excludeClusterIds\": [],\n  \"storeIds\": [],\n  \"strategy\": \"concorrencia\",\n  \"minMargin\": 30,\n  \"competitorMode\": \"weighted\",\n  \"competitors\": [\n    { \"competitor\": \"DROGASIL\", \"weight\": 60 },\n    { \"competitor\": \"PAGUE_MENOS\", \"weight\": 40 }\n  ],\n  \"variationPct\": -5,\n  \"noCompetitorMargin\": 35,\n  \"priceControlled\": false,\n  \"ignorePbm\": false,\n  \"blockPbmInMargin\": false,\n  \"cascadeByPriority\": false,\n  \"applyRounding\": true,\n  \"active\": true\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/pricing/suggestion-rules",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "suggestion-rules"
+       ]
+      },
+      "description": "Cria uma regra de sugestão (grava trilha de auditoria). Retorna a regra criada. Defaults: strategy=margem, competitorMode=weighted, variationPct=0, applyRounding=true, active=true, booleans false. Regras cross-field: a regra mira `classifications` XOR `clusterId` (nunca ambos; nenhum = catch-all); `strategy`: margem | concorrencia — concorrencia exige ao menos um competitor; `noCompetitorMargin` só tem efeito em concorrencia (fora dela é coagido a null, sem erro); `competitorMode`: weighted (pesos > 0 e ≤ 100) | cascade | lowest; competitors precisam estar no enum de origens conhecidas (a lista de HABILITADAS do tenant não é checada); `storeIds` vazio/ausente = todas as lojas ativas."
+     },
+     "response": []
+    },
+    {
+     "name": "PATCH /pricing/suggestion-rules/:id",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Genéricos — concorrência\",\n  \"classifications\": [\"1b6d2c1e-8f4a-4c2b-9e7d-3a5f6b8c9d0e\"],\n  \"clusterId\": null,\n  \"excludeClusterIds\": [],\n  \"storeIds\": [],\n  \"strategy\": \"concorrencia\",\n  \"minMargin\": 30,\n  \"competitorMode\": \"weighted\",\n  \"competitors\": [\n    { \"competitor\": \"DROGASIL\", \"weight\": 60 },\n    { \"competitor\": \"PAGUE_MENOS\", \"weight\": 40 }\n  ],\n  \"variationPct\": -5,\n  \"noCompetitorMargin\": 35,\n  \"priceControlled\": false,\n  \"ignorePbm\": false,\n  \"blockPbmInMargin\": false,\n  \"cascadeByPriority\": false,\n  \"applyRounding\": true,\n  \"active\": true\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/pricing/suggestion-rules/{{suggestionRuleId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "suggestion-rules",
+        "{{suggestionRuleId}}"
+       ]
+      },
+      "description": "Atualização estilo full-update (mesmo DTO e validação do create — envie a regra completa, não um patch parcial). Grava auditoria; retorna a regra atualizada. 404 se não existe."
+     },
+     "response": []
+    },
+    {
+     "name": "DELETE /pricing/suggestion-rules/:id",
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/suggestion-rules/{{suggestionRuleId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "suggestion-rules",
+        "{{suggestionRuleId}}"
+       ]
+      },
+      "description": "Soft-delete da regra (grava auditoria). Retorna `{ id, deleted: true }`."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /pricing/clusters",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/clusters",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "clusters"
+       ]
+      },
+      "description": "Clusters de PRODUTO do tenant (agrupam EANs para regras de sugestão; não confundir com /store-clusters), ordenados por atualização: `[{ id, name, memberCount, createdAt, updatedAt }]`."
+     },
+     "response": []
+    },
+    {
+     "name": "POST /pricing/clusters",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Genéricos dor e febre\",\n  \"eans\": [\"{{ean}}\", \"{{ean2}}\"]\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/pricing/clusters",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "clusters"
+       ]
+      },
+      "description": "Cria um cluster de produtos e sua membership (EANs são trimados, deduplicados e filtrados para dígitos 6–14 chars; máx 5000). Retorna o cluster completo com `eans`. Grava auditoria."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /pricing/clusters/:id",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/clusters/{{pricingClusterId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "clusters",
+        "{{pricingClusterId}}"
+       ]
+      },
+      "description": "Um cluster com a membership completa: `{ id, name, memberCount, createdAt, updatedAt, eans }`. 400 se :id não é UUID; 404 se não existe."
+     },
+     "response": []
+    },
+    {
+     "name": "PATCH /pricing/clusters/:id",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"name\": \"Genéricos dor e febre (rev)\",\n  \"eans\": [\"{{ean}}\"]\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/pricing/clusters/{{pricingClusterId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "clusters",
+        "{{pricingClusterId}}"
+       ]
+      },
+      "description": "Renomeia o cluster; se `eans` vier no body (mesmo vazio) a membership inteira é substituída, senão fica intacta. Retorna o cluster completo. Grava auditoria."
+     },
+     "response": []
+    },
+    {
+     "name": "DELETE /pricing/clusters/:id",
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/clusters/{{pricingClusterId}}",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "clusters",
+        "{{pricingClusterId}}"
+       ]
+      },
+      "description": "Soft-delete do cluster. 409 se alguma regra de sugestão NÃO DELETADA referencia o cluster (como alvo ou exclusão) — mesmo regra active:false bloqueia; apague a regra primeiro. Retorna `{ id, name }`. Grava auditoria."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /pricing/competitor-origins",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/competitor-origins",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "competitor-origins"
+       ]
+      },
+      "description": "Todas as origens de preço concorrente conhecidas, mescladas com a config do tenant: `[{ origin, label, priority, enabled }]` ordenado por priority. Origens sem config default para enabled=false/priority=100. Qualquer role (viewer+); módulo crossed-products OU pricing-rules. Cache-Control: private, max-age=300."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /pricing/audit",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/pricing/audit?page=1&perPage=50",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "pricing",
+        "audit"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "perPage",
+         "value": "50"
+        },
+        {
+         "key": "entity",
+         "value": "",
+         "disabled": true
+        },
+        {
+         "key": "entityId",
+         "value": "",
+         "disabled": true
+        }
+       ]
+      },
+      "description": "Trilha de auditoria append-only do tenant (ADMIN): `[{ actor, action, entity, entityId, changes, createdAt }]` ordenado por createdAt DESC. Filtros opcionais entity/entityId; perPage cap 200."
      },
      "response": []
     }
