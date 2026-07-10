@@ -1,6 +1,8 @@
-# Postman walkthrough — exercise every endpoint
+# Postman walkthrough — the admin & pipeline core, end to end
 
-Import [`farmacore.postman_collection.json`](./farmacore.postman_collection.json). Collection variables default to the local setup (`baseUrl=http://localhost:3000`, `tenantSlug=macfarma`, `step=sync-base-product`). Login stores the JWT automatically, so every other request just works.
+Import [`farmacore.postman_collection.json`](./farmacore.postman_collection.json). Collection variables default to `baseUrl=http://localhost:3000`, `tenantSlug=acme`, `step=sync-base-product` — set `tenantSlug=macfarma` to follow this walkthrough against the seeded local tenant. Login stores the JWT automatically, so every other request just works.
+
+This guided run covers the admin/pipeline core. The collection has much more (all 90 endpoints, including the tenant-facing catalog, stores, config and pricing folders) — [`../docs/api-reference.md`](../docs/api-reference.md) documents each one.
 
 ## 0. One-time local setup
 
@@ -80,4 +82,4 @@ Set the `step` var to the failing step first.
 
 ### Suggested full-coverage run
 
-`health` → `login` → `me` → `tenants (GET list, GET macfarma)` → `integration test` → `competitor-origins PUT` → `pipeline/steps GET` → `pipeline/steps/sync-base-product` (watch run) → `pipeline/start` (watch full run) → `dlq GET` → `refresh` → `logout`. That touches every route and every routine path.
+`health` → `login` → `me` → `tenants (GET list, GET macfarma)` → `integration test` → `competitor-origins PUT` → `pipeline/steps GET` → `pipeline/steps/sync-base-product` (watch run) → `pipeline/start` (watch full run) → `dlq GET` → `refresh` → `logout`. That touches every admin core route and every routine path; for the tenant-facing surface, follow [`../docs/api-reference.md`](../docs/api-reference.md).

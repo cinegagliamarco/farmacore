@@ -23,6 +23,8 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 
 ## New HTTP surface (today)
 
+> This table is a partial snapshot — the complete, current list (all 90 endpoints, with auth, roles, modules and examples) lives in [`docs/api-reference.md`](./docs/api-reference.md).
+
 | Method | Route | Controller |
 |---|---|---|
 | POST | `/auth/login` | `src/auth/auth.controller.ts` |

@@ -6,21 +6,31 @@
 
 For each plan that touches `*.controller.ts`:
 
-1. Add / update the request in the matching folder (`Health`, `Auth`, future `Admin`, etc.).
+1. Add / update the request in the matching folder (`Health`, `Auth`, `Admin — …`, `Tenant — …`).
 2. Set `auth` per route — public routes use `{ "type": "noauth" }`; protected routes inherit collection-level Bearer.
 3. Reference the controller file in the request `description` (`Plan 02 — src/auth/auth.controller.ts`).
 4. If the request returns a token (login, refresh), add a Tests script that stores it as a collection variable.
 
 ## Variables
 
-| key            | default                  | purpose                                          |
-| -------------- | ------------------------ | ------------------------------------------------ |
-| `baseUrl`      | `http://localhost:3000`  | API base. Override for staging/prod.             |
-| `tenantSlug`   | `acme`                   | Default tenant slug used in tenant-scoped routes. |
-| `accessToken`  | (set by login/refresh)   | JWT bearer; auto-populated by the login test.    |
-| `refreshToken` | (set by login/refresh)   | Refresh token; auto-populated by the login test. |
-| `applyRunId`   | (paste from an apply run)| Used by `/pricing/apply/:id*` routes.            |
-| `scheduleId`   | (paste from a schedule)  | Used by `/pricing/schedules/:id` routes.         |
+| key                | default                     | purpose                                                        |
+| ------------------ | --------------------------- | -------------------------------------------------------------- |
+| `baseUrl`          | `http://localhost:3000`     | API base. Override for staging/prod.                            |
+| `tenantSlug`       | `acme`                      | Default tenant slug used in `/admin/tenants/:slug/*` routes.    |
+| `step`             | `sync-base-product`         | Pipeline step for `/admin/tenants/:slug/pipeline/steps/:step`.  |
+| `accessToken`      | (set by login/refresh)      | JWT bearer; auto-populated by the login test.                   |
+| `refreshToken`     | (set by login/refresh)      | Refresh token; auto-populated by the login test.                |
+| `ean`              | `7894916508353`             | Product EAN for `/products/:ean*` and `/admin/catalog/*` routes.|
+| `queue`            | `sync-base-product.batch`   | Queue name for `/admin/dlq/:queue*` routes.                     |
+| `storeId`          | (paste from `GET /products/stores`) | Store **uuid** — goes in bodies (price writes, suggestion rules). |
+| `storeExternalId`  | `3`                         | Store **ERP id** — goes in `?store=` query params of the grids. |
+| `storeClusterId`   | (paste from a cluster)      | Used by `/store-clusters/:id` routes.                           |
+| `ruleId`           | (paste from a rule)         | Used by `/configurations/price-rounding/:id` routes.            |
+| `applyRunId`       | (paste from an apply run)   | Used by `/pricing/apply/:id*` routes.                           |
+| `scheduleId`       | (paste from a schedule)     | Used by `/pricing/schedules/:id` routes.                        |
+| `pricingClusterId` | (paste from a cluster)      | Used by `/pricing/clusters/:id` routes.                         |
+| `suggestionRuleId` | (paste from a rule)         | Used by `/pricing/suggestion-rules/:id` routes.                 |
+| `offerBookRuleId`  | (paste from a rule)         | Used by `/offer-book-rules/:id*` routes.                        |
 
 ## Local quickstart
 
@@ -41,27 +51,16 @@ Then import `postman/farmacore.postman_collection.json` into Postman and run:
 
 The HTTP surface is a multi-tenant **control plane**, not split into "admin API" vs "tenant API" by data. Routes are gated by guard:
 
-- **System admin** (token with `tenantId === 'system'`): everything under `/admin/*` (tenant onboarding, integration, competitor-origins, pipeline, DLQ).
-- **Any authenticated user** (incl. a **tenant** admin/user — log in with your own `tenantSlug`): `/auth/*` and `/products/*` (the shared catalog is global, not tenant-scoped).
-- **Public**: `/health`.
+- **System admin** (token with `tenantId === 'system'`): everything under `/admin/*` (tenant onboarding, integration, competitor-origins, pipeline, DLQ, shared-catalog ops).
+- **Tenant users** (log in with your own `tenantSlug`): `/auth/*` plus the whole tenant surface — the **Tenant — …** folders (`/products`, `/stores`, `/settings`, `/configurations`, `/classifications`, `/pricing`, `/offer-book-rules`, …). The tenant scope comes from the JWT, never from the URL; role (`viewer`/`operator`/`admin`) and enabled modules gate each route.
+- **Public**: `/health`, `/auth/login`, `/auth/refresh`.
 
-There are currently **no tenant-scoped data endpoints** (per-tenant product lists, offer books, pricing, etc.) — those are the routes marked ❌ "not yet ported" in [`CONTROLLER_MAPPING.md`](../CONTROLLER_MAPPING.md). The collection covers every route the app actually exposes.
+Who can call what, per endpoint, lives in [`../docs/api-reference.md`](../docs/api-reference.md). The collection covers every route the app actually exposes.
 
 ## Coverage
 
-Currently covers:
+The collection mirrors **all 90 endpoints** of the API, organized in 16 folders:
 
-- `GET /health` (Plan 00 / 07)
-- Auth (Plan 02): `POST /auth/login` (system + tenant-admin examples), `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`
-- Admin tenants (Plan 06): `POST /admin/tenants`, `GET /admin/tenants`, `GET /admin/tenants/:slug`, `PATCH /admin/tenants/:slug/status`, `DELETE /admin/tenants/:slug`
-- Admin integration (Plan 06): `PUT /admin/tenants/:slug/integration`, `POST /admin/tenants/:slug/integration/test`, `DELETE /admin/tenants/:slug/integration` — each tenant's `origin` selects the ERP vendor independently (v1: `a7pharma`)
-- Admin competitor origins (Plan 06): `PUT /admin/tenants/:slug/competitor-origins` — all five origins (`DROGAL`, `DROGASIL`, `MICHELASSI`, `PAGUE_MENOS`, `IKESAKI`)
-- Admin pipeline (Plan 06): `POST /admin/tenants/:slug/pipeline/start`, `GET /admin/tenants/:slug/pipeline/steps`, `POST /admin/tenants/:slug/pipeline/steps/:step`
-- Admin DLQ (Plan 06): `GET /admin/dlq` (list queues), `GET /admin/dlq/:queue`, `POST /admin/dlq/:queue/replay`
-- **Trigger competitors (each)** — no per-origin route; to run one competitor, `Enable only <ORIGIN>` (competitor-origins PUT) then `Run import-competitor-products` (standalone step trigger). The folder bundles the 5 enable requests + the step run.
-- Products: `POST /products/:ean/import` (live-scrape every origin for one EAN → shared_catalog + merged view), `GET /products/export` (paginated export: product + primary image + latest stock)
-- **Tenant — Pricing (apply & schedule)** — bulk price changes and scheduling. `POST /pricing/apply` (+ `preview`, `:id/approve`, `:id/reject`, `:id/rollback`, list, report) applies `precoVenda` (change price) and/or `precoOferta` (change offer price) in massa; `POST /pricing/schedules` (+ list, get, cancel) agenda o mesmo apply em `runAt`, one-shot ou recorrente (`cronExpr`), disparado pelo `PricingScheduleCron`
+`Health` · `Auth` · `Admin — Tenants` · `Admin — Integration` · `Admin — Competitor origins` · `Admin — Pipeline` · `Admin — DLQ` · `Admin — Trigger competitors (each)` · `Admin — Catalog (shared catalog ops)` · `Tenant — Catalog` · `Tenant — Stores` · `Tenant — Config` · `Tenant — Integration` · `Tenant — Offer book rules` · `Tenant — Pricing (apply & schedule)` · `Tenant — Pricing (sugestões & regras)`
 
-Pending plans that will add requests:
-
-- **Plan 07** — extended health/observability endpoints (readiness, metrics) if applicable
+Per-endpoint documentation (auth, roles, modules, bodies, errors, recipes — including "scrape a single competitor"): [`../docs/api-reference.md`](../docs/api-reference.md). Guided run of the admin/pipeline core: [`WALKTHROUGH.md`](./WALKTHROUGH.md).
