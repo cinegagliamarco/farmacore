@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { LessThan, Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import * as crypto from 'node:crypto';
 import { UserEntity } from '../database/entities/core/user.entity';
 import { UserRole } from '../database/enums/user-role.enum';
@@ -15,6 +15,17 @@ import { JwtPayload } from './jwt-payload.type';
 
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 14;
+// Reuse of a just-rotated refresh token within this window is a benign
+// multi-tab race (tabs share localStorage); late reuse is treated as theft.
+// ONLY rotation gets the grace: logout and family revocation backdate
+// revokedAt by GRACE_MS so an administratively revoked token can never
+// ride the window back into a session.
+const GRACE_MS = 60_000;
+// Static argon2id hash of a random string (never a real password). Verified
+// when the tenant/user lookup fails so a miss costs the same ~100ms as a
+// wrong password — no user-enumeration timing oracle.
+const DUMMY_PASSWORD_HASH =
+  '$argon2id$v=19$m=65536,t=3,p=4$emFoifpTW+pPSKKpEXxWqw$10xBZf7w3NUYgtqkBmo5CSolTR6qeXOlygCVzYUe8EU';
 
 @Injectable()
 export class AuthService {
@@ -30,17 +41,19 @@ export class AuthService {
   ) {}
 
   public async login(dto: LoginDto): Promise<LoginResponseDto> {
-    const tenant = await this.tenants.findOne({
-      where: { slug: dto.tenantSlug },
-    });
-    if (!tenant || tenant.status === TenantStatus.SUSPENDED) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const user = await this.users.findOne({
-      where: { tenantId: dto.tenantSlug, email: dto.email },
-    });
-    if (!user || user.status !== 'active') {
+    const [tenant, user] = await Promise.all([
+      this.tenants.findOne({ where: { slug: dto.tenantSlug } }),
+      this.users.findOne({
+        where: { tenantId: dto.tenantSlug, email: dto.email },
+      }),
+    ]);
+    if (
+      !tenant ||
+      tenant.status === TenantStatus.SUSPENDED ||
+      !user ||
+      user.status !== 'active'
+    ) {
+      await this.passwords.verify(DUMMY_PASSWORD_HASH, dto.password);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -55,7 +68,15 @@ export class AuthService {
     const row = await this.refreshTokens.findOne({
       where: { tokenHash: hash },
     });
-    if (!row || row.revokedAt || row.expiresAt < new Date()) {
+    if (!row) throw new UnauthorizedException('Invalid refresh token');
+    // Reuse detection runs before the expiry check so presenting a stale
+    // stolen token still nukes the family.
+    if (row.revokedAt && Date.now() - row.revokedAt.getTime() >= GRACE_MS) {
+      // Reuse long after rotation = stolen token: revoke the whole family.
+      await this.revokeAllForUser(row.userId);
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    if (row.expiresAt < new Date()) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
@@ -73,20 +94,29 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    row.revokedAt = new Date();
-    await this.refreshTokens.save(row);
+    if (!row.revokedAt) {
+      // Atomic rotation: only one concurrent refresh flips revoked_at. Losing
+      // the race (affected 0) is the same benign in-grace reuse handled above,
+      // so the loser still gets a fresh pair.
+      await this.refreshTokens.update(
+        { tokenHash: hash, revokedAt: IsNull() },
+        { revokedAt: new Date() },
+      );
+    }
     return this.issueTokens(user.id, user.tenantId, user.role);
   }
 
   public async logout(userId: string): Promise<void> {
+    await this.revokeAllForUser(userId);
+  }
+
+  /** Administrative revocation (logout / theft response): backdated past
+   *  GRACE_MS so the revoked tokens land outside the rotation-reuse grace
+   *  window and can never mint a new session. */
+  private async revokeAllForUser(userId: string): Promise<void> {
     await this.refreshTokens.update(
-      {
-        userId,
-        expiresAt: LessThan(
-          new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000),
-        ),
-      },
-      { revokedAt: new Date() },
+      { userId, revokedAt: IsNull() },
+      { revokedAt: new Date(Date.now() - GRACE_MS) },
     );
   }
 

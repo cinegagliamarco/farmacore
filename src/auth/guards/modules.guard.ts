@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { REQUIRED_MODULES_KEY } from '../decorators/require-module.decorator';
 import type { TenantEntity } from '../../database/entities/core/tenant.entity';
+import { TenantStatus } from '../../database/enums/tenant-status.enum';
 import type { ModuleCode } from '../../database/enums/module-code.enum';
 import type { JwtPayload } from '../jwt-payload.type';
 import { TenantService } from '../../tenant/tenant.service';
@@ -42,6 +43,9 @@ export class ModulesGuard implements CanActivate {
         throw new ForbiddenException('Tenant offboarded');
       throw e;
     }
+    // Access tokens outlive a suspension by up to 1h; gate them here too.
+    if (tenant.status !== TenantStatus.ACTIVE)
+      throw new ForbiddenException('Tenant not active');
     if (!required.some((m) => tenant.modules.includes(m)))
       throw new ForbiddenException(
         `Module not enabled for tenant: ${required.join(' or ')}`,
