@@ -35,25 +35,13 @@ API node only (`WORKER_MODE !== '1'` guard).
 
 **Manual** (admin endpoint, plan 06):
 ```
-POST /admin/tenants/:slug/pipeline:start
+POST /admin/tenants/:slug/pipeline/start
 ```
 Returns `{ pipelineRunId }`.
 
-**Manual** (REPL, when admin endpoint isn't available):
+**Manual** (script, when the admin endpoint isn't available):
 ```bash
-cat <<'EOF' > /tmp/trigger.ts
-import 'dotenv/config';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './src/app.module';
-import { PipelinePublisher } from './src/queue/pipeline-publisher.service';
-(async () => {
-  const app = await NestFactory.createApplicationContext(AppModule);
-  const runId = await app.get(PipelinePublisher).publishStart('acme', { reason: 'manual' });
-  console.log('runId =', runId);
-  await app.close();
-})();
-EOF
-ts-node /tmp/trigger.ts
+npx ts-node scripts/trigger-pipeline.ts <slug>   # publishes pipeline.start, prints runId
 ```
 
 ## "Is the run done?" — single query

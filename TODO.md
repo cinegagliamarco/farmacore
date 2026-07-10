@@ -8,7 +8,7 @@ Items consciously deferred while building the tenant presentation API (Plan 10).
 - [ ] **Customer product images** — legacy `base_product_image`. Not modelled (shared_catalog only has *competitor* images). Add `tenant.product_image` if the UI needs the customer's own images.
 - [ ] **`GET /offer-books/info`** — not ported; response shape undefined in the legacy controller. Revisit if the FE needs offer-book summary info. (Offer write-back `POST`/`DELETE /products/:ean/offer` is done — caderno id stored as `offer_book.external_id`.)
 - [ ] **Offer-book rule engine** — the whole `/offer-book-rules` surface (rules, pricing-rules, price-locks, execution-reports + async execution) is **Plan 11** (net-new tables; large). Not part of Plan 10.
-- [ ] **Scheduling executor** — `core.scheduling` exists but has no executor. `/scheduling` deferred until a cron applies the actions.
+- [ ] **Legacy `/scheduling` surface** — not ported. `core.scheduling` was dropped (dead code, #52); price scheduling now lives in `pricing_schedule` + `PricingScheduleCron` (`/pricing/schedules`). Revisit only if the FE needs the legacy generic-action shape.
 
 ## Deferred from code review (2026-07-10)
 - [ ] **Purge de `core.refresh_token`** — a tabela só cresce (todo login/refresh insere; logout apenas revoga). Um job periódico deletando linhas com `expires_at < now()` mantém a tabela e o índice `UQ_REFRESH_TOKEN_HASH` pequenos.

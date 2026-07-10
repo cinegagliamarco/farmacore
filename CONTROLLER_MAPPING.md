@@ -152,7 +152,7 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 |---|---|---|
 | `GET /offer-book-rules` | — | ❌ |
 | `POST /offer-book-rules` | — | ❌ |
-| `POST /offer-book-rules/preview` | — | ❌ |
+| `POST /offer-book-rules/preview` | `POST /offer-book-rules/preview` (tenant) | ✅ |
 | `POST /offer-book-rules/preview-download` | — | ❌ |
 | `GET /offer-book-rules/execution-reports` | — | ❌ |
 | `GET /offer-book-rules/execution-reports/:id` | — | ❌ |

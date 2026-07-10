@@ -232,17 +232,20 @@ docker exec -i farmacore-postgres-1 psql -U app -d app -c "
 "
 ```
 
-Expected on a successful run: 8 step rows + 2 `branch.*` rows, all `completed`.
+Expected on a successful run: every step row `completed` (dispatch rows plus their per-batch rows for batched steps), including the 2 `branch.*` join rows.
 
 ### 5.7 Inspect / replay the DLQ
 
 ```bash
+# Discover the real queue names (batched steps have .dispatch/.batch queues)
+curl -sS "http://localhost:3000/admin/dlq" -H "Authorization: Bearer $TOKEN" | jq
+
 # Peek (doesn't consume)
-curl -sS "http://localhost:3000/admin/dlq/sync-base-product?limit=10" \
+curl -sS "http://localhost:3000/admin/dlq/sync-base-product.batch?limit=10" \
   -H "Authorization: Bearer $TOKEN" | jq
 
 # Replay everything in the DLQ back to the main exchange
-curl -sS -X POST "http://localhost:3000/admin/dlq/sync-base-product/replay?max=100" \
+curl -sS -X POST "http://localhost:3000/admin/dlq/sync-base-product.batch/replay?max=100" \
   -H "Authorization: Bearer $TOKEN"
 # → { "replayed": N }
 ```
