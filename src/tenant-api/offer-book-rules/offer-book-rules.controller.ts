@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   ParseUUIDPipe,
@@ -19,9 +21,19 @@ import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import { CreateOfferBookRuleDto } from './dto/create-offer-book-rule.dto';
 import {
+  ListReportsQueryDto,
+  PaginationQueryDto,
+  ReportItemsQueryDto,
+} from './dto/execution-reports-query.dto';
+import {
   PaginatedPreviewResult,
   PreviewOfferBookRulesDto,
 } from './dto/preview-offer-book-rules.dto';
+import {
+  ExecutionReportDetail,
+  OfferBookRulesExecutionService,
+  PaginatedReports,
+} from './offer-book-rules-execution.service';
 import {
   OfferBookRuleDetail,
   OfferBookRulesService,
@@ -31,7 +43,10 @@ import {
 @Controller('offer-book-rules')
 @RequireModule(ModuleCode.OFFER_BOOK_RULES)
 export class OfferBookRulesController {
-  constructor(private readonly rules: OfferBookRulesService) {}
+  constructor(
+    private readonly rules: OfferBookRulesService,
+    private readonly execution: OfferBookRulesExecutionService,
+  ) {}
 
   /**
    * Computes the price each selected product would get under the given rules
@@ -66,6 +81,52 @@ export class OfferBookRulesController {
     @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
   ): Promise<PaginatedOfferBookRules> {
     return this.rules.list(em, page, pageSize);
+  }
+
+  /**
+   * Dispara a execução da regra: congela os preços computados como items
+   * `pending` do report e enfileira o push à A7 (worker). 202 + reportId.
+   */
+  @Post(':id/execute')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  public execute(
+    @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ reportId: string }> {
+    return this.execution.execute(em, user.tenantId, id);
+  }
+
+  // Rotas literais de execution-reports declaradas ANTES de :id — senão o
+  // Nest casa "execution-reports" como :id e o ParseUUIDPipe devolve 400.
+  @Get('execution-reports')
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  public listReports(
+    @TenantEm() em: EntityManager,
+    @Query() query: ListReportsQueryDto,
+  ): Promise<PaginatedReports> {
+    return this.execution.listAll(em, query);
+  }
+
+  @Get('execution-reports/:reportId')
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  public getReport(
+    @TenantEm() em: EntityManager,
+    @Param('reportId', ParseUUIDPipe) reportId: string,
+    @Query() query: ReportItemsQueryDto,
+  ): Promise<ExecutionReportDetail> {
+    return this.execution.getReport(em, reportId, query);
+  }
+
+  @Get(':id/execution-reports')
+  @Roles(UserRole.OPERATOR, UserRole.ADMIN)
+  public listRuleReports(
+    @TenantEm() em: EntityManager,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: PaginationQueryDto,
+  ): Promise<PaginatedReports> {
+    return this.execution.listByRule(em, id, query);
   }
 
   @Get(':id')

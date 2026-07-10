@@ -16,6 +16,7 @@ import { ImportCompetitorProductsStep } from './steps/import-competitor-products
 import { CalcBaseProductMetricsStep } from './steps/calc-base-product-metrics.step';
 import { UpdateBaseProductPropertiesStep } from './steps/update-base-product-properties.step';
 import { ApplyPriceStep } from './steps/apply-price.step';
+import { ExecuteOfferBookRuleStep } from './steps/execute-offer-book-rule.step';
 import { SyncStoresStep } from './steps/sync-stores.step';
 import { SyncProductItemsStep } from './steps/sync-product-items.step';
 import { CatalogMutationService } from '../tenant-api/catalog/catalog-mutation.service';
@@ -44,6 +45,7 @@ import { CalcBaseProductMetricsDispatchConsumer } from './consumers/calc-base-pr
 import { CalcBaseProductMetricsBatchConsumer } from './consumers/calc-base-product-metrics.batch.consumer';
 import { UpdateBaseProductPropertiesDispatchConsumer } from './consumers/update-base-product-properties.dispatch.consumer';
 import { UpdateBaseProductPropertiesBatchConsumer } from './consumers/update-base-product-properties.batch.consumer';
+import { ExecuteOfferBookRuleConsumer } from './consumers/execute-offer-book-rule.consumer';
 import { MigrateTenantConsumer } from './consumers/migrate-tenant.consumer';
 import { SyncStoresConsumer } from './consumers/sync-stores.consumer';
 import { SyncProductItemsDispatchConsumer } from './consumers/sync-product-items.dispatch.consumer';
@@ -61,6 +63,8 @@ const STEPS = [
   // apply em massa reusa o write-back por-EAN do ERP (deps globais).
   ApplyPriceStep,
   CatalogMutationService,
+  // execução de regra de oferta: push em lote à A7 dirigido pelo ledger.
+  ExecuteOfferBookRuleStep,
   SyncStoresStep,
   SyncProductItemsStep,
 ];
@@ -89,6 +93,7 @@ const CONSUMERS = [
   MigrateTenantConsumer,
   ApplyPriceDispatchConsumer,
   ApplyPriceBatchConsumer,
+  ExecuteOfferBookRuleConsumer,
   SyncStoresConsumer,
   SyncProductItemsDispatchConsumer,
   SyncProductItemsBatchConsumer,
