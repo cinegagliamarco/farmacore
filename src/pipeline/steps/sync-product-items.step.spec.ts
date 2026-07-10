@@ -8,8 +8,12 @@ import { ProductItemEntity } from '../../database/entities/tenant/product-item.e
 
 interface ErpData {
   produtoIdByEmbalagem: Array<{ id: number; produtoid: number }>;
-  prices: Array<{ embalagemid: number; precovenda: number }>;
-  costs: Array<{ produtoid: number; custo: number | null; customedio: number }>;
+  /** Como o driver entrega: colunas bigint (embalagemid/produtoid) são
+   *  STRING nas entities — o tipo `number` delas mente. Mockar como number
+   *  esconderia o mismatch de chave de Map que zerou custo/preço por loja
+   *  em produção (2026-07-10). */
+  prices: Array<{ embalagemid: string; precovenda: number }>;
+  costs: Array<{ produtoid: string; custo: number | null; customedio: number }>;
   /** Linhas cruas da query findStoreOffers (vencedor por embalagem × loja). */
   storeOffers: Array<Record<string, unknown>>;
 }
@@ -137,8 +141,8 @@ describe('SyncProductItemsStep.run', () => {
       ],
       // p1 (embalagem 10) has a per-store price; p2 has none (stays NULL —
       // reads COALESCE to the live global product.price).
-      prices: [{ embalagemid: 10, precovenda: 9.5 }],
-      costs: [{ produtoid: 100, custo: 3.87, customedio: 4 }],
+      prices: [{ embalagemid: '10', precovenda: 9.5 }],
+      costs: [{ produtoid: '100', custo: 3.87, customedio: 4 }],
       // p1 belongs to caderno 77 at this store, undercutting the shelf price.
       storeOffers: [
         {
@@ -183,7 +187,7 @@ describe('SyncProductItemsStep.run', () => {
     const em = buildEm([{ id: 'p1', externalId: '10' }], captured);
     const ds = buildIntegrationDs({
       produtoIdByEmbalagem: [{ id: 10, produtoid: 100 }],
-      prices: [{ embalagemid: 10, precovenda: 9.5 }],
+      prices: [{ embalagemid: '10', precovenda: 9.5 }],
       costs: [],
       storeOffers: [
         {
@@ -212,7 +216,7 @@ describe('SyncProductItemsStep.run', () => {
     const em = buildEm([{ id: 'p1', externalId: '10' }], captured);
     const ds = buildIntegrationDs({
       produtoIdByEmbalagem: [{ id: 10, produtoid: 100 }],
-      prices: [{ embalagemid: 10, precovenda: 9.5 }],
+      prices: [{ embalagemid: '10', precovenda: 9.5 }],
       costs: [],
       storeOffers: [
         {
