@@ -27,7 +27,7 @@ farmácia (tenant) tem seu próprio schema no Postgres e conecta seu ERP
 # 1. Autentique (rota pública)
 curl -X POST {{baseUrl}}/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{ "email": "admin@minhafarmacia.com.br", "password": "...", "tenantSlug": "minhafarmacia" }'
+  -d '{ "email": "<admin-email>", "password": "...", "tenantSlug": "minhafarmacia" }'
 # → { "accessToken": "...", "refreshToken": "...", "expiresIn": 3600 }
 
 # 2. Use o accessToken em TODAS as outras chamadas
@@ -89,7 +89,7 @@ preço/custo daquela loja sobre os valores globais; sem o param, visão global.
 - **Paginação**: listas grandes retornam `{ rows, count, page, perPage }`.
   Defaults `page=1`, `perPage=50` — exceto as leituras de `/pricing/apply`,
   onde `perPage` default é 100 (caps variam por rota; indicados abaixo).
-- **EAN é string** de dígitos (até 14): `"7894916508353"`, nunca número.
+- **EAN é string** de dígitos (até 14): `"<ean>"`, nunca número.
 - **Datas** em ISO 8601 UTC: `"2026-07-15T03:00:00.000Z"`.
 - **Erros**: `400` validação, `401` sem/token inválido, `403` papel ou módulo
   insuficiente, `404` não existe (ou não é seu), `409` conflito de estado,
@@ -150,7 +150,7 @@ Autentica `email` + `password` **dentro de um tenant** (`tenantSlug`). Rota
 pública. Responde `200`.
 
 ```json
-{ "email": "admin@minhafarmacia.com.br", "password": "...", "tenantSlug": "minhafarmacia" }
+{ "email": "<admin-email>", "password": "...", "tenantSlug": "minhafarmacia" }
 ```
 
 Resposta: `{ accessToken, refreshToken, expiresIn: 3600 }`.
@@ -218,7 +218,7 @@ Onboarding completo de uma farmácia em uma chamada:
 4. cria o usuário admin inicial com senha aleatória de uso único.
 
 ```json
-{ "slug": "farmacia-central", "name": "Farmácia Central Ltda", "adminEmail": "admin@farmaciacentral.com.br" }
+{ "slug": "farmacia-central", "name": "Farmácia Central Ltda", "adminEmail": "<admin-email>" }
 ```
 
 Resposta: `{ slug, schemaName, initialAdminUser: { email, oneTimePassword } }`.
@@ -434,7 +434,7 @@ Scrape **ao vivo** das 9 origens para um EAN, persiste em
 retorna a visão cruzada:
 
 ```json
-{ "ean": "7894916508353",
+{ "ean": "<ean>",
   "baseProduct": { "ean": "…", "description": "…", "activeIngredient": "…", "generic": true, "weight": "0.035", "height": "2.5", "length": "10.2", "width": "6.8" },
   "origins": [{ "origin": "DROGASIL", "found": true, "name": "…", "price": "12.9" }] }
 ```
@@ -793,7 +793,7 @@ selecionado **teria** sob as regras + travas enviadas, sem persistir nada.
 {
   "calculationBaseType": "COMPETITIVE_PRICE",
   "priceBaseSources": ["OWN_PRICE", "DROGASIL", "PAGUE_MENOS"],
-  "eans": ["7894916508353", "7896004704265"],
+  "eans": ["<ean-1>", "<ean-2>"],
   "pricingRules": [
     { "classifications": [], "priceRangeMin": 10, "priceRangeMax": 49.9,
       "marginRangeMin": 20, "marginRangeMax": 60,
@@ -839,7 +839,7 @@ aqui, só se aplica regra a ele). O body reaproveita o shape do preview
   "offerBookInfoId": 118,
   "calculationBaseType": "COMPETITIVE_PRICE",
   "priceBaseSources": ["OWN_PRICE", "DROGASIL"],
-  "eans": ["7894916508353"],
+  "eans": ["<ean>"],
   "pricingRules": [ … ],
   "priceLocks": [ … ],
   "scheduleEnabled": true,
@@ -911,8 +911,8 @@ Conceitos antes dos endpoints:
   "idempotencyKey": "apply-2026-07-10-loja-centro-001",
   "mode": "agora",
   "items": [
-    { "ean": "7894916508353", "target": "precoVenda", "storeId": "<uuid>", "price": 29.9 },
-    { "ean": "7890987654321", "target": "precoOferta", "price": 19.9, "cadernoId": 118 }
+    { "ean": "<ean-1>", "target": "precoVenda", "storeId": "<uuid>", "price": 29.9 },
+    { "ean": "<ean-2>", "target": "precoOferta", "price": 19.9, "cadernoId": 118 }
   ]
 }
 ```
@@ -968,7 +968,7 @@ O mesmo apply, adiado: em `runAt` o `PricingScheduleCron` dispara o lote.
 ```json
 {
   "runAt": "2026-07-15T03:00:00.000Z",
-  "items": [ { "ean": "7894916508353", "target": "precoVenda", "storeId": "<uuid>", "price": 29.9 } ],
+  "items": [ { "ean": "<ean>", "target": "precoVenda", "storeId": "<uuid>", "price": 29.9 } ],
   "cronExpr": "0 3 * * 1",
   "recalc": false
 }

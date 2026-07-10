@@ -20,7 +20,7 @@ For each plan that touches `*.controller.ts`:
 | `step`             | `sync-base-product`         | Pipeline step for `/admin/tenants/:slug/pipeline/steps/:step`.  |
 | `accessToken`      | (set by login/refresh)      | JWT bearer; auto-populated by the login test.                   |
 | `refreshToken`     | (set by login/refresh)      | Refresh token; auto-populated by the login test.                |
-| `ean`              | `7894916508353`             | Product EAN for `/products/:ean*` and `/admin/catalog/*` routes.|
+| `ean`              | `EXAMPLE_EAN`                | Replace with a product EAN for `/products/:ean*` and `/admin/catalog/*` routes.|
 | `queue`            | `sync-base-product.batch`   | Queue name for `/admin/dlq/:queue*` routes.                     |
 | `storeId`          | (paste from `GET /products/stores`) | Store **uuid** — goes in bodies (price writes, suggestion rules). |
 | `storeExternalId`  | `3`                         | Store **ERP id** — goes in `?store=` query params of the grids. |
