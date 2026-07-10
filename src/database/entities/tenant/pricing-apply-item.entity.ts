@@ -26,6 +26,10 @@ export class PricingApplyItemEntity extends BaseEntity {
   @Column({ type: 'text' })
   public target!: ApplyTarget;
 
+  // Loja alvo (core.tenant_store). NULL = aplicação global legada.
+  @Column({ name: 'store_id', type: 'uuid', nullable: true })
+  public storeId!: string | null;
+
   @Column({ type: 'numeric', precision: 12, scale: 2 })
   public price!: string;
 

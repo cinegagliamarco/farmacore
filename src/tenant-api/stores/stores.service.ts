@@ -86,18 +86,18 @@ export class StoresService {
     if (!updated.length) throw new NotFoundException(`store ${id} not found`);
     // Re-activation invalidates the store's frozen product_item rows: the
     // sync only maintains ACTIVE stores, so whatever is there predates the
-    // deactivation. Null price/cost — reads fall back to the live globals
-    // until the next sync repopulates the store. (product_item resolves via
-    // the tenant search_path of the request em.) Known bounded races: against
-    // a running nightly sync batch this full-store clear can deadlock (the
-    // loser retries; data converges either way), and it can null a manual
-    // price mirrored seconds earlier (ERP keeps it; next sync re-fills).
+    // deactivation. DELETE (not null-out) — reads fall back to the live
+    // globals until the next sync repopulates the store, and the per-store
+    // campaign guard in apply-price falls back to the conservative GLOBAL
+    // check (a kept-but-nulled row would read as "known store, no caderno"
+    // and let sell-price writes bypass promo protection during the window).
+    // (product_item resolves via the tenant search_path of the request em.)
+    // Known bounded races: against a running nightly sync batch this
+    // full-store clear can deadlock (the loser retries; data converges either
+    // way), and it can drop a manual price mirrored seconds earlier (ERP
+    // keeps it; next sync re-fills).
     if (dto.active === true && !updated[0].wasActive) {
-      await em.query(
-        `UPDATE product_item SET price = NULL, cost = NULL, updated_at = now()
-          WHERE store_id = $1`,
-        [id],
-      );
+      await em.query(`DELETE FROM product_item WHERE store_id = $1`, [id]);
     }
     const stores = await this.listStores(em, slug);
     return stores.find((s) => s.id === id)!;

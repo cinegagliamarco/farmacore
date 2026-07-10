@@ -26,6 +26,9 @@ import {
  * Sugestão de preços — produtos do tenant com o preço sugerido calculado pelo
  * motor sobre as regras ativas. Tenant-scoped; precisa do slug (origens de
  * concorrente e arredondamento vivem em core, keyed by tenant_id).
+ * `?store=` (id externo) escopa tudo à loja — preços/oferta da loja e só as
+ * regras participantes dela; vale também para o preview (uma regra com
+ * storeIds só aparece no preview da loja participante).
  */
 @Controller('pricing/suggestions')
 @RequireModule(ModuleCode.PRICING_RULES)

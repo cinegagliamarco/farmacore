@@ -1,12 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
+import { resolveTenantId } from '../../tenant/tenant-lookup';
 import type { ClassificationIndex } from '../classification/classification-index';
 import { ClassificationsService } from '../config/classifications.service';
 import { PriceRoundingService } from '../config/price-rounding.service';
 import { ClustersService } from './clusters.service';
 import { CompetitorOriginsService } from './competitor-origins.service';
-import { applyCascadePriority, originPriorities } from './pricing-rules.util';
+import {
+  applyCascadePriority,
+  originPriorities,
+  ruleParticipates,
+} from './pricing-rules.util';
 import { ListSuggestionsQueryDto } from './dto/list-suggestions.query';
 import {
   computeSuggestion,
@@ -60,6 +65,11 @@ interface ResponseRow {
   origem: ClusterOrigin | null;
 }
 
+export type SuggestedPriceMap = Map<
+  string,
+  { target: SuggestionTarget; price: number }
+>;
+
 export interface SuggestionsResponse {
   rows: ResponseRow[];
   count: number;
@@ -83,6 +93,12 @@ const money = (v: unknown): number => num(v) ?? 0;
  * do ERP, faz o join direto no banco (modelo do `catalog.crossed()`), generalizado
  * para as origens habilitadas do tenant. Carrega tudo, calcula em memória e filtra/
  * pagina — `availableBooks` e contagens são sobre o conjunto inteiro (pré-paginação).
+ *
+ * Multiloja: com `?store=` (id externo, loja ATIVA — senão 400), preço/custo/
+ * oferta/caderno vêm do `product_item` da loja (fallback aos globais quando a
+ * loja ainda não tem linha) e só participam regras com a loja em `storeIds`
+ * (vazio = todas). Sem `?store=`, visão base: globais + regras sem escopo de
+ * loja — uma regra escopada nunca precifica a visão base.
  */
 @Injectable()
 export class PricingSuggestionsService {
@@ -123,12 +139,14 @@ export class PricingSuggestionsService {
       .map((b) => b.trim())
       .filter(Boolean);
 
+    const storeUuid = await this.storeUuid(em, slug, q.store);
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const allRows = await this.loadProducts(
       em,
       origins,
       q.name,
       q.classification,
+      storeUuid,
     );
     const availableBooks = this.availableBooks(allRows);
     const bookSet = new Set(books);
@@ -136,7 +154,7 @@ export class PricingSuggestionsService {
       ? allRows.filter((p) => bookSet.has((p.book ?? '').trim()))
       : allRows;
 
-    const ctx = await this.ruleContext(em, slug, overrideRules);
+    const ctx = await this.ruleContext(em, slug, overrideRules, storeUuid);
     const computed = productRows.map((p) => this.computeRow(p, ctx));
 
     let filtered = computed;
@@ -181,19 +199,31 @@ export class PricingSuggestionsService {
   }
 
   /**
-   * Sugestão por EAN para TODO o catálogo, em UMA passada (load + compute uma
-   * vez). Usado pelo recálculo do agendamento — evita reescanear o catálogo por
-   * página como faria paginar `suggestions()`. Carrega o `target` ESCOLHIDO pelo
-   * motor (venda vs oferta), não o do item agendado.
+   * Sugestão por EAN em UMA passada (load + compute uma vez). Usado pelo
+   * recálculo do agendamento — evita reescanear o catálogo por página como
+   * faria paginar `suggestions()`. Carrega o `target` ESCOLHIDO pelo motor
+   * (venda vs oferta), não o do item agendado. Com `storeUuid`, computa sobre
+   * os preços da loja e só com as regras participantes dela. `eans` limita a
+   * varredura aos produtos pedidos (o cron paga um passe POR LOJA — sem o
+   * filtro seria catálogo inteiro × lojas a cada disparo).
    */
   public async priceMap(
     em: EntityManager,
     slug: string,
-  ): Promise<Map<string, { target: SuggestionTarget; price: number }>> {
+    storeUuid: string | null,
+    eans?: string[],
+  ): Promise<SuggestedPriceMap> {
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
-    const allRows = await this.loadProducts(em, origins);
-    const ctx = await this.ruleContext(em, slug);
-    const map = new Map<string, { target: SuggestionTarget; price: number }>();
+    const allRows = await this.loadProducts(
+      em,
+      origins,
+      undefined,
+      undefined,
+      storeUuid,
+      eans,
+    );
+    const ctx = await this.ruleContext(em, slug, undefined, storeUuid);
+    const map: SuggestedPriceMap = new Map();
     for (const product of allRows) {
       const { result } = this.computeRow(product, ctx);
       if (result.kind === 'suggestion') {
@@ -207,11 +237,14 @@ export class PricingSuggestionsService {
   }
 
   /** Regras ativas (reordenadas por priority se houver cascadeByPriority) +
-   *  membership de cluster + faixas de arredondamento — o contexto do cálculo. */
+   *  membership de cluster + faixas de arredondamento — o contexto do cálculo.
+   *  Com loja: participa a regra sem escopo ou que lista a loja; sem loja:
+   *  só regras sem escopo (a visão base não aplica regra de loja). */
   private async ruleContext(
     em: EntityManager,
     slug: string,
     overrideRules?: SuggestionRuleApi[],
+    storeUuid?: string | null,
   ): Promise<{
     activeRules: SuggestionRuleApi[];
     clusterRules: SuggestionRuleApi[];
@@ -221,7 +254,7 @@ export class PricingSuggestionsService {
     classificationIndex: ClassificationIndex;
   }> {
     let activeRules = (overrideRules ?? (await this.rules.list(em))).filter(
-      (r) => r.active,
+      (r) => r.active && ruleParticipates(r, storeUuid ?? null),
     );
     if (
       activeRules.some(
@@ -300,17 +333,50 @@ export class PricingSuggestionsService {
     );
   }
 
+  /** Resolve o id externo (`?store=`) para o uuid da loja ATIVA. Sugestão com
+   *  loja desconhecida/inativa é 400 — diferente das grades do catalog (que
+   *  caem no global): aqui o resultado alimenta o apply por loja, e computar
+   *  globais achando que são da loja é risco de dinheiro. */
+  private async storeUuid(
+    em: EntityManager,
+    slug: string,
+    store?: string,
+  ): Promise<string | null> {
+    if (!store) return null;
+    if (!/^\d{1,18}$/.test(store)) {
+      throw new BadRequestException('store must be a numeric store id');
+    }
+    const tenantId = await resolveTenantId(em, slug);
+    const rows: Array<{ id: string }> = await em.query(
+      `SELECT id FROM core.tenant_store
+        WHERE tenant_id = $1 AND external_id = $2::bigint
+          AND active = true AND deleted_at IS NULL`,
+      [tenantId, store],
+    );
+    if (!rows.length) {
+      throw new BadRequestException(`store ${store} unknown or inactive`);
+    }
+    return rows[0].id;
+  }
+
   /**
    * Catálogo do tenant cruzado com o preço/metadata de cada origem habilitada.
    * Modelo do `catalog.crossed()`, mas com um LEFT JOIN dinâmico por origem
    * (os valores vêm do enum CompetitorOrigin — seguro interpolar). Descarta
    * produto "só do concorrente" (custo, venda e oferta todos zerados).
+   *
+   * Com `storeUuid`, preço/custo vêm do product_item da loja (fallback global
+   * quando a loja não tem linha); a oferta e o caderno são OS DA LOJA — linha
+   * presente com oferta NULL significa "sem oferta nesta loja", sem cair no
+   * global. A margem é recalculada sobre os efetivos (mesma fórmula do catalog).
    */
   private async loadProducts(
     em: EntityManager,
     origins: CompetitorOrigin[],
     name?: string,
     classification?: string,
+    storeUuid?: string | null,
+    eans?: string[],
   ): Promise<ResponseProduct[]> {
     const joins: string[] = [];
     const selects: string[] = [];
@@ -326,12 +392,37 @@ export class PricingSuggestionsService {
       );
     });
 
+    const params: unknown[] = [];
+    let piJoin = '';
+    let cost = 'p.cost';
+    let price = 'p.price';
+    let offer = 'ob.target_price';
+    let book = 'ob.description';
+    let margin = 'p.margin';
+    if (storeUuid) {
+      params.push(storeUuid);
+      piJoin = `LEFT JOIN product_item pi ON pi.product_id = p.id AND pi.store_id = $${params.length}::uuid`;
+      cost = 'COALESCE(pi.cost, p.cost)';
+      price = 'COALESCE(pi.price, p.price)';
+      offer =
+        'CASE WHEN pi.id IS NULL THEN ob.target_price ELSE pi.price_offer END';
+      book =
+        'CASE WHEN pi.id IS NULL THEN ob.description ELSE pi.offer_description END';
+      const base = `COALESCE(NULLIF(${offer}, 0), ${price})`;
+      margin = `CASE WHEN ${base} > 0
+           THEN ROUND(((${base} - COALESCE(${cost}, 0)) / ${base}) * 100, 4)
+           ELSE NULL END`;
+    }
+
     const where: string[] = [
       `p.active = true`,
       `p.deleted_at IS NULL`,
-      `(p.cost > 0 OR p.price > 0 OR ob.target_price > 0)`,
+      `(${cost} > 0 OR ${price} > 0 OR ${offer} > 0)`,
     ];
-    const params: unknown[] = [];
+    if (eans?.length) {
+      params.push(eans);
+      where.push(`p.ean = ANY($${params.length}::bigint[])`);
+    }
     if (name) {
       params.push(`%${name}%`);
       where.push(`p.name ILIKE $${params.length}`);
@@ -344,13 +435,15 @@ export class PricingSuggestionsService {
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, p.classification_id AS "classificationId",
               c.name AS classification,
-              p.cost, p.price AS "priceForSell", ob.target_price AS "priceForOffer",
-              ob.description AS book, p.margin,
+              ${cost} AS cost, ${price} AS "priceForSell",
+              ${offer} AS "priceForOffer",
+              ${book} AS book, ${margin} AS margin,
               p.average_variation AS "averageVariation", p.status
               ${selects.length ? ',' + selects.join(',') : ''}
          FROM product p
          LEFT JOIN classification c ON c.id = p.classification_id
          LEFT JOIN offer_book ob ON ob.ean = p.ean
+         ${piJoin}
          ${joins.join('\n         ')}
         WHERE ${where.join(' AND ')}
         ORDER BY p.ean`,

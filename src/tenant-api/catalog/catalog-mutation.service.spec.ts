@@ -27,6 +27,7 @@ const makeRepo = (): RepoMock => ({
 
 const makeEm = (product: RepoMock, offer: RepoMock): EntityManager =>
   ({
+    query: jest.fn().mockResolvedValue([]),
     getRepository: jest.fn((entity: unknown) =>
       entity === TenantProductEntity ? product : offer,
     ),
@@ -298,7 +299,25 @@ describe('CatalogMutationService.upsertOffer', () => {
       },
       ['ean'],
     );
+    // Espelho por loja: toda linha product_item apontando para o caderno 7.
+    expect(em.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE product_item'),
+      ['789', 8.5, 7],
+    );
     expect(out).toEqual({ ean: '789', targetPrice: 8.5, cadernoId: 7 });
+  });
+
+  it('escrita store-scoped NÃO reescreve o espelho global offer_book', async () => {
+    const { service, em, product, offer } = build();
+    product.findOne.mockResolvedValue({ externalId: '55' });
+    await service.upsertOffer(em, 't', '789', dto, true);
+    // O caderno da loja pode nem ser/cobrir a melhor oferta da rede.
+    expect(offer.upsert).not.toHaveBeenCalled();
+    // O espelho por caderno em product_item continua valendo.
+    expect(em.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE product_item'),
+      ['789', 8.5, 7],
+    );
   });
 
   it('leaves description out of the upsert when the dto omits it', async () => {
@@ -354,6 +373,11 @@ describe('CatalogMutationService.removeOffer', () => {
       { idEmbalagem: 55, precoOferta: null },
     ]);
     expect(offer.delete).toHaveBeenCalledWith({ ean: '789' });
+    // Espelho por loja: zera price_offer de toda linha apontando o caderno 7.
+    expect(em.query).toHaveBeenCalledWith(
+      expect.stringContaining('price_offer = NULL'),
+      ['789', 7],
+    );
     expect(out).toEqual({ ean: '789', deleted: true });
   });
 });

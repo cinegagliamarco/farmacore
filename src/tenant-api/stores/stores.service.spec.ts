@@ -87,7 +87,7 @@ describe('StoresService.updateStore', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it('re-activation (false → true) clears the store product_item snapshot', async () => {
+  it('re-activation (false → true) DELETEs the store product_item snapshot', async () => {
     const calls: Call[] = [];
     const em = buildEm(calls, [
       TENANT,
@@ -95,8 +95,10 @@ describe('StoresService.updateStore', () => {
       ['SELECT s.id', [{ id: 's1', active: true }]],
     ]);
     await service.updateStore(em, 'acme', 's1', { active: true });
-    const clear = calls.find((c) => c.sql.includes('UPDATE product_item'));
-    expect(clear?.sql).toContain('price = NULL, cost = NULL');
+    // DELETE (não null-out): linha mantida com campos de oferta nulos leria
+    // como "loja conhecida, sem caderno" e furaria a guarda de campanha.
+    const clear = calls.find((c) => c.sql.includes('DELETE FROM product_item'));
+    expect(clear?.sql).toContain('DELETE FROM product_item');
     expect(clear?.params).toEqual(['s1']);
   });
 
@@ -108,7 +110,7 @@ describe('StoresService.updateStore', () => {
       ['SELECT s.id', [{ id: 's1', active: true }]],
     ]);
     await service.updateStore(em, 'acme', 's1', { active: true });
-    expect(calls.some((c) => c.sql.includes('UPDATE product_item'))).toBe(
+    expect(calls.some((c) => c.sql.includes('DELETE FROM product_item'))).toBe(
       false,
     );
   });

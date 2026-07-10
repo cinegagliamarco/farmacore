@@ -8,6 +8,9 @@ import type { PricingScheduleService } from './pricing-schedule.service';
 import type { PricingSuggestionsService } from './pricing-suggestions.service';
 import { PricingScheduleCron } from './pricing-schedule.cron';
 
+// Uuid de loja ativa do tenant (o recalcMaps valida contra core.tenant_store).
+const S1 = '11111111-1111-4111-8111-111111111111';
+
 const schedule = (id: string) => ({
   id,
   runAt: new Date(),
@@ -18,7 +21,15 @@ const schedule = (id: string) => ({
 });
 
 describe('PricingScheduleCron', () => {
-  const em = {} as EntityManager;
+  let activeStoreIds: string[];
+  const em = {
+    query: jest.fn((sql: string) => {
+      if (/core\.tenant_store/.test(sql)) {
+        return Promise.resolve(activeStoreIds.map((id) => ({ id })));
+      }
+      return Promise.resolve([]);
+    }),
+  } as unknown as EntityManager;
   let schedules: {
     claimNext: jest.Mock;
     markFired: jest.Mock;
@@ -32,6 +43,7 @@ describe('PricingScheduleCron', () => {
 
   beforeEach(() => {
     delete process.env.WORKER_MODE;
+    activeStoreIds = [S1];
     schedules = {
       claimNext: jest.fn().mockResolvedValue(null),
       markFired: jest.fn(),
@@ -39,7 +51,7 @@ describe('PricingScheduleCron', () => {
       reArm: jest.fn(),
     };
     apply = { apply: jest.fn().mockResolvedValue({ applyRunId: 'run1' }) };
-    suggestions = { priceMap: jest.fn() };
+    suggestions = { priceMap: jest.fn().mockResolvedValue(new Map()) };
     const tenants = {
       listActive: jest.fn().mockResolvedValue([
         {
@@ -105,7 +117,7 @@ describe('PricingScheduleCron', () => {
     );
   });
 
-  it('computes the recalc snapshot once per tenant and swaps frozen items for fresh suggestions', async () => {
+  it('recalc roda por agendamento, ESCOPADO aos EANs, e descarta item sem sugestão', async () => {
     schedules.claimNext
       .mockResolvedValueOnce({
         ...schedule('s1'),
@@ -115,14 +127,16 @@ describe('PricingScheduleCron', () => {
           { ean: '111', target: 'precoVenda' as const, price: 5 },
         ],
       })
-      .mockResolvedValueOnce({ ...schedule('s2'), recalc: true })
       .mockResolvedValue(null);
     suggestions.priceMap.mockResolvedValue(
       new Map([['789', { target: 'precoOferta' as const, price: 12.9 }]]),
     );
     await cron.fire();
-    // The engine scans the whole catalog — once per tenant, not per schedule.
-    expect(suggestions.priceMap).toHaveBeenCalledTimes(1);
+    // Escopado aos EANs do agendamento — sem passe de catálogo inteiro.
+    expect(suggestions.priceMap).toHaveBeenCalledWith(em, 'acme', null, [
+      '789',
+      '111',
+    ]);
     // Frozen price/target replaced by the fresh suggestion; the EAN without
     // a suggestion is dropped.
     expect(apply.apply).toHaveBeenCalledWith(
@@ -130,10 +144,97 @@ describe('PricingScheduleCron', () => {
       'acme',
       'ops',
       expect.objectContaining({
-        items: [{ ean: '789', target: 'precoOferta', price: 12.9 }],
+        items: [
+          {
+            ean: '789',
+            target: 'precoOferta',
+            price: 12.9,
+            cadernoId: undefined,
+            storeId: undefined,
+          },
+        ],
       }),
     );
     expect(schedules.markFired).toHaveBeenCalledWith(em, 's1', 'run1');
+  });
+
+  it('recalc resolve o preço no mapa DA LOJA do item (caderno não congelado)', async () => {
+    schedules.claimNext
+      .mockResolvedValueOnce({
+        ...schedule('s1'),
+        recalc: true,
+        items: [
+          { ean: '111', target: 'precoVenda' as const, price: 5, storeId: S1 },
+          {
+            ean: '222',
+            target: 'precoVenda' as const,
+            price: 5,
+            cadernoId: 55,
+          },
+        ],
+      })
+      .mockResolvedValue(null);
+    suggestions.priceMap.mockImplementation(
+      (_em: EntityManager, _slug: string, store: string | null) =>
+        Promise.resolve(
+          store === S1
+            ? new Map([['111', { target: 'precoOferta', price: 11 }]])
+            : new Map([['222', { target: 'precoVenda', price: 22 }]]),
+        ),
+    );
+    await cron.fire();
+    expect(suggestions.priceMap).toHaveBeenCalledWith(em, 'acme', S1, ['111']);
+    expect(suggestions.priceMap).toHaveBeenCalledWith(em, 'acme', null, [
+      '222',
+    ]);
+    expect(apply.apply.mock.calls[0][3].items).toEqual([
+      {
+        ean: '111',
+        target: 'precoOferta',
+        price: 11,
+        // Item de loja não congela o caderno: alvo é o vencedor ATUAL da loja.
+        cadernoId: undefined,
+        storeId: S1,
+      },
+      {
+        ean: '222',
+        target: 'precoVenda',
+        price: 22,
+        cadernoId: 55, // item global mantém o caderno congelado
+        storeId: undefined,
+      },
+    ]);
+  });
+
+  it('loja com uuid malformado ou inativa não paga passe de catálogo: itens descartados', async () => {
+    activeStoreIds = []; // nenhuma loja resolve como ativa do tenant
+    schedules.claimNext
+      .mockResolvedValueOnce({
+        ...schedule('s1'),
+        recalc: true,
+        items: [
+          {
+            ean: '111',
+            target: 'precoVenda' as const,
+            price: 5,
+            storeId: 'lixo',
+          },
+          {
+            ean: '222',
+            target: 'precoVenda' as const,
+            price: 5,
+            storeId: '22222222-2222-4222-8222-222222222222',
+          },
+        ],
+      })
+      .mockResolvedValue(null);
+    await cron.fire();
+    expect(suggestions.priceMap).not.toHaveBeenCalled();
+    expect(apply.apply).not.toHaveBeenCalled(); // itens descartados → sem lote
+    expect(schedules.markFired).toHaveBeenCalledWith(em, 's1', null);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('pulou loja inválida/inativa'),
+    );
   });
 
   it('re-arms a recurring schedule (cronExpr) instead of marking it fired', async () => {

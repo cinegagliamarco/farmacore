@@ -110,6 +110,11 @@ export class CatalogMutationService {
       ]),
     );
     if (store) {
+      // Loja ainda sem linha (pré-sync): o upsert cria a linha só com price e
+      // os campos de oferta ficam NULL — a loja lê "sem oferta" (em vez do
+      // fallback global) até o sync noturno. Deliberado: materializar o
+      // caderno global aqui deixaria um apply de oferta mirar um caderno que
+      // pode nem cobrir a loja.
       await em
         .getRepository(ProductItemEntity)
         .upsert({ productId: product.id, storeId, price: String(newPrice) }, [
@@ -123,13 +128,21 @@ export class CatalogMutationService {
   }
 
   /** Upsert an offer (precoOferta) into the product's caderno on the ERP,
-   *  then mirror it in tenant.offer_book. 409 if the product lacks an ERP id
-   *  or the tenant has no A7Pharma API configured. */
+   *  then mirror it locally: the global tenant.offer_book row (unless the
+   *  write is store-scoped) and every product_item row whose winning caderno
+   *  is the one written. 409 if the product lacks an ERP id or the tenant has
+   *  no A7Pharma API configured.
+   *
+   *  `storeScoped`: a per-store apply writes into the STORE's caderno — that
+   *  caderno may not be (or cover) the tenant-wide best offer, so rewriting
+   *  offer_book with it would poison every global read/apply/campaign-guard
+   *  until the nightly sync. Only global writes maintain the global mirror. */
   public async upsertOffer(
     em: EntityManager,
     tenantSlug: string,
     ean: string,
     dto: UpsertOfferDto,
+    storeScoped = false,
   ): Promise<{ ean: string; targetPrice: number; cadernoId: number }> {
     const product = await em
       .getRepository(TenantProductEntity)
@@ -152,22 +165,40 @@ export class CatalogMutationService {
         },
       ]),
     );
-    await em.getRepository(OfferBookEntity).upsert(
-      {
-        ean,
-        targetPrice: String(dto.targetPrice),
-        externalId: String(dto.cadernoId),
-        // An omitted description keeps the stored one (bulk apply must not
-        // wipe it); the column only joins the upsert when the dto sends it.
-        ...(dto.description !== undefined && { description: dto.description }),
-      },
-      ['ean'],
+    if (!storeScoped) {
+      await em.getRepository(OfferBookEntity).upsert(
+        {
+          ean,
+          targetPrice: String(dto.targetPrice),
+          externalId: String(dto.cadernoId),
+          // An omitted description keeps the stored one (bulk apply must not
+          // wipe it); the column only joins the upsert when the dto sends it.
+          ...(dto.description !== undefined && {
+            description: dto.description,
+          }),
+        },
+        ['ean'],
+      );
+    }
+    // O caderno pode cobrir várias lojas: espelha o preço novo em toda linha
+    // product_item que o tem como caderno vencedor (price_offer só quando não
+    // excede o preço de prateleira da loja; o sync noturno reconverge).
+    await em.query(
+      `UPDATE product_item pi
+          SET price_offer = CASE WHEN $2::numeric <= COALESCE(pi.price, p.price)
+                                 THEN $2::numeric ELSE NULL END,
+              updated_at = now()
+         FROM product p
+        WHERE p.id = pi.product_id AND p.ean = $1::bigint
+          AND pi.offer_external_id = $3::bigint`,
+      [ean, dto.targetPrice, dto.cadernoId],
     );
     return { ean, targetPrice: dto.targetPrice, cadernoId: dto.cadernoId };
   }
 
   /** Remove the product's offer from its caderno on the ERP (precoOferta=null),
-   *  then drop the local offer_book row. */
+   *  then drop the local offer_book row and zero the per-store mirrors that
+   *  point at that caderno. */
   public async removeOffer(
     em: EntityManager,
     tenantSlug: string,
@@ -198,6 +229,15 @@ export class CatalogMutationService {
       ]),
     );
     await em.getRepository(OfferBookEntity).delete({ ean });
+    // Zera o espelho por loja do caderno (a membership fica; o sync reconverge).
+    await em.query(
+      `UPDATE product_item pi
+          SET price_offer = NULL, updated_at = now()
+         FROM product p
+        WHERE p.id = pi.product_id AND p.ean = $1::bigint
+          AND pi.offer_external_id = $2::bigint`,
+      [ean, Number(offer.externalId)],
+    );
     return { ean, deleted: true };
   }
 

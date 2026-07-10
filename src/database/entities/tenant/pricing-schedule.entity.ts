@@ -9,6 +9,8 @@ export interface ScheduleItem {
   target: ApplyTarget;
   price: number;
   cadernoId?: number;
+  /** Loja alvo (uuid de core.tenant_store); ausente = aplicação global. */
+  storeId?: string;
 }
 
 /**

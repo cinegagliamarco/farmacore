@@ -7,6 +7,8 @@ export interface ProductItemUpsertInput {
   price: string | null;
   priceOffer: string | null;
   cost: string | null;
+  offerExternalId: string | null;
+  offerDescription: string | null;
 }
 
 /**

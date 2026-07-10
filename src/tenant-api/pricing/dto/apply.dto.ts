@@ -8,6 +8,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Matches,
   Min,
@@ -23,6 +24,13 @@ export class ApplyItemDto {
 
   @IsIn(['precoVenda', 'precoOferta'])
   public target!: 'precoVenda' | 'precoOferta';
+
+  // Loja alvo (uuid de core.tenant_store). Ausente = aplicação global legada
+  // (muda todas as lojas). Venda escopa via idUnidadeNegocioPreco; oferta
+  // escreve no caderno DA LOJA — que pode cobrir outras (anotadas no report).
+  @IsOptional()
+  @IsUUID()
+  public storeId?: string;
 
   // Preço APROVADO pelo operador (pode ser override manual). Congelado e
   // validado contra guarda-corpos no service; nunca recalculado-e-aplicado.

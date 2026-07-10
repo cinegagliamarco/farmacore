@@ -1,13 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { EntityManager } from 'typeorm';
 import { ModuleCode } from '../../database/enums/module-code.enum';
 import { TenantService } from '../../tenant/tenant.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { ScheduleItem } from '../../database/entities/tenant/pricing-schedule.entity';
 import { ApplyItemDto } from './dto/apply.dto';
 import { PricingApplyService } from './pricing-apply.service';
-import { PricingScheduleService } from './pricing-schedule.service';
-import { PricingSuggestionsService } from './pricing-suggestions.service';
+import {
+  DueSchedule,
+  PricingScheduleService,
+} from './pricing-schedule.service';
+import {
+  PricingSuggestionsService,
+  SuggestedPriceMap,
+} from './pricing-suggestions.service';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Tags a schedule-processing error with the claimed id + run_at so the
  *  cron can park exactly the claim that failed. */
@@ -68,25 +78,15 @@ export class PricingScheduleCron {
    * and the loop moves on.
    */
   private async fireForTenant(slug: string, schemaName: string): Promise<void> {
-    // Recalc snapshot computed once per tenant (the engine scans the whole
-    // catalog), on the first schedule that needs it.
-    let suggested: Map<
-      string,
-      { target: ApplyItemDto['target']; price: number }
-    > | null = null;
     for (;;) {
       try {
         const fired = await this.tx.runWithTenant(schemaName, async (em) => {
           const s = await this.schedules.claimNext(em);
           if (!s) return false;
           try {
-            if (s.recalc && !suggested) {
-              suggested = await this.suggestions.priceMap(em, slug);
-            }
-            const items =
-              s.recalc && suggested
-                ? this.recalcItems(s.items, suggested)
-                : s.items;
+            const items = s.recalc
+              ? this.recalcItems(s.items, await this.recalcMaps(em, slug, s))
+              : s.items;
             const runId = items.length
               ? (
                   await this.apply.apply(em, slug, s.requestedBy, {
@@ -131,15 +131,65 @@ export class PricingScheduleCron {
   }
 
   /**
+   * Um mapa recalculado por loja distinta dos itens do agendamento ('' =
+   * global), escopado aos EANs agendados — sem o filtro o motor pagaria um
+   * passe de CATÁLOGO INTEIRO por loja a cada disparo. Loja com uuid
+   * malformado (jsonb manipulado) ou inativa/alheia não paga passe nenhum:
+   * fica sem mapa e os itens dela caem no descarte do recalc.
+   */
+  private async recalcMaps(
+    em: EntityManager,
+    slug: string,
+    s: DueSchedule,
+  ): Promise<Map<string, SuggestedPriceMap>> {
+    const eansByKey = new Map<string, Set<string>>();
+    for (const i of s.items) {
+      const key = i.storeId ?? '';
+      if (!eansByKey.has(key)) eansByKey.set(key, new Set());
+      eansByKey.get(key)!.add(i.ean);
+    }
+    const maps = new Map<string, SuggestedPriceMap>();
+    if (!eansByKey.size) return maps;
+
+    const uuidKeys = [...eansByKey.keys()].filter((k) => k && UUID_RE.test(k));
+    const activeRows: Array<{ id: string }> = uuidKeys.length
+      ? await em.query(
+          `SELECT s.id FROM core.tenant_store s
+             JOIN core.tenant t ON t.id = s.tenant_id AND t.slug = $2
+            WHERE s.id = ANY($1::uuid[]) AND s.active = true
+              AND s.deleted_at IS NULL`,
+          [uuidKeys, slug],
+        )
+      : [];
+    const activeIds = new Set(activeRows.map((r) => r.id));
+    for (const [key, eans] of eansByKey) {
+      if (key && !activeIds.has(key)) {
+        this.logger.warn(
+          `schedule recalc pulou loja inválida/inativa ${key} (${slug})`,
+        );
+        continue;
+      }
+      maps.set(
+        key,
+        await this.suggestions.priceMap(em, slug, key || null, [...eans]),
+      );
+    }
+    return maps;
+  }
+
+  /**
    * Troca o congelado pela sugestão fresca do motor (preço E alvo — o motor
    * decide venda vs oferta, não o item agendado); descarta item sem sugestão.
+   * Item com loja usa o mapa recalculado daquela loja e NÃO congela o caderno:
+   * o alvo de oferta é o vencedor ATUAL da loja (um caderno congelado ficaria
+   * obsoleto quando o vencedor muda — o revalidate rejeitaria o item).
    */
   private recalcItems(
     items: ScheduleItem[],
-    suggested: Map<string, { target: ApplyItemDto['target']; price: number }>,
+    suggestedByStore: Map<string, SuggestedPriceMap>,
   ): ApplyItemDto[] {
     return items.flatMap((i) => {
-      const s = suggested.get(i.ean);
+      const s = suggestedByStore.get(i.storeId ?? '')?.get(i.ean);
       return s === undefined
         ? []
         : [
@@ -147,7 +197,8 @@ export class PricingScheduleCron {
               ean: i.ean,
               target: s.target,
               price: s.price,
-              cadernoId: i.cadernoId,
+              cadernoId: i.storeId ? undefined : i.cadernoId,
+              storeId: i.storeId,
             },
           ];
     });
