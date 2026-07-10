@@ -9,9 +9,21 @@ import { PricingApplyService } from './pricing-apply.service';
 import { PricingScheduleService } from './pricing-schedule.service';
 import { PricingSuggestionsService } from './pricing-suggestions.service';
 
+/** Tags a schedule-processing error with the claimed id + run_at so the
+ *  cron can park exactly the claim that failed. */
+class ScheduleFireError extends Error {
+  constructor(
+    public readonly scheduleId: string,
+    public readonly claimedRunAt: Date,
+    err: unknown,
+  ) {
+    super(err instanceof Error ? err.message : String(err));
+  }
+}
+
 /**
  * Dispara agendamentos vencidos. Singleton na API (guarda WORKER_MODE), por
- * minuto. Por tenant, abre a transação e reusa o apply em massa. One-shot usa
+ * minuto. Uma transação POR agendamento reusando o apply em massa. One-shot usa
  * os preços CONGELADOS; `recalc` recalcula pelo motor no disparo; `cronExpr`
  * re-arma para a próxima ocorrência. `idempotencyKey` inclui o run_at: cada
  * ocorrência é única, mas o reenvio do mesmo disparo é no-op. FOR UPDATE SKIP
@@ -42,42 +54,80 @@ export class PricingScheduleCron {
         await this.fireForTenant(t.slug, t.schemaName);
       } catch (err) {
         // Tenant sem a tabela (não migrado) ou erro isolado não derruba os demais.
-        this.logger.debug(
+        this.logger.warn(
           `schedule fire skipped for ${t.slug}: ${err instanceof Error ? err.message : err}`,
         );
       }
     }
   }
 
+  /**
+   * One transaction PER schedule: an apply that throws (e.g. circuit breaker
+   * 422) must not roll back the markFired of earlier schedules nor make the
+   * cron retry the whole batch forever — the failing one is parked as 'failed'
+   * and the loop moves on.
+   */
   private async fireForTenant(slug: string, schemaName: string): Promise<void> {
-    await this.tx.runWithTenant(schemaName, async (em) => {
-      const due = await this.schedules.claimDue(em);
-      if (!due.length) return;
-      // Recalcula uma vez por tenant (motor varre o catálogo inteiro).
-      const suggested = due.some((s) => s.recalc)
-        ? await this.suggestions.priceMap(em, slug)
-        : null;
-      for (const s of due) {
-        const items =
-          s.recalc && suggested
-            ? this.recalcItems(s.items, suggested)
-            : s.items;
-        const runId = items.length
-          ? (
-              await this.apply.apply(em, slug, s.requestedBy, {
-                idempotencyKey: `sched:${s.id}:${new Date(s.runAt).toISOString()}`,
-                mode: 'agora',
-                items,
-              })
-            ).applyRunId
-          : null;
-        if (s.cronExpr) await this.schedules.reArm(em, s.id, s.cronExpr, runId);
-        else await this.schedules.markFired(em, s.id, runId);
-        this.logger.log(
-          `schedule ${s.id} fired for ${slug} → apply run ${runId ?? 'vazio'}`,
+    // Recalc snapshot computed once per tenant (the engine scans the whole
+    // catalog), on the first schedule that needs it.
+    let suggested: Map<
+      string,
+      { target: ApplyItemDto['target']; price: number }
+    > | null = null;
+    for (;;) {
+      try {
+        const fired = await this.tx.runWithTenant(schemaName, async (em) => {
+          const s = await this.schedules.claimNext(em);
+          if (!s) return false;
+          try {
+            if (s.recalc && !suggested) {
+              suggested = await this.suggestions.priceMap(em, slug);
+            }
+            const items =
+              s.recalc && suggested
+                ? this.recalcItems(s.items, suggested)
+                : s.items;
+            const runId = items.length
+              ? (
+                  await this.apply.apply(em, slug, s.requestedBy, {
+                    idempotencyKey: `sched:${s.id}:${new Date(s.runAt).toISOString()}`,
+                    mode: 'agora',
+                    items,
+                  })
+                ).applyRunId
+              : null;
+            if (s.cronExpr)
+              await this.schedules.reArm(em, s.id, s.cronExpr, runId);
+            else await this.schedules.markFired(em, s.id, runId);
+            this.logger.log(
+              `schedule ${s.id} fired for ${slug} → apply run ${runId ?? 'vazio'}`,
+            );
+          } catch (err) {
+            throw new ScheduleFireError(s.id, s.runAt, err);
+          }
+          return true;
+        });
+        if (!fired) return;
+      } catch (err) {
+        // claim/infra error — fire() logs it and moves to the next tenant
+        if (!(err instanceof ScheduleFireError)) throw err;
+        this.logger.warn(
+          `schedule ${err.scheduleId} failed for ${slug}: ${err.message}`,
         );
+        try {
+          await this.tx.runWithTenant(schemaName, (em) =>
+            this.schedules.markFailed(em, err.scheduleId, err.claimedRunAt),
+          );
+        } catch (parkErr) {
+          // Can't park it (e.g. status CHECK not yet migrated): end the tick —
+          // looping on would re-claim the same schedule forever. Next tick retries.
+          this.logger.warn(
+            `markFailed(${err.scheduleId}) failed for ${slug}: ${parkErr instanceof Error ? parkErr.message : parkErr}`,
+          );
+          return;
+        }
       }
-    });
+    }
   }
 
   /**

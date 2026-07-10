@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { execSync } from 'node:child_process';
 import * as crypto from 'node:crypto';
 import { TenantEntity } from '../../database/entities/core/tenant.entity';
 import { UserEntity } from '../../database/entities/core/user.entity';
@@ -16,16 +15,8 @@ import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { ModuleCode } from '../../database/enums/module-code.enum';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
 import { PasswordService } from '../../auth/password.service';
-
-const RESERVED = new Set([
-  'admin',
-  'api',
-  'app',
-  'meta',
-  'shared',
-  'system',
-  'www',
-]);
+import { RESERVED_SLUGS, schemaNameFor } from '../../tenant/tenant-schema';
+import { runTenantMigration } from '../../tenant/run-tenant-migration';
 
 export interface OnboardingResult {
   slug: string;
@@ -47,14 +38,14 @@ export class TenantOnboardingService {
   ) {}
 
   public async create(dto: CreateTenantDto): Promise<OnboardingResult> {
-    if (RESERVED.has(dto.slug))
+    if (RESERVED_SLUGS.has(dto.slug))
       throw new BadRequestException(`slug "${dto.slug}" is reserved`);
 
     const existing = await this.tenants.findOne({ where: { slug: dto.slug } });
     if (existing)
       throw new ConflictException(`Tenant ${dto.slug} already exists`);
 
-    const schemaName = `tenant_${dto.slug.replace(/-/g, '_')}`;
+    const schemaName = schemaNameFor(dto.slug);
 
     // Nasce com todos os módulos; restringir é ação explícita do admin
     // via PUT /admin/tenants/:slug/modules.
@@ -70,13 +61,31 @@ export class TenantOnboardingService {
       await this.dataSource.query(
         `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`,
       );
-      // Runtime-aware: prod runs from dist/ (ts-node is pruned), dev runs
-      // from src/ via ts-node. CreateTenantDto's slug regex restricts to
-      // [a-z0-9-], so this shell interpolation is safe.
-      const cmd = __dirname.includes('/dist/')
-        ? `node dist/scripts/migrate-tenant.js ${dto.slug}`
-        : `npm run migration:tenant ${dto.slug}`;
-      execSync(cmd, { stdio: 'inherit' });
+      await runTenantMigration(dto.slug);
+
+      const origins = Object.values(CompetitorOrigin);
+      await this.dataSource.query(
+        `INSERT INTO core.tenant_competitor_origin (tenant_id, origin, enabled)
+         VALUES ${origins.map((_, i) => `($1, $${i + 2}, false)`).join(', ')}
+         ON CONFLICT (tenant_id, origin) DO NOTHING`,
+        [tenant.id, ...origins],
+      );
+
+      const oneTimePassword = crypto.randomBytes(18).toString('base64url');
+      const hash = await this.passwords.hash(oneTimePassword);
+      await this.users.save({
+        tenantId: dto.slug,
+        email: dto.adminEmail,
+        passwordHash: hash,
+        role: UserRole.ADMIN,
+        status: 'active',
+      });
+
+      return {
+        slug: dto.slug,
+        schemaName,
+        initialAdminUser: { email: dto.adminEmail, oneTimePassword },
+      };
     } catch (err) {
       this.logger.error(
         `Tenant onboarding failed for ${dto.slug}: ${(err as Error).message}`,
@@ -101,30 +110,5 @@ export class TenantOnboardingService {
       }
       throw err;
     }
-
-    for (const origin of Object.values(CompetitorOrigin)) {
-      await this.dataSource.query(
-        `INSERT INTO core.tenant_competitor_origin (tenant_id, origin, enabled)
-         VALUES ($1, $2, false)
-         ON CONFLICT (tenant_id, origin) DO NOTHING`,
-        [tenant.id, origin],
-      );
-    }
-
-    const oneTimePassword = crypto.randomBytes(18).toString('base64url');
-    const hash = await this.passwords.hash(oneTimePassword);
-    await this.users.save({
-      tenantId: dto.slug,
-      email: dto.adminEmail,
-      passwordHash: hash,
-      role: UserRole.ADMIN,
-      status: 'active',
-    });
-
-    return {
-      slug: dto.slug,
-      schemaName,
-      initialAdminUser: { email: dto.adminEmail, oneTimePassword },
-    };
   }
 }

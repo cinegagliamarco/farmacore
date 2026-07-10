@@ -303,7 +303,7 @@ export class CatalogService {
     const order = this.orderBy(q, SORTABLE_EFFECTIVE);
     const { joins, selects } = buildCompetitorCrossJoins(origins);
     const observationChecks = safeOrigins(origins).map(
-      (origin, i) => `o_${i}.metadata->>'observation' IS NOT NULL`,
+      (_, i) => `o_${i}.metadata->>'observation' IS NOT NULL`,
     );
     const cond =
       observationChecks.length > 0

@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager, IsNull } from 'typeorm';
 import { ClassificationEntity } from '../../database/entities/tenant/classification.entity';
+import {
+  buildClassificationIndex,
+  type ClassificationIndex,
+} from '../classification/classification-index';
 
 interface ClassificationRow {
   id: string;
@@ -28,6 +32,11 @@ export class ClassificationsService {
       parentId: row.parentId ?? null,
       visible: row.visible,
     }));
+  }
+
+  /** Subtree index over the live rows — the pricing services' rule matcher. */
+  public async index(em: EntityManager): Promise<ClassificationIndex> {
+    return buildClassificationIndex(await this.list(em));
   }
 
   /** Nested tree up to three levels — the shape the FE category picker renders. */

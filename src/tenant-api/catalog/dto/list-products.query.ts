@@ -18,7 +18,7 @@ import {
   SortDirection,
 } from '../../../common/multi-sort';
 
-export const SORTABLE_COLUMNS = [
+const SORTABLE_COLUMNS = [
   'ean',
   'name',
   'supplier',
@@ -69,9 +69,14 @@ export class ListProductsQueryDto {
   @IsString()
   public status?: string; // comma-separated: OK,ATENÇÃO,SUSPEITA
 
+  // Comma-separated digit lists — they hit `p.ean = ANY($?::bigint[])`, so
+  // junk would crash the cast with 500 (same spirit as receiptFrom/To below).
   @IsOptional()
   @IsString()
-  public eans?: string; // comma-separated
+  @Matches(/^\d{1,18}(\s*,\s*\d{1,18})*$/, {
+    message: 'eans must be a comma-separated list of numeric EANs',
+  })
+  public eans?: string;
 
   @IsOptional()
   @IsString()

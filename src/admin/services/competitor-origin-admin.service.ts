@@ -48,7 +48,7 @@ export class CompetitorOriginAdminService {
                  priority = COALESCE($2, priority),
                  config = COALESCE($3, config),
                  updated_at = now()
-           WHERE tenant_id = $4 AND origin = $5`,
+           WHERE tenant_id = $4 AND origin = $5 AND deleted_at IS NULL`,
           [
             u.enabled,
             u.priority ?? null,

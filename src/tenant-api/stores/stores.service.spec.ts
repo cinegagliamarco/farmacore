@@ -8,7 +8,8 @@ interface Call {
 }
 
 /** em.query mock that records calls and resolves by matching the SQL.
- *  `handlers` maps a substring to the rows it should return. */
+ *  `handlers` maps a substring to the result it should return — plain rows
+ *  for SELECT/INSERT, the pg-driver `[rows, count]` tuple for UPDATE. */
 const buildEm = (
   calls: Call[],
   handlers: Array<[string, unknown[]]>,
@@ -41,7 +42,7 @@ describe('StoresService.updateStore', () => {
     const calls: Call[] = [];
     const em = buildEm(calls, [
       TENANT,
-      ['UPDATE core.tenant_store', [{ id: 's1', wasActive: true }]],
+      ['UPDATE core.tenant_store', [[{ id: 's1', wasActive: true }], 1]],
       [
         'SELECT s.id',
         [
@@ -80,7 +81,7 @@ describe('StoresService.updateStore', () => {
   });
 
   it('404s when the store row is missing', async () => {
-    const em = buildEm([], [TENANT]); // UPDATE returns []
+    const em = buildEm([], [TENANT, ['UPDATE core.tenant_store', [[], 0]]]);
     await expect(
       service.updateStore(em, 'acme', 's1', { active: false }),
     ).rejects.toThrow(NotFoundException);
@@ -90,7 +91,7 @@ describe('StoresService.updateStore', () => {
     const calls: Call[] = [];
     const em = buildEm(calls, [
       TENANT,
-      ['UPDATE core.tenant_store', [{ id: 's1', wasActive: false }]],
+      ['UPDATE core.tenant_store', [[{ id: 's1', wasActive: false }], 1]],
       ['SELECT s.id', [{ id: 's1', active: true }]],
     ]);
     await service.updateStore(em, 'acme', 's1', { active: true });
@@ -103,7 +104,7 @@ describe('StoresService.updateStore', () => {
     const calls: Call[] = [];
     const em = buildEm(calls, [
       TENANT,
-      ['UPDATE core.tenant_store', [{ id: 's1', wasActive: true }]],
+      ['UPDATE core.tenant_store', [[{ id: 's1', wasActive: true }], 1]],
       ['SELECT s.id', [{ id: 's1', active: true }]],
     ]);
     await service.updateStore(em, 'acme', 's1', { active: true });
@@ -121,7 +122,7 @@ describe('StoresService.deleteCluster', () => {
     const calls: Call[] = [];
     const em = buildEm(calls, [
       TENANT,
-      ['UPDATE core.store_cluster', [{ name: 'Região Sul' }]],
+      ['UPDATE core.store_cluster', [[{ name: 'Região Sul' }], 1]],
     ]);
     const out = await service.deleteCluster(em, 'acme', 'c1');
     expect(out).toEqual({ id: 'c1', name: 'Região Sul' });
@@ -134,7 +135,7 @@ describe('StoresService.deleteCluster', () => {
   });
 
   it('404s when the cluster is missing', async () => {
-    const em = buildEm([], [TENANT]); // soft-delete UPDATE returns []
+    const em = buildEm([], [TENANT, ['UPDATE core.store_cluster', [[], 0]]]);
     await expect(service.deleteCluster(em, 'acme', 'c1')).rejects.toThrow(
       NotFoundException,
     );

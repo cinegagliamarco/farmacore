@@ -1,6 +1,4 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../database/enums/user-role.enum';
 import { SystemAdminGuard } from '../guards/system-admin.guard';
 import {
   IntegrationConnectionService,
@@ -14,7 +12,6 @@ import {
  */
 @Controller('admin/integrations')
 @UseGuards(SystemAdminGuard)
-@Roles(UserRole.ADMIN)
 export class IntegrationHealthController {
   constructor(private readonly svc: IntegrationConnectionService) {}
 
