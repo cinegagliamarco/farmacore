@@ -5,6 +5,7 @@ import { INTERNAL_LOGGER_TOKEN, InternalLogger } from '../../interfaces';
 describe('catchUnhandledSignals', () => {
   let app: { get: jest.Mock };
   let logger: jest.Mocked<InternalLogger>;
+  let exitSpy: jest.SpyInstance;
   const originalListeners = {
     uncaughtException: process.listeners('uncaughtException').slice(),
     unhandledRejection: process.listeners('unhandledRejection').slice(),
@@ -18,9 +19,13 @@ describe('catchUnhandledSignals', () => {
       debug: jest.fn(),
     };
     app = { get: jest.fn().mockReturnValue(logger) };
+    exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {
+      return undefined as never;
+    });
   });
 
   afterEach(() => {
+    exitSpy.mockRestore();
     process.removeAllListeners('uncaughtException');
     process.removeAllListeners('unhandledRejection');
     for (const l of originalListeners.uncaughtException)
@@ -34,16 +39,17 @@ describe('catchUnhandledSignals', () => {
     expect(app.get).toHaveBeenCalledWith(INTERNAL_LOGGER_TOKEN);
   });
 
-  it('logs uncaughtException', () => {
+  it('logs uncaughtException and exits 1', () => {
     catchUnhandledSignals(app as unknown as INestApplication);
     process.emit('uncaughtException', new Error('boom'));
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining('uncaughtException'),
       'GlobalExceptionSignalsHandler',
     );
+    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
-  it('logs unhandledRejection', () => {
+  it('logs unhandledRejection and exits 1', () => {
     catchUnhandledSignals(app as unknown as INestApplication);
     process.emit(
       'unhandledRejection',
@@ -54,5 +60,6 @@ describe('catchUnhandledSignals', () => {
       expect.stringContaining('unhandledRejection'),
       'GlobalExceptionSignalsHandler',
     );
+    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 });

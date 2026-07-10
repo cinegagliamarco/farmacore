@@ -5,6 +5,8 @@ import { ProductImageEntity } from '../database/entities/shared-catalog/product-
 import type { ScrapedProduct } from '../scrapers/types';
 import { R2StorageService } from './r2-storage.service';
 
+const UPLOAD_CONCURRENCY = 5;
+
 /**
  * Re-hosts scraped competitor images onto R2 and projects them into
  * shared_catalog.product_image. Scrapers carry a single image URL in
@@ -31,25 +33,23 @@ export class CompetitorImageService {
     if (withImage.length === 0) return;
 
     const idByKey = await this.resolveProductIds(em, withImage);
-
-    const rows: Array<{ productId: string; url: string }> = [];
-    for (const s of withImage) {
+    const targets = withImage.flatMap((s) => {
       const productId = idByKey.get(`${s.ean}|${s.origin}`);
-      if (!productId) continue;
-      const source = s.metadata!.image as string;
-      let url = source;
-      try {
-        url = await this.storage.uploadFromUrl(
-          source,
-          `competitor/${s.origin}/${s.ean}.jpg`,
-        );
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        this.logger.warn(
-          `image upload failed ean=${s.ean} origin=${s.origin}: ${message}; storing source url`,
-        );
-      }
-      rows.push({ productId, url });
+      return productId ? [{ scrape: s, productId }] : [];
+    });
+
+    // Uploads are pure external I/O (download + resize + PUT); the
+    // transactional em is only touched before and after this loop.
+    const rows: Array<{ productId: string; url: string }> = [];
+    for (let i = 0; i < targets.length; i += UPLOAD_CONCURRENCY) {
+      const chunk = targets.slice(i, i + UPLOAD_CONCURRENCY);
+      rows.push(
+        ...(await Promise.all(
+          chunk.map(({ scrape, productId }) =>
+            this.uploadOne(scrape).then((url) => ({ productId, url })),
+          ),
+        )),
+      );
     }
     if (rows.length === 0) return;
 
@@ -62,6 +62,23 @@ export class CompetitorImageService {
         isPrimary: true,
       })),
     );
+  }
+
+  /** Upload to R2, falling back to the source URL on failure. */
+  private async uploadOne(scrape: ScrapedProduct): Promise<string> {
+    const source = scrape.metadata!.image as string;
+    try {
+      return await this.storage.uploadFromUrl(
+        source,
+        `competitor/${scrape.origin}/${scrape.ean}.jpg`,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `image upload failed ean=${scrape.ean} origin=${scrape.origin}: ${message}; storing source url`,
+      );
+      return source;
+    }
   }
 
   private async resolveProductIds(

@@ -8,17 +8,8 @@ export class AppConfigService {
   get nodeEnv(): string {
     return this.config.getOrThrow('NODE_ENV');
   }
-  get port(): number {
-    return Number(this.config.getOrThrow('PORT'));
-  }
-  get isWorker(): boolean {
-    return this.config.get('WORKER_MODE') === '1';
-  }
   get databaseUrl(): string {
     return this.config.getOrThrow('DATABASE_URL');
-  }
-  get databaseDirectUrl(): string {
-    return this.config.getOrThrow('DATABASE_DIRECT_URL');
   }
   get amqpUrl(): string {
     return this.config.getOrThrow('AMQP_URL');
@@ -50,18 +41,6 @@ export class AppConfigService {
     };
   }
 
-  get otelDisabled(): boolean {
-    return this.config.get('OTEL_DISABLED') === '1';
-  }
-  get otelServiceName(): string {
-    return this.config.get('OTEL_SERVICE_NAME') ?? 'farmacore';
-  }
-  get otelEndpoint(): string | undefined {
-    return this.config.get('OTEL_EXPORTER_OTLP_ENDPOINT');
-  }
-  get otelHeaders(): string | undefined {
-    return this.config.get('OTEL_EXPORTER_OTLP_HEADERS');
-  }
   get importVtexEanBatchSize(): number {
     return Number(this.config.get('PIPELINE_IMPORT_VTEX_EAN_BATCH_SIZE') ?? 25);
   }

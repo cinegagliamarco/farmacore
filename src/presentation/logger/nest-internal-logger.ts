@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { trace } from '@opentelemetry/api';
 import { InternalLogger } from '../../interfaces';
 
@@ -33,9 +33,8 @@ function enrichWithTrace(payload: unknown): unknown {
   return { ...(payload as Record<string, unknown>), traceId, spanId };
 }
 
-@Injectable()
 export class NestInternalLogger implements InternalLogger {
-  constructor(private readonly nest: Logger = new Logger('App')) {}
+  constructor(private readonly nest: Logger) {}
 
   public log(payload: unknown, ctx?: unknown): void {
     this.nest.log(enrichWithTrace(payload), resolveContext(ctx));
