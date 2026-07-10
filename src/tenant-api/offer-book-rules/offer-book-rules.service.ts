@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { EntityManager, IsNull, QueryFailedError } from 'typeorm';
 import { CalculationBaseType } from '../../database/enums/calculation-base-type.enum';
+import { OfferBookRuleStatus } from '../../database/enums/offer-book-rule-status.enum';
 import { PriceBaseSource } from '../../database/enums/price-base-source.enum';
 import { PricingActionType } from '../../database/enums/pricing-action-type.enum';
 import { ClassificationEntity } from '../../database/entities/tenant/classification.entity';
@@ -32,6 +33,7 @@ export interface OfferBookRuleListItem {
   cadernoName: string | null;
   calculationBaseType: CalculationBaseType;
   scheduleEnabled: boolean;
+  status: OfferBookRuleStatus;
   productsCount: number;
   createdAt: string;
 }
@@ -299,6 +301,7 @@ export class OfferBookRulesService {
               c.name AS "cadernoName",
               r.calculation_base_type AS "calculationBaseType",
               r.schedule_enabled AS "scheduleEnabled",
+              r.status AS status,
               r.created_at AS "createdAt",
               (SELECT count(*)::int FROM offer_book_rule_product p
                 WHERE p.rule_id = r.id) AS "productsCount"
@@ -368,6 +371,79 @@ export class OfferBookRulesService {
         );
       throw err;
     }
+  }
+
+  /**
+   * Compute não-paginado para a EXECUÇÃO de uma regra persistida: resolve
+   * todos os produtos-alvo (páginas internas de 1000) e roda o motor com as
+   * regras/travas dela. Espera `pricingRules`/`priceLocks`/`products`
+   * carregados. Sem revalidação — o create já garantiu a consistência.
+   */
+  public async computeForRule(
+    em: EntityManager,
+    slug: string,
+    rule: OfferBookRuleEntity,
+  ): Promise<PreviewProductResult[]> {
+    const classificationIndex = await this.loadClassificationIndex(em);
+    const pricingRules = this.normalizePricingRules(
+      (rule.pricingRules ?? []).map((r) => ({
+        classifications: r.classifications ?? undefined,
+        priceRangeMin: numOrUndef(r.priceRangeMin),
+        priceRangeMax: numOrUndef(r.priceRangeMax),
+        marginRangeMin: numOrUndef(r.marginRangeMin),
+        marginRangeMax: numOrUndef(r.marginRangeMax),
+        actionType: r.actionType,
+        percentageValue: Number(r.percentageValue),
+        active: r.active,
+      })),
+    );
+    const priceLocks = this.normalizePriceLocks(
+      (rule.priceLocks ?? []).map((l) => ({
+        classifications: l.classifications ?? undefined,
+        minMargin: Number(l.minMargin),
+        active: l.active,
+      })),
+    );
+    const target = {
+      eans: rule.products?.length ? rule.products.map((p) => p.ean) : undefined,
+      classifications: rule.classifications?.length
+        ? rule.classifications
+        : undefined,
+    };
+
+    const products: PreviewProductInput[] = [];
+    for (let page = 1; ; page++) {
+      const batch = await this.fetchProducts(
+        em,
+        target,
+        classificationIndex,
+        page,
+        MAX_PAGE_SIZE,
+      );
+      products.push(...batch.products);
+      if (products.length >= batch.total || batch.products.length === 0) break;
+    }
+    if (products.length === 0) return [];
+
+    if (rule.calculationBaseType === CalculationBaseType.COMPETITIVE_PRICE)
+      await this.attachCompetitorPrices(
+        em,
+        products,
+        rule.priceBaseSources ?? [],
+      );
+
+    const priceRoundingRules = rule.applyPriceRounding
+      ? await this.fetchRoundingRules(em, slug)
+      : [];
+
+    return this.calculatePreviews(products, {
+      calculationBaseType: rule.calculationBaseType,
+      priceBaseSources: rule.priceBaseSources ?? undefined,
+      pricingRules,
+      priceLocks,
+      priceRoundingRules,
+      classificationIndex,
+    });
   }
 
   public normalizePricingRules(
@@ -872,7 +948,7 @@ export class OfferBookRulesService {
 
   private async fetchProducts(
     em: EntityManager,
-    dto: PreviewOfferBookRulesDto,
+    dto: Pick<PreviewOfferBookRulesDto, 'eans' | 'classifications'>,
     classificationIndex: ClassificationIndex,
     page: number,
     pageSize: number,
@@ -1019,6 +1095,7 @@ function toListItem(r: Record<string, unknown>): OfferBookRuleListItem {
     cadernoName: (r.cadernoName as string | null) ?? null,
     calculationBaseType: r.calculationBaseType as CalculationBaseType,
     scheduleEnabled: Boolean(r.scheduleEnabled),
+    status: r.status as OfferBookRuleStatus,
     productsCount: Number(r.productsCount ?? 0),
     createdAt: new Date(r.createdAt as string).toISOString(),
   };
@@ -1039,6 +1116,7 @@ function toDetail(
     cadernoName,
     calculationBaseType: rule.calculationBaseType,
     scheduleEnabled: rule.scheduleEnabled,
+    status: rule.status,
     productsCount: rule.products?.length ?? 0,
     createdAt: rule.createdAt.toISOString(),
     priceBaseSources: rule.priceBaseSources ?? null,
