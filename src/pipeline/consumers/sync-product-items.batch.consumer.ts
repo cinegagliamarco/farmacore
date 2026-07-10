@@ -13,7 +13,6 @@ import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
-import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
 import type { SyncProductItemsBatchPayload } from './sync-product-items.dispatch.consumer';
 
 const BATCH_QUEUE = batchStep(PipelineStep.SYNC_PRODUCT_ITEMS);
@@ -34,9 +33,8 @@ export class SyncProductItemsBatchConsumer extends BatchPipelineConsumer<SyncPro
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(runs, retry, tx, tenants, integration, publisher);
+    super(runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({

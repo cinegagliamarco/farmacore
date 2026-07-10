@@ -22,10 +22,14 @@ const DISPATCH_QUEUE = dispatchStep(PipelineStep.APPLY_PRICE);
 const BATCH_QUEUE = batchStep(PipelineStep.APPLY_PRICE);
 
 /**
- * Dispatcher do apply em massa: lê os itens `pending` do run (id =
+ * Dispatcher do apply em massa: lê TODOS os itens do run (id =
  * pipelineRunId), fatia em batches de BATCH_SIZE, grava o `batch_seq` em cada
  * item (commitado pela tx do tenant antes dos batches serem publicados) e emite
- * um batch por fatia. Run sem itens → marca `done` e não emite nada (folha).
+ * um batch por fatia. Fatiar sem filtro de status mantém o batch_seq
+ * determinístico em replay — fatiar só os `pending` re-embaralharia os seqs
+ * depois de batches já COMPLETED e itens caídos neles nunca seriam aplicados.
+ * O batch filtra `pending` na execução. Run sem itens → marca `done` e não
+ * emite nada (folha).
  */
 @Injectable()
 export class ApplyPriceDispatchConsumer extends DispatchPipelineConsumer {
@@ -60,7 +64,7 @@ export class ApplyPriceDispatchConsumer extends DispatchPipelineConsumer {
     const runId = ctx.message.pipelineRunId;
     const items: Array<{ id: string }> = await ctx.em.query(
       `SELECT id FROM pricing_apply_item
-        WHERE apply_run_id = $1 AND status = 'pending'
+        WHERE apply_run_id = $1
         ORDER BY id`,
       [runId],
     );

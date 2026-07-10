@@ -47,15 +47,19 @@ export class ApplyPriceStep {
       [runId, batchSeq],
     );
 
+    // Uma query por batch (não por item): campanhas ativas de todos os EANs
+    // precoVenda de uma vez, checagem em memória no loop.
+    const inCampaign = await this.activeCampaignEans(
+      em,
+      items.filter((i) => i.target === 'precoVenda').map((i) => i.ean),
+    );
+
     let applied = 0;
     let skipped = 0;
     let failed = 0;
     for (const item of items) {
       // Campanha de oferta ativa: não sobrescrever o preço de VENDA promocional.
-      if (
-        item.target === 'precoVenda' &&
-        (await this.inActiveCampaign(em, item.ean))
-      ) {
+      if (item.target === 'precoVenda' && inCampaign.has(item.ean)) {
         await this.mark(em, item.id, 'skipped', 'em_campanha', null);
         skipped++;
         continue;
@@ -110,20 +114,20 @@ export class ApplyPriceStep {
     return `precoOferta=${r.targetPrice}@caderno=${r.cadernoId}`;
   }
 
-  private async inActiveCampaign(
+  private async activeCampaignEans(
     em: EntityManager,
-    ean: string,
-  ): Promise<boolean> {
-    const rows: unknown[] = await em.query(
-      `SELECT 1 FROM offer_book ob
+    eans: string[],
+  ): Promise<Set<string>> {
+    if (eans.length === 0) return new Set();
+    const rows: Array<{ ean: string }> = await em.query(
+      `SELECT DISTINCT ob.ean::text AS ean FROM offer_book ob
          JOIN tenant_offer_campaign c ON c.external_id = ob.external_id
-        WHERE ob.ean = $1::bigint AND c.active = true
+        WHERE ob.ean = ANY($1::bigint[]) AND c.active = true
           AND (c.start_date IS NULL OR c.start_date <= now())
-          AND (c.expiration_date IS NULL OR c.expiration_date > now())
-        LIMIT 1`,
-      [ean],
+          AND (c.expiration_date IS NULL OR c.expiration_date > now())`,
+      [eans],
     );
-    return rows.length > 0;
+    return new Set(rows.map((r) => r.ean));
   }
 
   private async mark(

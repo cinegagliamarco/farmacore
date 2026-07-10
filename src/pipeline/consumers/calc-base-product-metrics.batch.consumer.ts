@@ -15,7 +15,6 @@ import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
-import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
 import type { CalcBaseProductMetricsBatchPayload } from './calc-base-product-metrics.dispatch.consumer';
 
 const BATCH_QUEUE = batchStep(PipelineStep.CALC_BASE_PRODUCT_METRICS);
@@ -31,9 +30,8 @@ export class CalcBaseProductMetricsBatchConsumer extends BatchPipelineConsumer<C
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(runs, retry, tx, tenants, integration, publisher);
+    super(runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({

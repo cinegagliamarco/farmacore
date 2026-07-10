@@ -217,14 +217,12 @@ describe('PipelineRunService', () => {
     expect(out).toBe('started');
     expect(repo.update).toHaveBeenCalledWith(
       expect.objectContaining({ batchSeq: 0 }),
-      expect.objectContaining({
-        status: 'running',
-        attempt: 2,
-        batchesPlanned: null,
-      }),
+      expect.objectContaining({ status: 'running', attempt: 2 }),
     );
-    // batches_done is NOT in the update payload (preserved across restart)
+    // batches_done and batches_planned are NOT in the update payload:
+    // preserved across restart so in-flight batches keep a correct fan-in.
     const updatePayload = repo.update.mock.calls[0][1];
     expect(updatePayload).not.toHaveProperty('batchesDone');
+    expect(updatePayload).not.toHaveProperty('batchesPlanned');
   });
 });

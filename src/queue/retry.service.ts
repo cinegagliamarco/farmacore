@@ -3,6 +3,13 @@ import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { DLX_NAME } from './constants';
 import { PipelineMessage } from './types';
 
+/** Thrown when the in-progress duplicate-delivery republish itself fails.
+ *  The consumers' generic catch must RETHROW it (golevelup nacks and the
+ *  broker dead-letters via the queue's DLX) instead of running its
+ *  republish + runs.fail() path — fail() would clobber the original
+ *  delivery's RUNNING row and stall the run. */
+export class DuplicateDeliveryRepublishError extends Error {}
+
 /**
  * Failed-message router. No retries: a step that throws is dead-lettered
  * on the first failure straight to the DLX, which fans it into the

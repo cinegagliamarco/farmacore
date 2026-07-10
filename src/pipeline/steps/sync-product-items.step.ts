@@ -83,16 +83,25 @@ export class SyncProductItemsStep {
     }
     const produtoIds = [...new Set(produtoIdByEmbalagem.values())];
 
+    // ERP reads go to the integration DataSource (own pool), so all stores
+    // can be fetched in parallel; the tenant upserts stay sequential below
+    // because the transactional em is a single connection.
+    const erpReads = await Promise.all(
+      stores.map(async (store) => {
+        const unidade = Number(store.externalId);
+        const [priceRows, costRows] = await Promise.all([
+          a7.precoEmbalagemUnidadeNegocio.findByEmbalagemIdsAndUnidade(
+            embalagemIds,
+            unidade,
+          ),
+          a7.custoProduto.findByProdutoIdsAndUnidade(produtoIds, unidade),
+        ]);
+        return { store, priceRows, costRows };
+      }),
+    );
+
     let processed = 0;
-    for (const store of stores) {
-      const unidade = Number(store.externalId);
-      const [priceRows, costRows] = await Promise.all([
-        a7.precoEmbalagemUnidadeNegocio.findByEmbalagemIdsAndUnidade(
-          embalagemIds,
-          unidade,
-        ),
-        a7.custoProduto.findByProdutoIdsAndUnidade(produtoIds, unidade),
-      ]);
+    for (const { store, priceRows, costRows } of erpReads) {
       const priceByEmbalagem = new Map(
         priceRows.map((r) => [r.embalagemid, r.precovenda]),
       );

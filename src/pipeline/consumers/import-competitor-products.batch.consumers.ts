@@ -16,7 +16,6 @@ import { RetryService } from '../../queue/retry.service';
 import { TenantTransactionService } from '../../tenant/tenant-transaction.service';
 import { TenantService } from '../../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../../integration/integration-data-source.factory';
-import { PipelinePublisher } from '../../queue/pipeline-publisher.service';
 import { PipelineJoinService } from '../pipeline-join.service';
 import type { ImportCompetitorProductsBatchPayload } from './import-competitor-products.dispatch.consumer';
 
@@ -81,9 +80,8 @@ abstract class CompetitorProductsBatchBase extends BatchPipelineConsumer<ImportC
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(runs, retry, tx, tenants, integration, publisher);
+    super(runs, retry, tx, tenants, integration);
   }
 
   protected handle(
@@ -131,9 +129,8 @@ export class ImportCompetitorProductsDrogalConsumer extends CompetitorProductsBa
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({
@@ -159,9 +156,8 @@ export class ImportCompetitorProductsDrogasilConsumer extends CompetitorProducts
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({
@@ -187,9 +183,8 @@ export class ImportCompetitorProductsMichelassiConsumer extends CompetitorProduc
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({
@@ -215,9 +210,8 @@ export class ImportCompetitorProductsPagueMenosConsumer extends CompetitorProduc
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({
@@ -243,9 +237,8 @@ export class ImportCompetitorProductsIkesakiConsumer extends CompetitorProductsB
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({
@@ -271,9 +264,8 @@ export class ImportCompetitorProductsPachecoConsumer extends CompetitorProductsB
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({
@@ -299,9 +291,8 @@ export class ImportCompetitorProductsSaoPauloConsumer extends CompetitorProducts
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({
@@ -327,9 +318,8 @@ export class ImportCompetitorProductsVenancioConsumer extends CompetitorProducts
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({
@@ -355,9 +345,8 @@ export class ImportCompetitorProductsIndianaConsumer extends CompetitorProductsB
     tx: TenantTransactionService,
     tenants: TenantService,
     integration: IntegrationDataSourceFactory,
-    publisher: PipelinePublisher,
   ) {
-    super(stepImpl, runs, retry, tx, tenants, integration, publisher);
+    super(stepImpl, runs, retry, tx, tenants, integration);
   }
 
   @RabbitSubscribe({

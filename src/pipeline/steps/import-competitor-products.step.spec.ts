@@ -45,19 +45,20 @@ const build = () => {
   const metrics = {
     onScrapeBatch: jest.fn(),
   } as unknown as PipelineMetricsRegistry;
-  const step = new ImportCompetitorProductsStep(
-    scrapers.drogal,
-    scrapers.drogasil,
-    scrapers.michelassi,
-    scrapers.pagueMenos,
-    scrapers.ikesaki,
-    scrapers.pacheco,
-    scrapers.saoPaulo,
-    scrapers.venancio,
-    scrapers.indiana,
-    images,
-    metrics,
-  );
+  // The step only uses scrapers through the ProductScraper interface,
+  // but its constructor is typed with the concrete classes for DI.
+  const args = Object.values(scrapers) as unknown as [
+    never,
+    never,
+    never,
+    never,
+    never,
+    never,
+    never,
+    never,
+    never,
+  ];
+  const step = new ImportCompetitorProductsStep(...args, images, metrics);
   return { step, scrapers, images, em: {} as EntityManager };
 };
 
