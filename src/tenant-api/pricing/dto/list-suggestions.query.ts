@@ -24,6 +24,13 @@ export class ListSuggestionsQueryDto {
   @IsString()
   public name?: string;
 
+  // Id EXTERNO da loja (tenant_store.external_id, numérico — igual ao catalog).
+  // Presente: preços/custos/ofertas da loja + só regras participantes dela.
+  // Ausente: visão base (globais) + só regras sem escopo de loja.
+  @IsOptional()
+  @IsString()
+  public store?: string;
+
   @IsOptional()
   @IsString()
   public classification?: string;
