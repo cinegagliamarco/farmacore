@@ -5,10 +5,24 @@ import { PipelineRunEntity } from '../database/entities/core/pipeline-run.entity
 
 describe('PipelineJoinService.markBranchComplete', () => {
   let svc: PipelineJoinService;
-  let repo: { save: jest.Mock; count: jest.Mock };
+  let repo: { createQueryBuilder: jest.Mock; count: jest.Mock };
+  let orIgnore: jest.Mock;
 
   beforeEach(async () => {
-    repo = { save: jest.fn(), count: jest.fn() };
+    const qb = {
+      insert: jest.fn(),
+      values: jest.fn(),
+      orIgnore: jest.fn(),
+      execute: jest.fn().mockResolvedValue({}),
+    };
+    qb.insert.mockReturnValue(qb);
+    qb.values.mockReturnValue(qb);
+    qb.orIgnore.mockReturnValue(qb);
+    orIgnore = qb.orIgnore;
+    repo = {
+      createQueryBuilder: jest.fn().mockReturnValue(qb),
+      count: jest.fn(),
+    };
     const mod = await Test.createTestingModule({
       providers: [
         PipelineJoinService,
@@ -22,6 +36,9 @@ describe('PipelineJoinService.markBranchComplete', () => {
     repo.count.mockResolvedValue(1);
     const r = await svc.markBranchComplete('run1', 'tid', 'stock-a');
     expect(r).toBe('wait');
+    // DLQ replay re-inserts the same branch row — must be ON CONFLICT DO
+    // NOTHING, not a plain save.
+    expect(orIgnore).toHaveBeenCalled();
   });
 
   it('returns "fire" when both branches are complete', async () => {

@@ -83,6 +83,12 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
     ctx: DispatchHandleContext<TPayload>,
   ): Promise<DispatchHandleResult>;
 
+  /** Step-specific dispatch metrics hook, called with the computed batches. */
+  protected onDispatch(
+    _message: PipelineMessage<TPayload>,
+    _batches: PipelineMessage<unknown>[],
+  ): void {}
+
   public async process(message: PipelineMessage<TPayload>): Promise<void> {
     const queue = `${this.logicalStep}.dispatch`;
     await withPipelineSpan(
@@ -177,17 +183,7 @@ export abstract class DispatchPipelineConsumer<TPayload = unknown> {
             this.logicalStep,
             countsPerQueue,
           );
-          if (this.logicalStep === PipelineStep.IMPORT_COMPETITOR_PRODUCTS) {
-            const eansPerOrigin: Record<string, number> = {};
-            for (const b of result.batches) {
-              const p = b.payload as { origin?: string; eans?: string[] };
-              if (p.origin && p.eans) {
-                eansPerOrigin[p.origin] =
-                  (eansPerOrigin[p.origin] ?? 0) + p.eans.length;
-              }
-            }
-            this.metrics.onScrapeDispatch(message.tenantId, eansPerOrigin);
-          }
+          this.onDispatch(message, result.batches);
 
           await this.runs.recordDispatch(
             message.pipelineRunId,

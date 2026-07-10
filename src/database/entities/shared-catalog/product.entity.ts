@@ -5,6 +5,12 @@ import { ProductImageEntity } from './product-image.entity';
 
 @Entity({ schema: 'shared_catalog', name: 'product' })
 @Index('IX_PRODUCT_EAN_ORIGIN', ['ean', 'origin'])
+// Partial unique index backing upsertScrapes; the non-unique index above
+// also covers lookups that include soft-deleted rows.
+@Index('UQ_PRODUCT_EAN_ORIGIN', ['ean', 'origin'], {
+  unique: true,
+  where: 'deleted_at IS NULL',
+})
 export class ProductEntity extends BaseEntity {
   @Column({ type: 'bigint' })
   public ean!: string;

@@ -97,6 +97,6 @@ export class CalcBaseProductMetricsDispatchConsumer extends DispatchPipelineCons
     this.logger.log(
       `calc-base-product-metrics dispatch: ${eans.length} EANs -> ${batches.length} batch(es) of <= ${BATCH_SIZE}`,
     );
-    return { batches, emptySuccessors: [successor] };
+    return { batches };
   }
 }

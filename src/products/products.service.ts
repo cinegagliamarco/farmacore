@@ -7,10 +7,16 @@ import { SharedProductRepository } from '../database/repositories/shared-catalog
 import { DrogalScraper } from '../scrapers/drogal/drogal.scraper';
 import { DrogasilScraper } from '../scrapers/drogasil/drogasil.scraper';
 import { MichelassiScraper } from '../scrapers/michelassi/michelassi.scraper';
+import { PagueMenosScraper } from '../scrapers/pague-menos/pague-menos.scraper';
+import { IkesakiScraper } from '../scrapers/ikesaki/ikesaki.scraper';
+import { PachecoScraper } from '../scrapers/pacheco/pacheco.scraper';
+import { SaoPauloScraper } from '../scrapers/sao-paulo/sao-paulo.scraper';
+import { VenancioScraper } from '../scrapers/venancio/venancio.scraper';
+import { IndianaScraper } from '../scrapers/indiana/indiana.scraper';
 import type { ProductScraper, ScrapedProduct } from '../scrapers/types';
 import { CompetitorImageService } from '../storage/competitor-image.service';
 
-export interface ProductOriginView {
+interface ProductOriginView {
   origin: CompetitorOrigin;
   found: boolean;
   name: string | null;
@@ -53,7 +59,7 @@ export interface ProductExportQuery {
   offset: number;
 }
 
-export interface ProductExportRow {
+interface ProductExportRow {
   ean: string;
   origin: CompetitorOrigin;
   name: string | null;
@@ -87,13 +93,29 @@ export class ProductsService {
   private readonly productScrapers: ProductScraper[];
 
   constructor(
-    private readonly drogal: DrogalScraper,
-    private readonly drogasil: DrogasilScraper,
-    private readonly michelassi: MichelassiScraper,
+    drogal: DrogalScraper,
+    drogasil: DrogasilScraper,
+    michelassi: MichelassiScraper,
+    pagueMenos: PagueMenosScraper,
+    ikesaki: IkesakiScraper,
+    pacheco: PachecoScraper,
+    saoPaulo: SaoPauloScraper,
+    venancio: VenancioScraper,
+    indiana: IndianaScraper,
     private readonly images: CompetitorImageService,
     private readonly dataSource: DataSource,
   ) {
-    this.productScrapers = [drogal, drogasil, michelassi];
+    this.productScrapers = [
+      drogal,
+      drogasil,
+      michelassi,
+      pagueMenos,
+      ikesaki,
+      pacheco,
+      saoPaulo,
+      venancio,
+      indiana,
+    ];
   }
 
   /** Bulk export of the shared competitor catalog: each product row with
@@ -101,54 +123,36 @@ export class ProductsService {
    *  Shared-catalog only — no tenant data. */
   public async export(q: ProductExportQuery): Promise<ProductExportResult> {
     const origin = q.origin ?? null;
-    const countRows: Array<{ count: number }> = await this.dataSource.query(
-      `SELECT count(*)::int AS count FROM shared_catalog.product p
-        WHERE ($1::text IS NULL OR p.origin = $1)`,
-      [origin],
-    );
-    const rows: Array<{
-      ean: string;
-      origin: CompetitorOrigin;
-      name: string | null;
-      price: string | null;
-      unitSalePrice: string | null;
-      supplier: string | null;
-      brand: string | null;
-      sku: string | null;
-      url: string | null;
-      image: string | null;
-    }> = await this.dataSource.query(
-      `SELECT p.ean, p.origin, p.name, p.price,
-              p.unit_sale_price AS "unitSalePrice",
-              p.supplier, p.brand, p.sku, p.url,
-              img.url AS image
-         FROM shared_catalog.product p
-         LEFT JOIN LATERAL (
-           SELECT url FROM shared_catalog.product_image
-            WHERE product_id = p.id AND is_primary IS TRUE
-            ORDER BY created_at DESC LIMIT 1
-         ) img ON true
-        WHERE ($1::text IS NULL OR p.origin = $1)
-        ORDER BY p.ean, p.origin
-        LIMIT $2 OFFSET $3`,
-      [origin, q.limit, q.offset],
-    );
+    const [countRows, rows] = await Promise.all([
+      this.dataSource.query<Array<{ count: number }>>(
+        `SELECT count(*)::int AS count FROM shared_catalog.product p
+          WHERE ($1::text IS NULL OR p.origin = $1)`,
+        [origin],
+      ),
+      // unit_sale_price and url are FE-contract fields that are always NULL
+      // (no scraper ever wrote them).
+      this.dataSource.query<ProductExportRow[]>(
+        `SELECT p.ean, p.origin, p.name, p.price,
+                  p.unit_sale_price AS "unitSalePrice",
+                  p.supplier, p.brand, p.sku, p.url,
+                  img.url AS image
+             FROM shared_catalog.product p
+             LEFT JOIN LATERAL (
+               SELECT url FROM shared_catalog.product_image
+                WHERE product_id = p.id AND is_primary IS TRUE
+                ORDER BY created_at DESC LIMIT 1
+             ) img ON true
+            WHERE ($1::text IS NULL OR p.origin = $1)
+            ORDER BY p.ean, p.origin
+            LIMIT $2 OFFSET $3`,
+        [origin, q.limit, q.offset],
+      ),
+    ]);
     return {
       total: countRows[0]?.count ?? 0,
       limit: q.limit,
       offset: q.offset,
-      items: rows.map((r) => ({
-        ean: String(r.ean),
-        origin: r.origin,
-        name: r.name ?? null,
-        price: r.price ?? null,
-        unitSalePrice: r.unitSalePrice ?? null,
-        supplier: r.supplier ?? null,
-        brand: r.brand ?? null,
-        sku: r.sku ?? null,
-        url: r.url ?? null,
-        image: r.image ?? null,
-      })),
+      items: rows.map((r) => ({ ...r, ean: String(r.ean) })),
     };
   }
 
@@ -196,10 +200,12 @@ export class ProductsService {
           found: s.found,
           name: s.name ?? null,
           price: s.price ?? null,
-          unitSalePrice: s.unitSalePrice ?? null,
+          // No scraper populates unitSalePrice or url; kept null for the
+          // FE contract.
+          unitSalePrice: null,
           brand: s.brand ?? null,
           sku: s.sku ?? null,
-          url: s.url ?? null,
+          url: null,
           weight: s.weight ?? null,
           height: s.height ?? null,
           length: s.length ?? null,

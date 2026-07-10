@@ -30,7 +30,9 @@ function makeEm(items: ItemSeed[], campaignEans: Set<string> = new Set()) {
         return items;
       }
       if (/FROM offer_book/.test(sql)) {
-        return campaignEans.has(String(params[0])) ? [{ x: 1 }] : [];
+        return (params[0] as string[])
+          .filter((ean) => campaignEans.has(String(ean)))
+          .map((ean) => ({ ean: String(ean) }));
       }
       if (/UPDATE pricing_apply_item/.test(sql)) {
         marks.push({

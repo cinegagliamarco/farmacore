@@ -37,16 +37,16 @@ export class SettingsService {
     patch: VariationStatusDto,
   ): Promise<Thresholds> {
     const tenantId = await resolveTenantId(em, slug);
-    const merged = await this.getVariationStatus(em, slug);
+    const repo = em.getRepository(StatusSettingsEntity);
+    const row = await repo.findOne({ where: { tenantId } });
+    const merged = { ...DEFAULTS, ...(row?.settings ?? {}) };
     for (const key of Object.keys(merged) as Array<keyof Thresholds>) {
       const value = patch[key];
       if (value !== undefined) merged[key] = value;
     }
-    const repo = em.getRepository(StatusSettingsEntity);
-    const existing = await repo.findOne({ where: { tenantId } });
-    if (existing) {
-      existing.settings = merged;
-      await repo.save(existing);
+    if (row) {
+      row.settings = merged;
+      await repo.save(row);
     } else {
       await repo.save(repo.create({ tenantId, settings: merged }));
     }

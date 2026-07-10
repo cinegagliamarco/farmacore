@@ -71,8 +71,6 @@ export class LoggerInterceptor implements NestInterceptor {
         return this.logHttp(context, duration, exception);
       case 'rmq':
         return this.logRmq(context, duration, exception);
-      case 'rpc':
-        return this.logRpc(context, duration, exception);
       default:
         return;
     }
@@ -124,25 +122,6 @@ export class LoggerInterceptor implements NestInterceptor {
     this.logger.log(
       {
         ...(second?.fields ?? {}),
-        body: this.obfuscate(body),
-        duration,
-        error_message: exception?.message ?? null,
-        error_stack: exception?.stack ?? null,
-      },
-      this,
-    );
-  }
-
-  private logRpc(
-    context: ExecutionContext,
-    duration: number,
-    exception: HttpException | Error | null,
-  ): void {
-    const [body, rmqContext] =
-      context.getArgs<[unknown, { getPattern?: () => string } | undefined]>();
-    this.logger.log(
-      {
-        routing_key: rmqContext?.getPattern?.() ?? null,
         body: this.obfuscate(body),
         duration,
         error_message: exception?.message ?? null,

@@ -6,11 +6,11 @@ describe('CredentialEncryptionService', () => {
     integrationDbKey: key,
   } as never);
 
-  it('roundtrips plaintext', async () => {
+  it('roundtrips plaintext', () => {
     const cipher = svc.encrypt('hunter2');
     expect(cipher).toBeInstanceOf(Buffer);
     expect(cipher.length).toBeGreaterThan(12 + 16);
-    await expect(svc.decrypt(cipher)).resolves.toBe('hunter2');
+    expect(svc.decrypt(cipher)).toBe('hunter2');
   });
 
   it('produces different ciphertext each time (random nonce)', () => {
@@ -19,9 +19,9 @@ describe('CredentialEncryptionService', () => {
     expect(a.equals(b)).toBe(false);
   });
 
-  it('rejects tampered ciphertext', async () => {
+  it('rejects tampered ciphertext', () => {
     const cipher = svc.encrypt('hunter2');
     cipher[cipher.length - 1] ^= 0x01;
-    await expect(svc.decrypt(cipher)).rejects.toThrow();
+    expect(() => svc.decrypt(cipher)).toThrow();
   });
 });

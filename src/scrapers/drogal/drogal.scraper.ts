@@ -5,6 +5,8 @@ import {
   ProductScraper,
   ScrapedProduct,
   scrapeProductsSequential,
+  stripHtml,
+  toNumericString,
 } from '../types';
 import {
   DrogalCustomData,
@@ -144,14 +146,4 @@ export function detectPbm(product: DrogalProduct): {
     }
   }
   return { isPbm: (product.PBM?.length ?? 0) > 0, pbmPrice: 0, van };
-}
-
-function toNumericString(value: number | null | undefined): string | null {
-  if (value == null) return null;
-  return Number.isFinite(value) ? String(value) : null;
-}
-
-function stripHtml(html: string | undefined): string | undefined {
-  if (!html) return undefined;
-  return html.replace(/<[^>]*>/g, '').trim() || undefined;
 }

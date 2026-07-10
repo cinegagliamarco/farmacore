@@ -11,8 +11,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../database/enums/user-role.enum';
 import { SystemAdminGuard } from '../guards/system-admin.guard';
 import {
   TenantOnboardingService,
@@ -27,7 +25,6 @@ import { TenantEntity } from '../../database/entities/core/tenant.entity';
 
 @Controller('admin/tenants')
 @UseGuards(SystemAdminGuard)
-@Roles(UserRole.ADMIN)
 export class TenantsController {
   constructor(
     private readonly onboarding: TenantOnboardingService,

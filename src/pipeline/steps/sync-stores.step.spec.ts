@@ -62,23 +62,23 @@ describe('SyncStoresStep.run', () => {
     const upserts = queries.filter((q) =>
       q.sql.includes('INSERT INTO core.tenant_store'),
     );
-    expect(upserts).toHaveLength(2);
-    // cnpj normalized to digits; name from nomefantasia; external_id from id.
+    // one multi-VALUES statement for all stores; cnpj normalized to digits;
+    // name from nomefantasia; external_id from id.
+    expect(upserts).toHaveLength(1);
     expect(upserts[0].params).toEqual([
       'tenant-1',
       '9',
       'Loja Centro',
       '12345678000190',
-    ]);
-    expect(upserts[1].params).toEqual([
-      'tenant-1',
       '10',
       'Loja Sul SA',
       '99999999000199',
     ]);
     // inserts active=false; matches on the stable external_id key (not cnpj,
     // which is NULL on legacy rows); never overwrites active on conflict.
-    expect(upserts[0].sql).toContain('VALUES ($1, $2, $3, $4, false)');
+    expect(upserts[0].sql).toContain(
+      'VALUES ($1, $2, $3, $4, false), ($1, $5, $6, $7, false)',
+    );
     expect(upserts[0].sql).toContain('ON CONFLICT (tenant_id, external_id)');
     expect(upserts[0].sql).not.toMatch(/SET[\s\S]*active/);
   });
@@ -97,5 +97,19 @@ describe('SyncStoresStep.run', () => {
     );
     expect(upserts).toHaveLength(1);
     expect(upserts[0].params[1]).toBe('11');
+  });
+
+  it('emits no INSERT when every store lacks a cnpj', async () => {
+    const ds = buildIntegrationDs([
+      { id: 9, cnpj: undefined, nome: 'No CNPJ' },
+      { id: 10, cnpj: '   ', nome: 'Blank CNPJ' },
+      { id: 11, cnpj: 'abc', nome: 'Garbage CNPJ' },
+    ]);
+    const out = await step.run(buildEm(queries), ds, 'acme');
+
+    expect(out).toEqual({ processed: 0, skipped: 3 });
+    expect(
+      queries.some((q) => q.sql.includes('INSERT INTO core.tenant_store')),
+    ).toBe(false);
   });
 });

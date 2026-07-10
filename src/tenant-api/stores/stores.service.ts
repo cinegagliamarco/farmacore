@@ -71,7 +71,10 @@ export class StoresService {
     if (dto.clusterId !== undefined) {
       sets.push(`cluster_id = $${params.push(dto.clusterId)}`);
     }
-    const res: Array<{ id: string; wasActive: boolean }> = await em.query(
+    // em.query on UPDATE..RETURNING yields [rows, count] on the pg driver.
+    const [updated] = await em.query<
+      [Array<{ id: string; wasActive: boolean }>, number]
+    >(
       `UPDATE core.tenant_store t
           SET ${sets.join(', ')}, updated_at = now()
          FROM core.tenant_store prev
@@ -80,7 +83,7 @@ export class StoresService {
         RETURNING t.id, prev.active AS "wasActive"`,
       params,
     );
-    if (!res.length) throw new NotFoundException(`store ${id} not found`);
+    if (!updated.length) throw new NotFoundException(`store ${id} not found`);
     // Re-activation invalidates the store's frozen product_item rows: the
     // sync only maintains ACTIVE stores, so whatever is there predates the
     // deactivation. Null price/cost — reads fall back to the live globals
@@ -89,7 +92,7 @@ export class StoresService {
     // a running nightly sync batch this full-store clear can deadlock (the
     // loser retries; data converges either way), and it can null a manual
     // price mirrored seconds earlier (ERP keeps it; next sync re-fills).
-    if (dto.active === true && !res[0].wasActive) {
+    if (dto.active === true && !updated[0].wasActive) {
       await em.query(
         `UPDATE product_item SET price = NULL, cost = NULL, updated_at = now()
           WHERE store_id = $1`,
@@ -142,13 +145,14 @@ export class StoresService {
     dto: UpsertStoreClusterDto,
   ): Promise<StoreClusterApi> {
     const tenantId = await resolveTenantId(em, slug);
-    const res: Array<{ id: string }> = await em.query(
+    // em.query on UPDATE..RETURNING yields [rows, count] on the pg driver.
+    const [renamed] = await em.query<[Array<{ id: string }>, number]>(
       `UPDATE core.store_cluster SET name = $3, updated_at = now()
         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
         RETURNING id`,
       [id, tenantId, dto.name.trim()],
     );
-    if (!res.length) throw new NotFoundException(`cluster ${id} not found`);
+    if (!renamed.length) throw new NotFoundException(`cluster ${id} not found`);
     return (await this.listClusters(em, slug)).find((c) => c.id === id)!;
   }
 
@@ -160,19 +164,20 @@ export class StoresService {
     id: string,
   ): Promise<{ id: string; name: string }> {
     const tenantId = await resolveTenantId(em, slug);
-    const rows: Array<{ name: string }> = await em.query(
+    // em.query on UPDATE..RETURNING yields [rows, count] on the pg driver.
+    const [deleted] = await em.query<[Array<{ name: string }>, number]>(
       `UPDATE core.store_cluster SET deleted_at = now(), updated_at = now()
         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
         RETURNING name`,
       [id, tenantId],
     );
-    if (!rows.length) throw new NotFoundException(`cluster ${id} not found`);
+    if (!deleted.length) throw new NotFoundException(`cluster ${id} not found`);
     await em.query(
       `UPDATE core.tenant_store SET cluster_id = NULL, updated_at = now()
         WHERE cluster_id = $1 AND tenant_id = $2`,
       [id, tenantId],
     );
-    return { id, name: rows[0].name };
+    return { id, name: deleted[0].name };
   }
 
   private async assertCluster(

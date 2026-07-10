@@ -18,6 +18,7 @@ import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import { AuditService } from './audit.service';
 import { ApplyPricesDto, PreviewApplyDto } from './dto/apply.dto';
+import { PaginationQueryDto } from './dto/pagination.query';
 import {
   ApplyPreview,
   ApplyReport,
@@ -102,14 +103,9 @@ export class PricingApplyController {
   @Roles(UserRole.OPERATOR, UserRole.ADMIN)
   public list(
     @TenantEm() em: EntityManager,
-    @Query('page') page?: string,
-    @Query('perPage') perPage?: string,
+    @Query() q: PaginationQueryDto,
   ): Promise<ApplyRunSummary[]> {
-    return this.apply.list(
-      em,
-      page ? Number(page) : undefined,
-      perPage ? Number(perPage) : undefined,
-    );
+    return this.apply.list(em, q.page, q.perPage);
   }
 
   @Post('preview')
@@ -149,14 +145,8 @@ export class PricingApplyController {
   public report(
     @TenantEm() em: EntityManager,
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('page') page?: string,
-    @Query('perPage') perPage?: string,
+    @Query() q: PaginationQueryDto,
   ): Promise<ApplyReport> {
-    return this.apply.report(
-      em,
-      id,
-      page ? Number(page) : undefined,
-      perPage ? Number(perPage) : undefined,
-    );
+    return this.apply.report(em, id, q.page, q.perPage);
   }
 }

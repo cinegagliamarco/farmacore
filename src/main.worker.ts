@@ -1,6 +1,6 @@
 process.env.WORKER_MODE = '1';
 
-import { startOtel } from './observability/otel-bootstrap';
+import { startOtel, shutdownOtel } from './observability/otel-bootstrap';
 startOtel();
 
 import { Logger } from '@nestjs/common';
@@ -14,7 +14,14 @@ async function bootstrap(): Promise<void> {
   catchUnhandledSignals(app);
   logger.log('Worker started — connecting to RMQ in background');
   const shutdown = (): void => {
-    void app.close().then(() => process.exit(0));
+    void app
+      .close()
+      .then(shutdownOtel)
+      .then(() => process.exit(0))
+      .catch((err) => {
+        logger.error(err);
+        process.exit(1);
+      });
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);

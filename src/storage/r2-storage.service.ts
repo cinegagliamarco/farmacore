@@ -1,5 +1,5 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import sharp from 'sharp';
 import { AppConfigService } from '../config/app-config.service';
@@ -18,7 +18,6 @@ sharp.cache(false);
  */
 @Injectable()
 export class R2StorageService {
-  private readonly logger = new Logger(R2StorageService.name);
   private readonly client: S3Client;
   private readonly bucket: string;
   private readonly keyPrefix: string;
@@ -66,24 +65,17 @@ export class R2StorageService {
     return `${this.publicBase}/${fullKey}`;
   }
 
-  /** Resize to ≤800×800 (contain, white bg) jpeg q80, mirroring legacy.
-   *  Falls back to the original bytes if sharp can't process the image. */
+  /** Resize to ≤800×800 (contain, white bg) jpeg q80, mirroring legacy. */
   private async resize(
     original: Buffer,
   ): Promise<{ body: Buffer; contentType: string }> {
-    try {
-      const body = await sharp(original)
-        .resize(MAX_DIMENSION, MAX_DIMENSION, {
-          fit: 'contain',
-          background: { r: 255, g: 255, b: 255, alpha: 1 },
-        })
-        .jpeg({ quality: 80 })
-        .toBuffer();
-      return { body, contentType: 'image/jpeg' };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`resize failed, uploading original: ${message}`);
-      return { body: original, contentType: 'image/jpeg' };
-    }
+    const body = await sharp(original)
+      .resize(MAX_DIMENSION, MAX_DIMENSION, {
+        fit: 'contain',
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    return { body, contentType: 'image/jpeg' };
   }
 }

@@ -7,7 +7,7 @@ import {
 import { createServer, type Server } from 'node:http';
 import { Registry } from 'prom-client';
 
-export const METRICS_PORT = Number(process.env.METRICS_PORT ?? 9091);
+const METRICS_PORT = Number(process.env.METRICS_PORT ?? 9091);
 
 /**
  * Exposes a Prometheus scrape endpoint on :9091/metrics (Fly [metrics]).

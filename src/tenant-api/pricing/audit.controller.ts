@@ -6,6 +6,7 @@ import { ModuleCode } from '../../database/enums/module-code.enum';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import { AuditService, AuditView } from './audit.service';
+import { ListAuditQueryDto } from './dto/pagination.query';
 
 /**
  * Trilha de auditoria do tenant (somente leitura, admin). Filtra por
@@ -21,16 +22,13 @@ export class AuditController {
   @Roles(UserRole.ADMIN)
   public list(
     @TenantEm() em: EntityManager,
-    @Query('entity') entity?: string,
-    @Query('entityId') entityId?: string,
-    @Query('page') page?: string,
-    @Query('perPage') perPage?: string,
+    @Query() q: ListAuditQueryDto,
   ): Promise<AuditView[]> {
     return this.audit.list(
       em,
-      { entity, entityId },
-      page ? Number(page) : undefined,
-      perPage ? Number(perPage) : undefined,
+      { entity: q.entity, entityId: q.entityId },
+      q.page,
+      q.perPage,
     );
   }
 }

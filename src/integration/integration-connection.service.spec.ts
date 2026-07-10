@@ -83,7 +83,7 @@ describe('IntegrationConnectionService', () => {
     };
     tenants = { findOne: jest.fn() };
     crypto = {
-      decrypt: jest.fn().mockResolvedValue('secret'),
+      decrypt: jest.fn().mockReturnValue('secret'),
       encrypt: jest.fn().mockReturnValue(Buffer.from('enc')),
     };
     factory = { invalidate: jest.fn() };
@@ -190,13 +190,12 @@ describe('IntegrationConnectionService', () => {
     const bad = row({ slug: 'corrupt', host: 'db' });
     const good = row({ slug: 'acme', host: 'db' });
     repo.find.mockResolvedValue([bad, good]);
-    // Credential decrypt fails for the corrupt row; ping resolves ok:false
+    // Credential decrypt throws for the corrupt row; ping resolves ok:false
     // instead of throwing, so the fleet report still covers everyone.
-    crypto.decrypt.mockImplementation((cipher: Buffer) =>
-      cipher === bad.passwordEncrypted
-        ? Promise.reject(new Error('bad key'))
-        : Promise.resolve('secret'),
-    );
+    crypto.decrypt.mockImplementation((cipher: Buffer) => {
+      if (cipher === bad.passwordEncrypted) throw new Error('bad key');
+      return 'secret';
+    });
 
     const report = await service.testAll();
 
@@ -264,7 +263,9 @@ describe('IntegrationConnectionService', () => {
     it('degrades to ok:false (no throw, no leak) when decrypt fails', async () => {
       tenants.findOne.mockResolvedValue({ id: 't1', slug: 'acme' });
       repo.findOne.mockResolvedValue(row({ slug: 'acme', host: 'db' }));
-      crypto.decrypt.mockRejectedValue(new Error('bad key: host=10.0.0.5'));
+      crypto.decrypt.mockImplementation(() => {
+        throw new Error('bad key: host=10.0.0.5');
+      });
 
       const out = await service.testForTenant('acme');
 

@@ -7,14 +7,19 @@ import { Client } from 'pg';
 // embalagens — the main integration entity) from the source DB and writes a
 // self-contained .sql seed: DROP/CREATE TABLE (full columns, from the source's
 // information_schema) + INSERTs. Loaded into the local docker `erp` container
-// via initdb so the pipeline can run end-to-end offline. Source defaults to the
-// macfarma ngrok dev DB; override with A7PHARMA_SOURCE_URL.
-const SOURCE_URL =
-  process.env.A7PHARMA_SOURCE_URL ??
-  'postgres://leitura_053401619_101224:qnseXKaq1HXtxR8@5.tcp.ngrok.io:28501/ultrapopularbariri_loja01_20231116';
+// via initdb so the pipeline can run end-to-end offline. The source DB (a
+// read-only ERP replica) comes from A7PHARMA_SOURCE_URL — never hardcoded.
+const SOURCE_URL = process.env.A7PHARMA_SOURCE_URL;
+if (!SOURCE_URL) throw new Error('A7PHARMA_SOURCE_URL must be set');
 const N_EMBALAGENS = Number(process.env.A7PHARMA_SAMPLE_SIZE ?? 10000);
 const MAX_RECEIPT_ITEMS = 20000; // cap the highest-volume child table
-const OUT = path.join(__dirname, '..', 'docker', 'erp-seed', 'a7pharma-sample.sql');
+const OUT = path.join(
+  __dirname,
+  '..',
+  'docker',
+  'erp-seed',
+  'a7pharma-sample.sql',
+);
 
 // Tables emitted in dependency order so a plain top-to-bottom load works even
 // if someone later adds FK constraints.
@@ -57,18 +62,33 @@ function ddlType(c: {
   }
 }
 
-const NUMERIC = new Set(['bigint', 'integer', 'smallint', 'numeric', 'double precision', 'real']);
+const NUMERIC = new Set([
+  'bigint',
+  'integer',
+  'smallint',
+  'numeric',
+  'double precision',
+  'real',
+]);
 
-function literal(value: unknown, dataType: string): string {
+// pg returns these column types as primitives (or Date), never plain objects
+function literal(
+  value: string | number | boolean | Date | null | undefined,
+  dataType: string,
+): string {
   if (value === null || value === undefined) return 'NULL';
   if (dataType === 'boolean') return value ? 'true' : 'false';
-  if (NUMERIC.has(dataType)) return String(value); // pg returns bigint/numeric as strings
+  if (NUMERIC.has(dataType)) return String(value);
   const s = value instanceof Date ? value.toISOString() : String(value);
   return `'${s.replace(/'/g, "''")}'`;
 }
 
 async function main(): Promise<void> {
-  const c = new Client({ connectionString: SOURCE_URL, ssl: false, statement_timeout: 120000 });
+  const c = new Client({
+    connectionString: SOURCE_URL,
+    ssl: false,
+    statement_timeout: 120000,
+  });
   await c.connect();
 
   const ids = async (sql: string, params: unknown[]): Promise<number[]> =>
@@ -83,44 +103,69 @@ async function main(): Promise<void> {
       ORDER BY e.id LIMIT $1`,
     [N_EMBALAGENS],
   );
-  const produtoIds = await ids(`SELECT DISTINCT produtoid AS id FROM embalagem WHERE id = ANY($1)`, [embalagemIds]);
+  const produtoIds = await ids(
+    `SELECT DISTINCT produtoid AS id FROM embalagem WHERE id = ANY($1)`,
+    [embalagemIds],
+  );
   const itemRecRows = (
-    await c.query(`SELECT * FROM itemrecebimentofisico WHERE embalagemid = ANY($1) LIMIT $2`, [
-      embalagemIds,
-      MAX_RECEIPT_ITEMS,
-    ])
+    await c.query(
+      `SELECT * FROM itemrecebimentofisico WHERE embalagemid = ANY($1) LIMIT $2`,
+      [embalagemIds, MAX_RECEIPT_ITEMS],
+    )
   ).rows;
-  const recebimentoIds = [...new Set(itemRecRows.map((r) => r.recebimentofisicoid))];
+  const recebimentoIds = [
+    ...new Set(itemRecRows.map((r) => r.recebimentofisicoid)),
+  ];
   const itemOfferRows = (
-    await c.query(`SELECT * FROM itemcadernooferta WHERE embalagemid = ANY($1)`, [embalagemIds])
+    await c.query(
+      `SELECT * FROM itemcadernooferta WHERE embalagemid = ANY($1)`,
+      [embalagemIds],
+    )
   ).rows;
   const cadernoIds = [...new Set(itemOfferRows.map((r) => r.cadernoofertaid))];
   const itemOfferIds = itemOfferRows.map((r) => r.id);
 
-  const produtoRows = (await c.query(`SELECT * FROM produto WHERE id = ANY($1)`, [produtoIds])).rows;
+  const produtoRows = (
+    await c.query(`SELECT * FROM produto WHERE id = ANY($1)`, [produtoIds])
+  ).rows;
   const fabricanteIds = [
     ...new Set([
       ...produtoRows.map((r) => r.fabricanteid),
       ...itemOfferRows.map((r) => r.fabricanteid).filter((v) => v != null),
     ]),
   ];
-  const principioIds = [...new Set(produtoRows.map((r) => r.principioativoid).filter((v) => v != null))];
+  const principioIds = [
+    ...new Set(
+      produtoRows.map((r) => r.principioativoid).filter((v) => v != null),
+    ),
+  ];
   const fabricanteRows = (
-    await c.query(`SELECT * FROM fabricante WHERE id = ANY($1)`, [fabricanteIds])
+    await c.query(`SELECT * FROM fabricante WHERE id = ANY($1)`, [
+      fabricanteIds,
+    ])
   ).rows;
   const pessoaIds = [...new Set(fabricanteRows.map((r) => r.pessoaid))];
   // Classificacao referenced by produtos and offers, plus their full ancestor chain.
   const leafClassIds = [
     ...new Set([
-      ...(await ids(`SELECT classificacaoid AS id FROM classificacaoproduto WHERE produtoid = ANY($1)`, [produtoIds])),
+      ...(await ids(
+        `SELECT classificacaoid AS id FROM classificacaoproduto WHERE produtoid = ANY($1)`,
+        [produtoIds],
+      )),
       ...itemOfferRows.map((r) => r.classificacaoid).filter((v) => v != null),
     ]),
   ];
 
   const rowsByTable: Record<string, Record<string, unknown>[]> = {
-    pessoa: (await c.query(`SELECT * FROM pessoa WHERE id = ANY($1)`, [pessoaIds])).rows,
+    pessoa: (
+      await c.query(`SELECT * FROM pessoa WHERE id = ANY($1)`, [pessoaIds])
+    ).rows,
     fabricante: fabricanteRows,
-    principioativo: (await c.query(`SELECT * FROM principioativo WHERE id = ANY($1)`, [principioIds])).rows,
+    principioativo: (
+      await c.query(`SELECT * FROM principioativo WHERE id = ANY($1)`, [
+        principioIds,
+      ])
+    ).rows,
     classificacao: (
       await c.query(
         `WITH RECURSIVE anc AS (
@@ -132,18 +177,44 @@ async function main(): Promise<void> {
       )
     ).rows,
     produto: produtoRows,
-    embalagem: (await c.query(`SELECT * FROM embalagem WHERE id = ANY($1)`, [embalagemIds])).rows,
-    custoproduto: (await c.query(`SELECT * FROM custoproduto WHERE produtoid = ANY($1)`, [produtoIds])).rows,
-    classificacaoproduto: (
-      await c.query(`SELECT * FROM classificacaoproduto WHERE produtoid = ANY($1)`, [produtoIds])
+    embalagem: (
+      await c.query(`SELECT * FROM embalagem WHERE id = ANY($1)`, [
+        embalagemIds,
+      ])
     ).rows,
-    estoque: (await c.query(`SELECT * FROM estoque WHERE embalagemid = ANY($1)`, [embalagemIds])).rows,
-    recebimentofisico: (await c.query(`SELECT * FROM recebimentofisico WHERE id = ANY($1)`, [recebimentoIds])).rows,
+    custoproduto: (
+      await c.query(`SELECT * FROM custoproduto WHERE produtoid = ANY($1)`, [
+        produtoIds,
+      ])
+    ).rows,
+    classificacaoproduto: (
+      await c.query(
+        `SELECT * FROM classificacaoproduto WHERE produtoid = ANY($1)`,
+        [produtoIds],
+      )
+    ).rows,
+    estoque: (
+      await c.query(`SELECT * FROM estoque WHERE embalagemid = ANY($1)`, [
+        embalagemIds,
+      ])
+    ).rows,
+    recebimentofisico: (
+      await c.query(`SELECT * FROM recebimentofisico WHERE id = ANY($1)`, [
+        recebimentoIds,
+      ])
+    ).rows,
     itemrecebimentofisico: itemRecRows,
-    cadernooferta: (await c.query(`SELECT * FROM cadernooferta WHERE id = ANY($1)`, [cadernoIds])).rows,
+    cadernooferta: (
+      await c.query(`SELECT * FROM cadernooferta WHERE id = ANY($1)`, [
+        cadernoIds,
+      ])
+    ).rows,
     itemcadernooferta: itemOfferRows,
     itemcadernoofertaquantidade: (
-      await c.query(`SELECT * FROM itemcadernoofertaquantidade WHERE itemcadernoofertaid = ANY($1)`, [itemOfferIds])
+      await c.query(
+        `SELECT * FROM itemcadernoofertaquantidade WHERE itemcadernoofertaid = ANY($1)`,
+        [itemOfferIds],
+      )
     ).rows,
   };
 
@@ -174,20 +245,32 @@ async function main(): Promise<void> {
     const tcols = colsByTable[t];
     out.push(`DROP TABLE IF EXISTS public.${t} CASCADE;`);
     const colDefs = tcols.map(
-      (col) => `  ${col.column_name} ${ddlType(col)}${col.is_nullable === 'NO' ? ' NOT NULL' : ''}`,
+      (col) =>
+        `  ${col.column_name} ${ddlType(col)}${col.is_nullable === 'NO' ? ' NOT NULL' : ''}`,
     );
     out.push(`CREATE TABLE public.${t} (\n${colDefs.join(',\n')}\n);`);
 
     const rows = rowsByTable[t];
     if (rows.length) {
       const colNames = tcols.map((col) => col.column_name);
-      const typeByName = Object.fromEntries(tcols.map((col) => [col.column_name, col.data_type]));
+      const typeByName = Object.fromEntries(
+        tcols.map((col) => [col.column_name, col.data_type]),
+      );
       for (let i = 0; i < rows.length; i += 500) {
         const chunk = rows.slice(i, i + 500);
         const values = chunk
-          .map((r) => `  (${colNames.map((n) => literal(r[n], typeByName[n])).join(', ')})`)
+          .map(
+            (r) =>
+              `  (${colNames
+                .map((n) =>
+                  literal(r[n] as Parameters<typeof literal>[0], typeByName[n]),
+                )
+                .join(', ')})`,
+          )
           .join(',\n');
-        out.push(`INSERT INTO public.${t} (${colNames.join(', ')}) VALUES\n${values};`);
+        out.push(
+          `INSERT INTO public.${t} (${colNames.join(', ')}) VALUES\n${values};`,
+        );
       }
     }
     out.push('');

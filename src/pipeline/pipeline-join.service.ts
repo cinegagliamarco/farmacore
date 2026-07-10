@@ -20,15 +20,23 @@ export class PipelineJoinService {
     branch: JoinBranch,
   ): Promise<'wait' | 'fire'> {
     const stepKey = `branch.${branch}` as PipelineStep;
-    await this.repo.save({
-      pipelineRunId,
-      tenantId,
-      step: stepKey,
-      status: PipelineRunStatus.COMPLETED,
-      attempt: 1,
-      startedAt: new Date(),
-      finishedAt: new Date(),
-    });
+    // Commits outside the tenant tx, so a DLQ replay re-runs this insert.
+    // ON CONFLICT DO NOTHING (UQ_PIPELINE_RUN_RUN_STEP_BATCH) keeps the
+    // replay idempotent instead of poisoning it with a unique violation.
+    await this.repo
+      .createQueryBuilder()
+      .insert()
+      .values({
+        pipelineRunId,
+        tenantId,
+        step: stepKey,
+        status: PipelineRunStatus.COMPLETED,
+        attempt: 1,
+        startedAt: new Date(),
+        finishedAt: new Date(),
+      })
+      .orIgnore()
+      .execute();
     const count = await this.repo.count({
       where: [
         {

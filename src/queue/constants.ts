@@ -67,12 +67,17 @@ export const originStep = (
 
 /**
  * Every consumer queue name that has a `<name>.dlq` mirror — the single
- * source of truth for both queue declaration (QueueModule) and DLQ
- * tooling (DlqService). Covers v1 single-queue steps, v2 batched steps
- * (dispatch + batch), and per-origin scrape steps (dispatch + per origin).
+ * source of truth for the DLQ tooling (DlqService). Covers v1
+ * single-queue steps, v2 batched steps (dispatch + batch), per-origin
+ * scrape steps (dispatch + per origin), plus pipeline.start and
+ * migrate-tenant.
  */
 export const allStepQueueNames = (): string[] => {
-  const names: string[] = [...STEP_QUEUES];
+  const names: string[] = [
+    ...STEP_QUEUES,
+    PIPELINE_START_QUEUE,
+    MIGRATE_TENANT_QUEUE,
+  ];
   for (const step of BATCHED_STEPS) {
     names.push(dispatchStep(step), batchStep(step));
   }

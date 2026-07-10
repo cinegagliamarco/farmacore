@@ -12,10 +12,7 @@ import type { EntityManager } from 'typeorm';
 import { IS_PUBLIC_KEY } from '../../auth/decorators/public.decorator';
 import type { JwtPayload } from '../../auth/jwt-payload.type';
 import { TenantTransactionService } from '../tenant-transaction.service';
-
-function schemaNameFor(slug: string): string {
-  return slug === 'system' ? 'system' : `tenant_${slug.replace(/-/g, '_')}`;
-}
+import { schemaNameFor } from '../tenant-schema';
 
 @Injectable()
 export class SearchPathInterceptor implements NestInterceptor {
@@ -42,6 +39,9 @@ export class SearchPathInterceptor implements NestInterceptor {
       >();
     if (!req.user) throw new UnauthorizedException('No tenant context');
     const schemaName = schemaNameFor(req.user.tenantId);
+    // System/admin routes never read req.entityManager; skip the transaction
+    // so they don't hold a pool connection for the whole request.
+    if (schemaName === 'system') return next.handle();
 
     return from(
       this.txService.runWithTenant(schemaName, async (em) => {

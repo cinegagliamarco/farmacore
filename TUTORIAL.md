@@ -232,17 +232,20 @@ docker exec -i farmacore-postgres-1 psql -U app -d app -c "
 "
 ```
 
-Expected on a successful run: 8 step rows + 2 `branch.*` rows, all `completed`.
+Expected on a successful run: every step row `completed` (dispatch rows plus their per-batch rows for batched steps), including the 2 `branch.*` join rows.
 
 ### 5.7 Inspect / replay the DLQ
 
 ```bash
+# Discover the real queue names (batched steps have .dispatch/.batch queues)
+curl -sS "http://localhost:3000/admin/dlq" -H "Authorization: Bearer $TOKEN" | jq
+
 # Peek (doesn't consume)
-curl -sS "http://localhost:3000/admin/dlq/sync-base-product?limit=10" \
+curl -sS "http://localhost:3000/admin/dlq/sync-base-product.batch?limit=10" \
   -H "Authorization: Bearer $TOKEN" | jq
 
 # Replay everything in the DLQ back to the main exchange
-curl -sS -X POST "http://localhost:3000/admin/dlq/sync-base-product/replay?max=100" \
+curl -sS -X POST "http://localhost:3000/admin/dlq/sync-base-product.batch/replay?max=100" \
   -H "Authorization: Bearer $TOKEN"
 # → { "replayed": N }
 ```
@@ -421,9 +424,10 @@ Find and kill the stale process: `lsof -nP -i :3000 -t | xargs kill`.
 
 ### `PRECONDITION_FAILED ... 'x-dead-letter-exchange'`
 
-The local RabbitMQ has queues declared with one DLX (`pipeline.development.dlx`) but the current process is trying to redeclare them with a different DLX. Usually triggered by switching `NODE_ENV`. Fix one of:
+RabbitMQ queue arguments are immutable — the broker refuses to redeclare an existing queue with different args. Locally this is usually a `NODE_ENV` switch; on deploys it happens when a release changes queue args (e.g. DLX wiring). Fix one of:
 
 - Force `NODE_ENV=development` (e2e tests do this via `test/setup-e2e-env.ts`).
+- `npm run queues:recreate` — deletes the main queues (empty ones only; `-- --force` drops messages) so the next boot redeclares them. Stop the worker first; see `docs/operator/runbook.md` → "Deploying queue-argument changes".
 - Wipe RMQ: `docker compose down rabbitmq && docker compose up -d rabbitmq`.
 
 ### `/health` returns 401
@@ -470,7 +474,7 @@ src/
 ├─ pipeline/                    # 8 step consumers + cron + admin trigger (plan 05)
 ├─ presentation/                # interceptors + InternalLogger (plan 09)
 ├─ queue/                       # RMQ topology + publisher + retry (plan 04)
-├─ tenant/                      # TenantContext + runWithTenant + SearchPathInterceptor
+├─ tenant/                      # slug→schema mapping + TenantTransactionService + SearchPathInterceptor
 └─ tenant-api/                  # tenant-user-facing API: catalog + config (plan 10)
 
 migrations/                     # SQL migrations: core/, shared_catalog/, tenant/

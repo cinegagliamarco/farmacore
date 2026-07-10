@@ -90,6 +90,21 @@ describe('PriceRoundingService.create', () => {
       }),
     ).rejects.toThrow(BadRequestException);
   });
+
+  it('returns the rules sorted by decimalMin', async () => {
+    const { em } = makeEm({
+      'INSERT INTO core.price_rounding_range': [{ id: 'r1' }],
+    });
+    const res = await new PriceRoundingService().create(em, 's', {
+      priceMin: 0,
+      priceMax: 10,
+      rules: [
+        { decimalMin: 0.5, decimalMax: 0.99, roundTo: 0.99 },
+        { decimalMin: 0, decimalMax: 0.49, roundTo: 0.49 },
+      ],
+    });
+    expect(res.rules.map((r) => r.decimalMin)).toEqual([0, 0.5]);
+  });
 });
 
 describe('PriceRoundingService.update', () => {
@@ -119,6 +134,31 @@ describe('PriceRoundingService.update', () => {
     const { em, query } = makeEm({ 'AND id = $2': range });
     await new PriceRoundingService().update(em, 's', 'r1', { priceMin: 5 });
     expect(deletedRules(query)).toBe(false);
+  });
+
+  it('rejects an invalid rule before any DELETE/INSERT', async () => {
+    const { em, query } = makeEm({ 'AND id = $2': range });
+    await expect(
+      new PriceRoundingService().update(em, 's', 'r1', {
+        rules: [{ decimalMin: 0.9, decimalMax: 0.1, roundTo: 0.5 }],
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(
+      query.mock.calls.some(
+        ([sql]) => sql.includes('DELETE') || sql.includes('INSERT'),
+      ),
+    ).toBe(false);
+  });
+
+  it('returns the replacement rules sorted by decimalMin', async () => {
+    const { em } = makeEm({ 'AND id = $2': range });
+    const res = await new PriceRoundingService().update(em, 's', 'r1', {
+      rules: [
+        { decimalMin: 0.5, decimalMax: 0.99, roundTo: 0.99 },
+        { decimalMin: 0, decimalMax: 0.49, roundTo: 0.49 },
+      ],
+    });
+    expect(res.rules.map((r) => r.decimalMin)).toEqual([0, 0.5]);
   });
 });
 

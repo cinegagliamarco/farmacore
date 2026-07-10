@@ -2,7 +2,7 @@ import { Column, ColumnOptions } from 'typeorm';
 
 // Shared across integration entity folders. PG returns NUMERIC as string
 // over the wire; this transformer parses it to JS number at read time.
-export const numericTransformer = {
+const numericTransformer = {
   to(data: number | null): number | null {
     return data;
   },

@@ -18,6 +18,9 @@ export default new DataSource({
     process.env.NODE_ENV === 'production'
       ? { rejectUnauthorized: false }
       : false,
+  // The glob also picks up tenant entities declared without a `schema`
+  // (resolved at runtime via search_path), so `migration:generate` is NOT
+  // supported against this data source — migrations are written by hand.
   entities: [path.join(here, 'entities/**/*.entity.{ts,js}')],
   migrations: [
     path.join(here, '../../migrations/core/*.{ts,js}'),

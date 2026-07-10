@@ -330,15 +330,15 @@ export class OfferBookRulesService {
     const priceAfterRule = finalPrice;
 
     // Price lock: bump the price to the minimum-margin floor when current or
-    // new margin falls below it.
-    if (
-      matchingPriceLock &&
-      (currentMargin < matchingPriceLock.minMargin ||
-        newMargin < matchingPriceLock.minMargin)
-    ) {
-      const minMarginDecimal = matchingPriceLock.minMargin / 100;
-      if (minMarginDecimal < 1 && cost > 0) {
-        finalPrice = cost / (1 - minMarginDecimal);
+    // new margin falls below it. The floor also caps the rounding below.
+    let lockFloor: number | undefined;
+    if (matchingPriceLock && matchingPriceLock.minMargin < 100 && cost > 0) {
+      lockFloor = cost / (1 - matchingPriceLock.minMargin / 100);
+      if (
+        currentMargin < matchingPriceLock.minMargin ||
+        newMargin < matchingPriceLock.minMargin
+      ) {
+        finalPrice = lockFloor;
         newMargin = matchingPriceLock.minMargin;
         priceLockApplied = true;
       }
@@ -356,6 +356,7 @@ export class OfferBookRulesService {
     const roundingResult = this.applyPriceRounding(
       finalPrice,
       params.priceRoundingRules,
+      lockFloor,
     );
     if (roundingResult !== null) {
       finalPrice = roundingResult;
@@ -511,6 +512,7 @@ export class OfferBookRulesService {
   private applyPriceRounding(
     price: number,
     rules?: PriceRoundingRuleInput[],
+    minPrice?: number,
   ): number | null {
     if (!rules || rules.length === 0) return null;
 
@@ -526,7 +528,11 @@ export class OfferBookRulesService {
     );
     if (!bucket) return null;
 
-    const roundedPrice = integerPart + bucket.roundTo;
+    let roundedPrice = integerPart + bucket.roundTo;
+    // Mirrors the suggestion engine: a bucket that dips below the price-lock
+    // floor moves up one whole unit instead of violating the minimum margin.
+    if (minPrice !== undefined && roundedPrice < minPrice)
+      roundedPrice = integerPart + 1 + bucket.roundTo;
     if (roundedPrice === round2(price)) return null;
     return round2(roundedPrice);
   }

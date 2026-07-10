@@ -1,11 +1,11 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
-import { AxiosError } from 'axios';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import {
   ProductScraper,
   ScrapedProduct,
   scrapeProductsSequential,
+  toNumericString,
 } from '../types';
 import { MichelassiProduct, MichelassiSearchResponse } from './types';
 
@@ -34,15 +34,11 @@ const HEADERS = {
 } as const;
 
 const TIMEOUT_MS = 30_000;
-const MAX_RETRIES = 3;
-const BASE_BACKOFF_MS = 2_000;
 
 /**
  * Michelassi scraper (instabuy.com.br). Single endpoint returns the
- * full product metadata.
- *
- * Rate-limit handling: 429 retries up to 3 times with exponential
- * backoff (2s, 4s, 8s) — matches legacy behavior.
+ * full product metadata. 429 rate limits are retried by the module-wide
+ * axios-retry (http-retry.ts).
  */
 @Injectable()
 export class MichelassiScraper implements ProductScraper {
@@ -53,7 +49,7 @@ export class MichelassiScraper implements ProductScraper {
 
   public async scrapeProduct(ean: string): Promise<ScrapedProduct> {
     try {
-      const product = await this.fetchProductByEan(ean, 0);
+      const product = await this.fetchProductByEan(ean);
       if (!product) return { ean, origin: this.origin, found: false };
       return mapProduct(ean, product);
     } catch (err) {
@@ -69,25 +65,16 @@ export class MichelassiScraper implements ProductScraper {
 
   private async fetchProductByEan(
     ean: string,
-    attempt: number,
   ): Promise<MichelassiProduct | null> {
-    try {
-      const { data } = await this.http.axiosRef.get<MichelassiSearchResponse>(
-        SEARCH_URL(ean),
-        { headers: HEADERS, timeout: TIMEOUT_MS },
-      );
-      return data?.data?.[0] ?? null;
-    } catch (err) {
-      if (isRateLimited(err) && attempt < MAX_RETRIES) {
-        const backoff = BASE_BACKOFF_MS * 2 ** attempt;
-        this.logger.warn(
-          `429 for ean=${ean}, retrying in ${backoff}ms (attempt ${attempt + 1}/${MAX_RETRIES})`,
-        );
-        await delay(backoff);
-        return this.fetchProductByEan(ean, attempt + 1);
-      }
-      throw err;
-    }
+    const { data } = await this.http.axiosRef.get<MichelassiSearchResponse>(
+      SEARCH_URL(ean),
+      { headers: HEADERS, timeout: TIMEOUT_MS },
+    );
+    // The endpoint is full-text search, so the first hit may be another
+    // product that merely mentions the EAN — pick by bar_codes when present.
+    return (
+      data?.data?.find((p) => !p.bar_codes || p.bar_codes.includes(ean)) ?? null
+    );
   }
 }
 
@@ -105,17 +92,4 @@ export function mapProduct(ean: string, p: MichelassiProduct): ScrapedProduct {
       image: p.images?.[0] ? IMAGE_URL(p.images[0]) : undefined,
     },
   };
-}
-
-export function isRateLimited(error: unknown): boolean {
-  return error instanceof AxiosError && error.response?.status === 429;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function toNumericString(value: number | null | undefined): string | null {
-  if (value == null) return null;
-  return Number.isFinite(value) ? String(value) : null;
 }

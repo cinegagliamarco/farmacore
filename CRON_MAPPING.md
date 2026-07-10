@@ -42,7 +42,7 @@ Daily cron itself: legacy `@Cron(EVERY_DAY_AT_MIDNIGHT)` single job → split in
 |---|---|---|---|---|
 | every 5 min | `updateProductsWithErrorsOrOutdated` | "re-scrape errored products" (system periodic) | 🆕 | Re-scrape `shared_catalog.product` rows where `metadata.error` is set or the row is stale. Reuses the per-origin scrape queues. |
 | every 5 min | `updateStockWithErrorsOrOutdated` | "re-scrape errored stock" (system periodic) | 🆕 | Same shape for competitor stock. |
-| every 1 min | `executeSchedulings` | — | ⛔ | Needs the **scheduling** feature (DB-driven price / offer-price updates). `scheduling.controller` is ❌ in CONTROLLER_MAPPING. |
+| every 1 min | `executeSchedulings` | `PricingScheduleCron` (`src/tenant-api/pricing/pricing-schedule.cron.ts`) | ✅ | Fires due `pricing_schedule` rows per minute (one-shot frozen prices, `recalc`, recurring `cronExpr`); a schedule whose apply throws is parked as `status='failed'` instead of retrying forever. The legacy `core.scheduling` table was dropped (dead code). |
 | hourly 07–21 | `executeScheduledOfferBookRules` | — | ⛔ | Needs the **offer-book-rules** feature (`offer-book-rules.controller` is ❌). |
 | every 12 h | `restartApplication` | — | ❌ | Fly.io manages process lifecycle/restarts; the legacy "restart to free memory" workaround isn't needed. |
 

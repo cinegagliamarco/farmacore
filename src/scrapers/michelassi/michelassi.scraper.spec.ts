@@ -1,24 +1,6 @@
-import { AxiosError } from 'axios';
-import { isRateLimited, mapProduct } from './michelassi.scraper';
-
-describe('isRateLimited', () => {
-  it('returns true for AxiosError with 429', () => {
-    const err = new AxiosError('rate', '429');
-    err.response = { status: 429 } as AxiosError['response'];
-    expect(isRateLimited(err)).toBe(true);
-  });
-
-  it('returns false for AxiosError with other status', () => {
-    const err = new AxiosError('boom', '500');
-    err.response = { status: 500 } as AxiosError['response'];
-    expect(isRateLimited(err)).toBe(false);
-  });
-
-  it('returns false for non-axios errors', () => {
-    expect(isRateLimited(new Error('not axios'))).toBe(false);
-    expect(isRateLimited('string')).toBe(false);
-  });
-});
+import { HttpService } from '@nestjs/axios';
+import { MichelassiScraper, mapProduct } from './michelassi.scraper';
+import type { MichelassiProduct } from './types';
 
 describe('mapProduct', () => {
   it('maps full product with image URL', () => {
@@ -47,5 +29,40 @@ describe('mapProduct', () => {
 
   it('returns null price when min_price_valid missing', () => {
     expect(mapProduct('7891', {}).price).toBeNull();
+  });
+});
+
+describe('MichelassiScraper.scrapeProduct', () => {
+  const buildHttp = (products: MichelassiProduct[]): HttpService =>
+    ({
+      axiosRef: {
+        get: jest.fn().mockResolvedValue({ data: { data: products } }),
+      },
+    }) as unknown as HttpService;
+
+  it('skips full-text hits whose bar_codes do not include the EAN', async () => {
+    const out = await new MichelassiScraper(
+      buildHttp([
+        { name: 'Errado', bar_codes: ['111'] },
+        { name: 'Certo', bar_codes: ['7891'] },
+      ]),
+    ).scrapeProduct('7891');
+    expect(out.found).toBe(true);
+    expect(out.name).toBe('Certo');
+  });
+
+  it('falls back to the first hit when bar_codes is absent', async () => {
+    const out = await new MichelassiScraper(
+      buildHttp([{ name: 'Sem código' }]),
+    ).scrapeProduct('7891');
+    expect(out.found).toBe(true);
+    expect(out.name).toBe('Sem código');
+  });
+
+  it('returns found=false when no hit matches the EAN', async () => {
+    const out = await new MichelassiScraper(
+      buildHttp([{ name: 'Errado', bar_codes: ['111'] }]),
+    ).scrapeProduct('7891');
+    expect(out).toEqual({ ean: '7891', origin: 'MICHELASSI', found: false });
   });
 });

@@ -9,7 +9,7 @@ const VTEX_SIMPLE_ORIGINS = new Set<CompetitorOrigin>([
   CompetitorOrigin.INDIANA,
 ]);
 
-export function isVtexSimpleOrigin(origin: CompetitorOrigin): boolean {
+function isVtexSimpleOrigin(origin: CompetitorOrigin): boolean {
   return VTEX_SIMPLE_ORIGINS.has(origin);
 }
 

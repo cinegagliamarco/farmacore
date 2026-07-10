@@ -43,6 +43,7 @@ describe('ModulesGuard', () => {
 
   it('passes when the tenant has one of the required modules', async () => {
     tenants.findBySlug.mockResolvedValue({
+      status: 'active',
       modules: [ModuleCode.OFFER_BOOK_RULES],
     });
     await expect(guard.canActivate(ctx(gated, user))).resolves.toBe(true);
@@ -51,7 +52,18 @@ describe('ModulesGuard', () => {
 
   it('rejects when the tenant has none of the required modules', async () => {
     tenants.findBySlug.mockResolvedValue({
+      status: 'active',
       modules: [ModuleCode.CROSSED_PRODUCTS],
+    });
+    await expect(guard.canActivate(ctx(gated, user))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('rejects suspended tenants even with the module enabled', async () => {
+    tenants.findBySlug.mockResolvedValue({
+      status: 'suspended',
+      modules: [ModuleCode.OFFER_BOOK_RULES],
     });
     await expect(guard.canActivate(ctx(gated, user))).rejects.toBeInstanceOf(
       ForbiddenException,

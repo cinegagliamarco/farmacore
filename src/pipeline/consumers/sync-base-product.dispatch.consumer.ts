@@ -107,6 +107,6 @@ export class SyncBaseProductDispatchConsumer extends DispatchPipelineConsumer {
     this.logger.log(
       `sync-base-product dispatch: ${batches.length} batch(es) of <= ${BATCH_SIZE} EANs`,
     );
-    return { batches, emptySuccessors: [successor] };
+    return { batches };
   }
 }

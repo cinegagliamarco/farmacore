@@ -1,13 +1,13 @@
 import { Test } from '@nestjs/testing';
 import { EntityManager } from 'typeorm';
 import { BasePipelineConsumer, HandleResult } from './base-pipeline.consumer';
+import { OutboxRepository } from './outbox.repository';
 import { PipelineRunService } from './pipeline-run.service';
-import { RetryService } from './retry.service';
+import { DuplicateDeliveryRepublishError, RetryService } from './retry.service';
 import { TenantTransactionService } from '../tenant/tenant-transaction.service';
 import { TenantService } from '../tenant/tenant.service';
 import { IntegrationDataSourceFactory } from '../integration/integration-data-source.factory';
 import { PipelineStep } from '../database/enums/pipeline-step.enum';
-import { PipelinePublisher } from './pipeline-publisher.service';
 import { noopPipelineMetrics } from '../observability/pipeline-metrics.test-utils';
 import { PipelineMetricsRegistry } from '../observability/pipeline-metrics.registry';
 
@@ -30,7 +30,7 @@ describe('BasePipelineConsumer', () => {
   let tx: { runWithTenant: jest.Mock };
   let tenants: { findActive: jest.Mock };
   let factory: { forTenantSlug: jest.Mock };
-  let publisher: { publishStep: jest.Mock };
+  let outbox: { insertMany: jest.Mock };
 
   beforeEach(async () => {
     runs = {
@@ -53,7 +53,7 @@ describe('BasePipelineConsumer', () => {
       }),
     };
     factory = { forTenantSlug: jest.fn().mockResolvedValue(null) };
-    publisher = { publishStep: jest.fn() };
+    outbox = { insertMany: jest.fn() };
 
     const mod = await Test.createTestingModule({
       providers: [
@@ -63,7 +63,7 @@ describe('BasePipelineConsumer', () => {
         { provide: TenantTransactionService, useValue: tx },
         { provide: TenantService, useValue: tenants },
         { provide: IntegrationDataSourceFactory, useValue: factory },
-        { provide: PipelinePublisher, useValue: publisher },
+        { provide: OutboxRepository, useValue: outbox },
         { provide: PipelineMetricsRegistry, useValue: noopPipelineMetrics() },
       ],
     }).compile();
@@ -82,9 +82,12 @@ describe('BasePipelineConsumer', () => {
   it('runs handle when start returns started', async () => {
     await consumer.process(msg);
     expect(consumer.lastInvoked).toBe(1);
+    // complete shares the tenant tx with handle + outbox staging.
     expect(runs.complete).toHaveBeenCalledWith(
       'run1',
       PipelineStep.SYNC_BASE_PRODUCT,
+      undefined,
+      expect.anything(),
     );
   });
 
@@ -92,6 +95,28 @@ describe('BasePipelineConsumer', () => {
     runs.start.mockResolvedValue('already-completed');
     await consumer.process(msg);
     expect(consumer.lastInvoked).toBe(0);
+    expect(runs.complete).not.toHaveBeenCalled();
+  });
+
+  it('routes a duplicate delivery of an in-progress step to the DLQ without touching the run row', async () => {
+    runs.start.mockResolvedValue('in-progress');
+    await consumer.process(msg);
+    expect(consumer.lastInvoked).toBe(0);
+    expect(retry.republishOnFailure).toHaveBeenCalledWith(msg);
+    expect(runs.complete).not.toHaveBeenCalled();
+    // fail() here would clobber the original delivery's RUNNING row.
+    expect(runs.fail).not.toHaveBeenCalled();
+  });
+
+  it('rethrows a failed in-progress republish so the broker DLX takes over (no fail row)', async () => {
+    runs.start.mockResolvedValue('in-progress');
+    retry.republishOnFailure.mockRejectedValue(new Error('channel closed'));
+    await expect(consumer.process(msg)).rejects.toBeInstanceOf(
+      DuplicateDeliveryRepublishError,
+    );
+    // Must bypass the generic catch: its fail() would clobber the original
+    // delivery's RUNNING row (COMPLETED→FAILED flip).
+    expect(runs.fail).not.toHaveBeenCalled();
     expect(runs.complete).not.toHaveBeenCalled();
   });
 
@@ -106,7 +131,7 @@ describe('BasePipelineConsumer', () => {
     );
   });
 
-  it('publishes successors returned by handle()', async () => {
+  it('stages successors returned by handle() to the outbox', async () => {
     const successor = {
       pipelineRunId: 'run1',
       tenantId: 'acme',
@@ -118,8 +143,12 @@ describe('BasePipelineConsumer', () => {
     (consumer as unknown as { handle: () => Promise<HandleResult> }).handle =
       () => Promise.resolve({ successors: [successor] });
     await consumer.process(msg);
-    expect(publisher.publishStep).toHaveBeenCalledWith(successor, undefined, {
-      producer: 'consumer:successor',
-    });
+    // Successors go to the outbox in the same tx as complete, not to AMQP.
+    expect(outbox.insertMany).toHaveBeenCalledWith(
+      expect.anything(), // em
+      'run1',
+      'acme',
+      [successor],
+    );
   });
 });

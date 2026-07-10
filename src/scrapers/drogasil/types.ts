@@ -4,25 +4,25 @@ export interface DrogasilCustomAttribute {
   value?: Array<{ id?: string | number; label?: string }>;
 }
 
-export interface DrogasilPriceAux {
+interface DrogasilPriceAux {
   value_to?: number;
   lmpm_value_to?: number;
   lmpm_qty?: number;
 }
 
-export interface DrogasilLivePrice {
+interface DrogasilLivePrice {
   type?: string;
   valueTo?: number;
 }
 
-export interface DrogasilPbmProduct {
+interface DrogasilPbmProduct {
   sku?: string;
   EAN?: string;
   percentDiscountPbm?: number;
   valueSalePbm?: number;
 }
 
-export interface DrogasilPbm {
+interface DrogasilPbm {
   products?: DrogasilPbmProduct[];
 }
 

@@ -9,12 +9,16 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
   Min,
   ValidateNested,
 } from 'class-validator';
 
 export class ApplyItemDto {
+  // Digits only — EANs hit `ANY($1::bigint[])`, so a non-numeric value would
+  // be a Postgres cast error (500) instead of a clean 400; ≤18 digits fits bigint.
   @IsString()
+  @Matches(/^\d{1,18}$/)
   public ean!: string;
 
   @IsIn(['precoVenda', 'precoOferta'])

@@ -26,6 +26,10 @@ export interface PipelineOutboxMessage {
  */
 @Entity({ schema: 'core', name: 'pipeline_outbox' })
 @Index('IX_PIPELINE_OUTBOX_RUN', ['pipelineRunId'])
+// Partial index for the publisher's "what's pending" scan.
+@Index('IX_PIPELINE_OUTBOX_PENDING', ['createdAt'], {
+  where: 'published_at IS NULL',
+})
 export class PipelineOutboxEntity extends BaseEntity {
   @Column({ name: 'pipeline_run_id', type: 'uuid' })
   public pipelineRunId!: string;
