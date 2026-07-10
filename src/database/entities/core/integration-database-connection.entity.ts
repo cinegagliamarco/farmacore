@@ -3,7 +3,7 @@ import { BaseEntity } from '../base.entity';
 import { TenantEntity } from './tenant.entity';
 import { IntegrationOrigin } from '../../enums/integration-origin.enum';
 
-export type IntegrationDbType = 'postgres';
+type IntegrationDbType = 'postgres';
 export type SslMode = 'disable' | 'require' | 'verify-full';
 export type IntegrationStatus = 'active' | 'disabled' | 'error';
 

@@ -3,7 +3,7 @@ import { BaseEntity } from '../base.entity';
 import { UserRole } from '../../enums/user-role.enum';
 import { RefreshTokenEntity } from './refresh-token.entity';
 
-export type UserStatus = 'active' | 'disabled';
+type UserStatus = 'active' | 'disabled';
 
 @Entity({ schema: 'core', name: 'user' })
 @Index('UQ_USER_TENANT_EMAIL', ['tenantId', 'email'], { unique: true })
@@ -11,7 +11,7 @@ export class UserEntity extends BaseEntity {
   @Column({ name: 'tenant_id', type: 'text' })
   public tenantId!: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'citext' })
   public email!: string;
 
   @Column({ name: 'password_hash', type: 'text' })

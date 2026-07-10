@@ -70,9 +70,7 @@ export class SharedProductRepository {
         ean: s.ean,
         origin: s.origin,
         name: s.name ?? null,
-        url: s.url ?? null,
         price: s.price ?? null,
-        unitSalePrice: s.unitSalePrice ?? null,
         supplier: s.supplier ?? null,
         brand: s.brand ?? null,
         sku: s.sku ?? null,
@@ -88,25 +86,5 @@ export class SharedProductRepository {
       indexPredicate: 'deleted_at IS NULL',
       skipUpdateIfNoValuesChanged: true,
     });
-  }
-
-  /**
-   * Stock-fetch candidates: (ean, sku) pairs for an origin where the
-   * scraper has already populated a SKU. The stock dispatcher chunks
-   * the result into per-origin batches. Rows without sku (found=false
-   * scrapes) are filtered out — no point fetching stock without a sku.
-   */
-  public async findStockCandidatesByOrigin(
-    origin: string,
-  ): Promise<Array<{ ean: string; sku: string }>> {
-    const rows: Array<{ ean: string; sku: string }> = await this.em
-      .getRepository(ProductEntity)
-      .createQueryBuilder('p')
-      .select(['p.ean AS ean', 'p.sku AS sku'])
-      .where('p.origin = :origin', { origin })
-      .andWhere('p.sku IS NOT NULL')
-      .orderBy('p.ean', 'ASC')
-      .getRawMany();
-    return rows.map((r) => ({ ean: String(r.ean), sku: String(r.sku) }));
   }
 }

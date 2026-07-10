@@ -4,6 +4,7 @@ import { UserEntity } from './user.entity';
 
 @Entity({ schema: 'core', name: 'refresh_token' })
 @Index('IX_REFRESH_TOKEN_USER', ['userId'])
+@Index('UQ_REFRESH_TOKEN_HASH', ['tokenHash'], { unique: true })
 export class RefreshTokenEntity extends BaseEntity {
   @Column({ name: 'user_id', type: 'uuid' })
   public userId!: string;

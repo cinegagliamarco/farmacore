@@ -1,7 +1,7 @@
 import { CompetitorOrigin } from './enums/competitor-origin.enum';
 
 /** pt-BR display names — single source for API labels and admin UI. */
-export const COMPETITOR_ORIGIN_LABELS: Record<CompetitorOrigin, string> = {
+const COMPETITOR_ORIGIN_LABELS: Record<CompetitorOrigin, string> = {
   [CompetitorOrigin.DROGAL]: 'Drogal',
   [CompetitorOrigin.DROGASIL]: 'Drogasil',
   [CompetitorOrigin.PAGUE_MENOS]: 'Pague Menos',

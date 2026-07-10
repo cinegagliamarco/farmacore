@@ -2,7 +2,7 @@ import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '../base.entity';
 import { ApplyTarget } from './pricing-apply-item.entity';
 
-export type ScheduleStatus = 'pending' | 'fired' | 'cancelled';
+export type ScheduleStatus = 'pending' | 'fired' | 'cancelled' | 'failed';
 
 export interface ScheduleItem {
   ean: string;

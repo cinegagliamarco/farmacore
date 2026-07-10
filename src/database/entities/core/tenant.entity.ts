@@ -16,7 +16,7 @@ export class TenantEntity extends BaseEntity {
   @Column({ type: 'text', name: 'schema_name' })
   public schemaName!: string;
 
-  @Column({ type: 'enum', enum: TenantStatus, default: TenantStatus.ACTIVE })
+  @Column({ type: 'text', enum: TenantStatus, default: TenantStatus.ACTIVE })
   public status!: TenantStatus;
 
   @Column({ type: 'text', array: true, default: '{}' })
