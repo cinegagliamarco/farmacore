@@ -8,20 +8,20 @@ export interface DrogalCustomData {
   pbmPrice?: number;
 }
 
-export interface DrogalCommertialOffer {
+interface DrogalCommertialOffer {
   Price: number;
   PromotionTeasers?: Array<{ Name?: string }>;
 }
 
-export interface DrogalSeller {
+interface DrogalSeller {
   commertialOffer?: DrogalCommertialOffer;
 }
 
-export interface DrogalImage {
+interface DrogalImage {
   imageUrl?: string;
 }
 
-export interface DrogalItem {
+interface DrogalItem {
   sellers?: DrogalSeller[];
   images?: DrogalImage[];
 }

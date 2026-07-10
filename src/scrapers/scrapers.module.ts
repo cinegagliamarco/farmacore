@@ -14,10 +14,11 @@ import { configureScraperRetry } from './http-retry';
 const SCRAPER_HTTP_RETRY = 'SCRAPER_HTTP_RETRY';
 
 /**
- * Per-origin scrapers (Phase C). Each scraper implements
- * ProductScraper from ./types. Steps inject the
- * concrete scraper they need; no shared base class — each origin's
- * API differs enough that abstraction would obscure more than help.
+ * Per-origin scrapers. Each implements ProductScraper from ./types;
+ * steps inject the concrete scraper they need. The six VTEX storefronts
+ * share scrapeVtexCatalogProducts and its default mapper
+ * (vtex-catalog-search.ts); drogal, drogasil and michelassi have
+ * bespoke APIs.
  */
 @Module({
   imports: [HttpModule.register({ timeout: 30_000, maxRedirects: 5 })],

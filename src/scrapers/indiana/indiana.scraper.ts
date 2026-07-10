@@ -3,7 +3,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CompetitorOrigin } from '../../database/enums/competitor-origin.enum';
 import { ProductScraper, ScrapedProduct } from '../types';
 import { scrapeVtexCatalogProducts } from '../vtex-catalog-search';
-import { IndianaProduct } from './types';
 
 const CATALOG_SEARCH_BASE =
   'https://www.farmaciaindiana.com.br/api/catalog_system/pub/products/search';
@@ -25,38 +24,7 @@ export class IndianaScraper implements ProductScraper {
       CATALOG_SEARCH_BASE,
       eans,
       this.origin,
-      mapProduct,
       this.logger,
-      'IndianaScraper',
     );
   }
-}
-
-export function mapProduct(ean: string, p: IndianaProduct): ScrapedProduct {
-  const offer = p.items?.[0]?.sellers?.[0]?.commertialOffer;
-  if (!offer) return { ean, origin: CompetitorOrigin.INDIANA, found: false };
-  return {
-    ean,
-    origin: CompetitorOrigin.INDIANA,
-    found: true,
-    name: p.productName ?? null,
-    brand: p.brand ?? null,
-    sku: p.productReferenceCode ?? null,
-    price: toNumericString(offer.Price),
-    metadata: {
-      description: stripHtml(p.description),
-      image: p.items?.[0]?.images?.[0]?.imageUrl,
-      observation: offer.PromotionTeasers?.[0]?.Name,
-    },
-  };
-}
-
-function toNumericString(value: number | null | undefined): string | null {
-  if (value == null) return null;
-  return Number.isFinite(value) ? String(value) : null;
-}
-
-function stripHtml(html: string | undefined): string | undefined {
-  if (!html) return undefined;
-  return html.replace(/<[^>]*>/g, '').trim() || undefined;
 }

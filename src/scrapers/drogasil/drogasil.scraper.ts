@@ -4,6 +4,8 @@ import {
   ProductScraper,
   ScrapedProduct,
   scrapeProductsSequential,
+  stripHtml,
+  toNumericString,
 } from '../types';
 import {
   DrogasilCustomAttribute,
@@ -228,14 +230,4 @@ function joinValueStrings(
 
 function labelOf(attr: DrogasilCustomAttribute | undefined): string | null {
   return attr?.value?.[0]?.label ?? null;
-}
-
-function toNumericString(value: number | null | undefined): string | null {
-  if (value == null) return null;
-  return Number.isFinite(value) ? String(value) : null;
-}
-
-function stripHtml(html: string | undefined): string | undefined {
-  if (!html) return undefined;
-  return html.replace(/<[^>]*>/g, '').trim() || undefined;
 }

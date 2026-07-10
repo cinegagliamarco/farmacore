@@ -6,6 +6,7 @@ export interface MichelassiProduct {
   min_price_valid?: number;
   erp_internal_code?: string;
   images?: string[];
+  bar_codes?: string[];
 }
 
 export interface MichelassiSearchResponse {
