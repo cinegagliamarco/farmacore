@@ -104,11 +104,15 @@ export class SyncProductItemsStep {
     let processed = 0;
     for (const { store, priceRows, costRows } of erpReads) {
       const unidade = Number(store.externalId);
+      // As colunas bigint (embalagemid/produtoid) chegam como STRING do
+      // driver pg — o tipo `number` da entity mente. Sem o Number() a chave
+      // do Map nunca casa com o lookup numérico e todo custo/preço por loja
+      // viraria NULL silenciosamente (visto em produção em 2026-07-10).
       const priceByEmbalagem = new Map(
-        priceRows.map((r) => [r.embalagemid, r.precovenda]),
+        priceRows.map((r) => [Number(r.embalagemid), r.precovenda]),
       );
       const costByProduto = new Map(
-        costRows.map((r) => [r.produtoid, r.custo ?? r.customedio]),
+        costRows.map((r) => [Number(r.produtoid), r.custo ?? r.customedio]),
       );
 
       const inputs: ProductItemUpsertInput[] = products.map((p) => {
