@@ -9,6 +9,7 @@ import { PriceRoundingController } from './config/price-rounding.controller';
 import { PriceRoundingService } from './config/price-rounding.service';
 import { SettingsController } from './config/settings.controller';
 import { SettingsService } from './config/settings.service';
+import { OfferBookRuleScheduleCron } from './offer-book-rules/offer-book-rule-schedule.cron';
 import { OfferBookRulesController } from './offer-book-rules/offer-book-rules.controller';
 import { OfferBookRulesExecutionService } from './offer-book-rules/offer-book-rules-execution.service';
 import { OfferBookRulesService } from './offer-book-rules/offer-book-rules.service';
@@ -69,6 +70,7 @@ import { StoresService } from './stores/stores.service';
     OfferCampaignsService,
     OfferBookRulesService,
     OfferBookRulesExecutionService,
+    OfferBookRuleScheduleCron,
     SuggestionRulesService,
     ClustersService,
     CompetitorOriginsService,
