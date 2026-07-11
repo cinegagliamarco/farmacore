@@ -267,4 +267,6 @@ numa migration.
 - [x] Recuperação por lock de idade retomando o mesmo ledger (não reset no boot).
 - [x] Os 3 GETs (ordem de rota literal antes de `:id`; nomes de param D7).
 - [x] Unit + e2e (incl. falha parcial e redelivery sem re-push) verdes; lint + build limpos.
-- [ ] (PR B) cron timezone-aware lendo `scheduled_days` (jsonb `@>`).
+- [x] (PR B) cron timezone-aware lendo `scheduled_days` (jsonb `@>`): `OfferBookRuleScheduleCron`
+      (hora a hora, janela 07–21 local, dedup por report SCHEDULED do dia civil America/Sao_Paulo,
+      reusa `execute(SCHEDULED)` money-safe).

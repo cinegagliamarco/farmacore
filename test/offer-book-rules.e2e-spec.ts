@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module';
 import { A7PharmaApiClient } from '../src/integration/a7-pharma-api.client';
 import { IntegrationConnectionService } from '../src/integration/integration-connection.service';
 import { ExecuteOfferBookRuleStep } from '../src/pipeline/steps/execute-offer-book-rule.step';
+import { OfferBookRuleScheduleCron } from '../src/tenant-api/offer-book-rules/offer-book-rule-schedule.cron';
 import { DuplicateDeliveryRepublishError } from '../src/queue/retry.service';
 import { TenantTransactionService } from '../src/tenant/tenant-transaction.service';
 
@@ -33,6 +34,8 @@ const CADERNO_PARTIAL = 49;
 const CADERNO_MIRROR_FAILURE = 50;
 const CADERNO_CONCURRENT = 51;
 const CADERNO_INVALID = 52;
+const CADERNO_SCHEDULE = 53;
+const CADERNO_SCHEDULE_OFF = 54;
 const BULK_EANS = Array.from({ length: 81 }, (_, i) =>
   String(7895000000000 + i),
 );
@@ -148,7 +151,9 @@ describe('Offer book rules preview (e2e)', () => {
               (${CADERNO_PARTIAL}, 'LOTE PARCIAL', true),
               (${CADERNO_MIRROR_FAILURE}, 'FALHA DE ESPELHO', true),
               (${CADERNO_CONCURRENT}, 'CONCORRÊNCIA', true),
-              (${CADERNO_INVALID}, 'CAMPANHA INVÁLIDA', true)`,
+              (${CADERNO_INVALID}, 'CAMPANHA INVÁLIDA', true),
+              (${CADERNO_SCHEDULE}, 'AGENDADO HOJE', true),
+              (${CADERNO_SCHEDULE_OFF}, 'AGENDADO OUTRO DIA', true)`,
     );
 
     const login = async (email: string): Promise<string> => {
@@ -919,6 +924,89 @@ describe('Offer book rules preview (e2e)', () => {
       expect(detBody.report.outcome).toBe('NO_CHANGES');
       expect(detBody.report.productsSkipped).toBe(1);
       expect(detBody.items[0].applyStatus).toBe('skipped');
+    });
+  });
+
+  // Agendamento (PR B): o cron seleciona regras elegíveis no dia local e dispara
+  // o mesmo execute(SCHEDULED). Chamamos fireForTenant direto (a janela de hora
+  // mora em fire(), não aqui) para o teste não depender do relógio.
+  describe('scheduled execution (cron)', () => {
+    let todayDow: number;
+
+    const cron = (): OfferBookRuleScheduleCron =>
+      app.get(OfferBookRuleScheduleCron);
+
+    const createScheduledRule = async (
+      caderno: number,
+      days: number[],
+    ): Promise<string> => {
+      const res = await post('/offer-book-rules')
+        .send({
+          offerBookInfoId: caderno,
+          calculationBaseType: 'SALE_PRICE',
+          eans: [EAN_A],
+          pricingRules: [{ actionType: 'DISCOUNT', percentageValue: 5 }],
+          priceLocks: [],
+          scheduleEnabled: true,
+          scheduledDays: days,
+        })
+        .expect(201);
+      return (res.body as { id: string }).id;
+    };
+
+    beforeAll(async () => {
+      const rows: Array<{ dow: number }> = await ds.query(
+        `SELECT extract(dow from now() AT TIME ZONE 'America/Sao_Paulo')::int AS dow`,
+      );
+      todayDow = rows[0].dow;
+    });
+
+    it('fires a rule scheduled for today, then dedups by SCHEDULED report of the local day', async () => {
+      const ruleId = await createScheduledRule(CADERNO_SCHEDULE, [todayDow]);
+
+      await cron().fireForTenant(SLUG, SCHEMA);
+
+      const list = await get(
+        `/offer-book-rules/${ruleId}/execution-reports`,
+      ).expect(200);
+      const body = list.body as {
+        total: number;
+        rows: { executionType: string; outcome: string | null }[];
+      };
+      expect(body.total).toBe(1);
+      expect(body.rows[0].executionType).toBe('SCHEDULED');
+      expect(body.rows[0].outcome).toBeNull(); // worker não roda neste teste
+
+      // A execução deixou a regra RUNNING (mensagem enfileirada). Volta para IDLE
+      // à mão para isolar o dedup DURÁVEL (o report do dia), não o filtro RUNNING.
+      await ds.query(
+        `UPDATE ${SCHEMA}.offer_book_rule
+            SET status = 'IDLE', active_execution_report_id = NULL
+          WHERE id = $1`,
+        [ruleId],
+      );
+
+      await cron().fireForTenant(SLUG, SCHEMA);
+      const again = await get(
+        `/offer-book-rules/${ruleId}/execution-reports`,
+      ).expect(200);
+      expect((again.body as { total: number }).total).toBe(1);
+    });
+
+    it('does not fire a rule scheduled for another weekday', async () => {
+      const otherDay = (todayDow + 1) % 7;
+      const ruleId = await createScheduledRule(CADERNO_SCHEDULE_OFF, [
+        otherDay,
+      ]);
+
+      await cron().fireForTenant(SLUG, SCHEMA);
+
+      const list = await get(
+        `/offer-book-rules/${ruleId}/execution-reports`,
+      ).expect(200);
+      expect((list.body as { total: number }).total).toBe(0);
+      const rule = await get(`/offer-book-rules/${ruleId}`).expect(200);
+      expect((rule.body as { status: string }).status).toBe('IDLE');
     });
   });
 });

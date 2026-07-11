@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.1.0] - 2026-07-11
+
+### Added
+
+- Offer-book rules marked to run on specific weekdays now execute automatically once per day, within business hours (07:00–21:00 São Paulo time), through the same safe execution path as a manual run.
+
+### For contributors
+
+- A dedicated scheduling cron selects eligible rules by local weekday and de-duplicates on the São Paulo civil day; unit and end-to-end tests cover selection, conflict skipping, the business-hour window, and same-day de-duplication.
+
 ## [0.1.0.0] - 2026-07-11
 
 ### Added
