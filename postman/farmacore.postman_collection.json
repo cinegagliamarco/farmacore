@@ -2069,7 +2069,7 @@
         "offer-book-rules"
        ]
       },
-      "description": "Salva o conjunto de regras aplicado a um caderno de ofertas EXISTENTE (`offerBookInfoId` = id de GET /offer-campaigns; não cria caderno). Produtos-alvo: exatamente UM de `eans` OU `classifications` (subárvore). `scheduledDays` usa índice Postgres dow (0=domingo…6=sábado) e é obrigatório quando `scheduleEnabled=true`. Retorna `{ id }`. 404 caderno inexistente/inativo; 409 já existe regra para o caderno (uma por caderno, unique fecha a corrida)."
+      "description": "Salva o conjunto de regras aplicado a um caderno de ofertas EXISTENTE (`offerBookInfoId` = id de GET /offer-campaigns; não cria caderno). Produtos-alvo: exatamente UM de `eans` OU `classifications` (subárvore). `scheduledDays` usa índice Postgres dow (0=domingo…6=sábado) e é obrigatório quando `scheduleEnabled=true`. Retorna `{ id }`. 404 caderno inexistente/inativo; 409 já existe regra para o caderno (uma por caderno, unique fecha a corrida). Com `scheduleEnabled=true`, um cron executa a regra automaticamente 1×/dia nos `scheduledDays`, entre 07–21 America/Sao_Paulo (mesmo caminho money-safe do POST /:id/execute)."
      },
      "response": []
     },
