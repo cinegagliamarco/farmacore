@@ -23,7 +23,7 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 
 ## New HTTP surface (today)
 
-> This table is a partial snapshot — the complete, current list (all 90 endpoints, with auth, roles, modules and examples) lives in [`docs/api-reference.md`](./docs/api-reference.md).
+> This table is a partial snapshot — the complete, current list (all 94 endpoints, with auth, roles, modules and examples) lives in [`docs/api-reference.md`](./docs/api-reference.md).
 
 | Method | Route | Controller |
 |---|---|---|
@@ -79,6 +79,10 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 | `calc-base-product-metrics` | `POST /products/base/synchronize-metrics` |
 | `update-base-product-properties` | `POST /products/base/generate-properties` |
 | `migrate-tenant` | (new — per-tenant schema migration; not exposed as a routine trigger) |
+
+`execute-offer-book-rule` is also a worker step, but it is report-bound and
+intentionally absent from the generic admin trigger. Start it only through
+`POST /offer-book-rules/:id/execute`, which creates the execution ledger first.
 
 ---
 
@@ -152,20 +156,20 @@ Run by `src/main.worker.ts` consumers. Two ways to start them:
 
 | Legacy | New | Status |
 |---|---|---|
-| `GET /offer-book-rules` | — | ❌ |
-| `POST /offer-book-rules` | — | ❌ |
+| `GET /offer-book-rules` | `GET /offer-book-rules` (tenant) | ✅ |
+| `POST /offer-book-rules` | `POST /offer-book-rules` (tenant) | ✅ |
 | `POST /offer-book-rules/preview` | `POST /offer-book-rules/preview` (tenant) | ✅ |
 | `POST /offer-book-rules/preview-download` | — | ❌ |
-| `GET /offer-book-rules/execution-reports` | — | ❌ |
-| `GET /offer-book-rules/execution-reports/:id` | — | ❌ |
-| `GET /offer-book-rules/:id` | — | ❌ |
+| `GET /offer-book-rules/execution-reports` | `GET /offer-book-rules/execution-reports` (tenant) | ✅ |
+| `GET /offer-book-rules/execution-reports/:id` | `GET /offer-book-rules/execution-reports/:reportId` (tenant) | ✅ |
+| `GET /offer-book-rules/:id` | `GET /offer-book-rules/:id` (tenant) | ✅ |
 | `PATCH /offer-book-rules/:id` | — | ❌ |
-| `DELETE /offer-book-rules/:id` | — | ❌ |
+| `DELETE /offer-book-rules/:id` | `DELETE /offer-book-rules/:id` (tenant) | ✅ |
 | `GET /offer-book-rules/:id/preview` | — | ❌ |
 | `GET /offer-book-rules/:id/products` | — | ❌ |
 | `GET /offer-book-rules/:id/preview-download` | — | ❌ |
-| `POST /offer-book-rules/:id/execute` | — | ❌ |
-| `GET /offer-book-rules/:id/execution-reports` | — | ❌ |
+| `POST /offer-book-rules/:id/execute` | `POST /offer-book-rules/:id/execute` (tenant, async) | ✅ |
+| `GET /offer-book-rules/:id/execution-reports` | `GET /offer-book-rules/:id/execution-reports` (tenant) | ✅ |
 
 ### `classification.controller.ts` (`/classifications`)
 

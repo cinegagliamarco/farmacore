@@ -12,6 +12,9 @@ All notable changes to this project are documented in this file.
 ### Changed
 
 - Offer prices are applied to A7 in bounded worker batches and mirrored locally with accurate success, partial-success, failure, and no-change outcomes.
+
+### For contributors
+
 - Expanded unit and end-to-end coverage for campaign validity, concurrent delivery, partial batches, recovery after mirror failure, report precision, and local-day filtering.
 
 ### Fixed
