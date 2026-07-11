@@ -9,8 +9,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * (2) Realinha os stubs `offer_book_rule_execution_report(_item)` ao modelo
  *     rico: header com contadores/outcome/executed_at + `idempotency_key`
  *     (dedup por execução); item com o snapshot do preview + o **ledger
- *     money-safe** (`apply_status` pending/applied/failed/skipped + apply_error)
- *     que dirige o push à A7 e torna a redelivery idempotente. Tabelas sem
+ *     money-safe** (`apply_status` pending/erp_applied/applied/failed/skipped
+ *     + apply_error), que dirige o push à A7 e torna a redelivery idempotente.
+ *     O destino `external_id` também fica congelado no item: uma sincronização
+ *     de produto entre o POST e o worker não pode redirecionar o preço para
+ *     outra embalagem na A7. Tabelas sem
  *     writer até aqui → drop/recreate seguro.
  */
 export class OfferBookRuleExecution1700000000026 implements MigrationInterface {
@@ -20,13 +23,17 @@ export class OfferBookRuleExecution1700000000026 implements MigrationInterface {
     await q.query(`
       ALTER TABLE offer_book_rule
         ADD COLUMN status text NOT NULL DEFAULT 'IDLE',
+        ADD COLUMN active_execution_report_id uuid,
         ADD CONSTRAINT chk_obr_status CHECK (status IN
-          ('IDLE','RUNNING','SUCCEEDED','PARTIALLY_SUCCEEDED','ERRORED'));
+          ('IDLE','RUNNING','SUCCEEDED','PARTIALLY_SUCCEEDED','ERRORED')),
+        ADD CONSTRAINT chk_obr_execution_owner CHECK (
+          (status = 'RUNNING' AND active_execution_report_id IS NOT NULL)
+          OR
+          (status <> 'RUNNING' AND active_execution_report_id IS NULL)
+        );
     `);
 
-    await q.query(
-      `DROP TABLE IF EXISTS offer_book_rule_execution_report_item`,
-    );
+    await q.query(`DROP TABLE IF EXISTS offer_book_rule_execution_report_item`);
     await q.query(`DROP TABLE IF EXISTS offer_book_rule_execution_report`);
 
     await q.query(`
@@ -40,7 +47,7 @@ export class OfferBookRuleExecution1700000000026 implements MigrationInterface {
         total_products int NOT NULL DEFAULT 0,
         products_updated int NOT NULL DEFAULT 0,
         products_skipped int NOT NULL DEFAULT 0,
-        outcome text NOT NULL DEFAULT 'SUCCESS',
+        outcome text,
         error_message text,
         idempotency_key text,
         created_at timestamptz NOT NULL DEFAULT now(),
@@ -52,7 +59,7 @@ export class OfferBookRuleExecution1700000000026 implements MigrationInterface {
           CHECK (calculation_base_type IN
             ('COMPETITIVE_PRICE','SALE_PRICE','OFFER_PRICE')),
         CONSTRAINT chk_obrer_outcome
-          CHECK (outcome IN ('SUCCESS','FAILURE','NO_CHANGES'))
+          CHECK (outcome IS NULL OR outcome IN ('SUCCESS','FAILURE','NO_CHANGES'))
       );
       CREATE INDEX "IX_REPORT_RULE_EXECUTED"
         ON offer_book_rule_execution_report(rule_id, executed_at DESC);
@@ -67,12 +74,13 @@ export class OfferBookRuleExecution1700000000026 implements MigrationInterface {
         report_id uuid NOT NULL
           REFERENCES offer_book_rule_execution_report(id) ON DELETE CASCADE,
         ean bigint NOT NULL,
+        external_id text,
         name text NOT NULL,
         classification text NOT NULL,
         base_sale_price numeric(12,2) NOT NULL DEFAULT 0,
         current_price numeric(12,2) NOT NULL DEFAULT 0,
         current_margin numeric(10,2) NOT NULL DEFAULT 0,
-        cost numeric(12,2) NOT NULL DEFAULT 0,
+        cost numeric(12,4) NOT NULL DEFAULT 0,
         action_type text,
         percentage_value numeric(10,2) NOT NULL DEFAULT 0,
         applied_percentage_value numeric(10,2) NOT NULL DEFAULT 0,
@@ -92,7 +100,8 @@ export class OfferBookRuleExecution1700000000026 implements MigrationInterface {
         CONSTRAINT chk_obreri_action_type
           CHECK (action_type IS NULL OR action_type IN ('DISCOUNT','INCREASE')),
         CONSTRAINT chk_obreri_apply_status
-          CHECK (apply_status IN ('pending','applied','failed','skipped'))
+          CHECK (apply_status IN
+            ('pending','erp_applied','applied','failed','skipped'))
       );
       CREATE INDEX "IX_REPORT_ITEM_REPORT_STATUS"
         ON offer_book_rule_execution_report_item(report_id, apply_status);
@@ -100,9 +109,7 @@ export class OfferBookRuleExecution1700000000026 implements MigrationInterface {
   }
 
   public async down(q: QueryRunner): Promise<void> {
-    await q.query(
-      `DROP TABLE IF EXISTS offer_book_rule_execution_report_item`,
-    );
+    await q.query(`DROP TABLE IF EXISTS offer_book_rule_execution_report_item`);
     await q.query(`DROP TABLE IF EXISTS offer_book_rule_execution_report`);
 
     // Recria os stubs originais da init-tenant.
@@ -138,7 +145,9 @@ export class OfferBookRuleExecution1700000000026 implements MigrationInterface {
 
     await q.query(`
       ALTER TABLE offer_book_rule
+        DROP CONSTRAINT IF EXISTS chk_obr_execution_owner,
         DROP CONSTRAINT IF EXISTS chk_obr_status,
+        DROP COLUMN active_execution_report_id,
         DROP COLUMN status;
     `);
   }

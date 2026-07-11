@@ -45,6 +45,10 @@ export class OfferBookRuleEntity extends BaseEntity {
   @Column({ type: 'text', default: OfferBookRuleStatus.IDLE })
   public status!: OfferBookRuleStatus;
 
+  /** Report que possui o lease da execução RUNNING; cerca finalizadores antigos. */
+  @Column({ name: 'active_execution_report_id', type: 'uuid', nullable: true })
+  public activeExecutionReportId?: string | null;
+
   @OneToMany(() => OfferBookRuleProductEntity, (product) => product.rule, {
     cascade: true,
   })

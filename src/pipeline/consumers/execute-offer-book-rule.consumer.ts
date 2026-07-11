@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
+import {
+  MessageHandlerErrorBehavior,
+  RabbitSubscribe,
+} from '@golevelup/nestjs-rabbitmq';
 import {
   BasePipelineConsumer,
   HandleContext,
@@ -17,9 +20,9 @@ import { IntegrationDataSourceFactory } from '../../integration/integration-data
 
 /**
  * Execução de regra de oferta (standalone, fora do DAG diário).
- * `pipelineRunId` = report.id (como o apply usa applyRunId) — o lock por idade
- * do BasePipelineConsumer roteia entrega duplicada pro DLQ enquanto a original
- * roda; o ledger `pending` do step torna qualquer replay inofensivo.
+ * `pipelineRunId` = report.id (como o apply usa applyRunId). O step segura um
+ * advisory lock por toda a entrega, porque o lease genérico pode vencer antes
+ * de uma regra grande; o ledger `pending|erp_applied` torna o replay seguro.
  */
 @Injectable()
 export class ExecuteOfferBookRuleConsumer extends BasePipelineConsumer {
@@ -44,6 +47,9 @@ export class ExecuteOfferBookRuleConsumer extends BasePipelineConsumer {
     queueOptions: {
       channel: PipelineStep.EXECUTE_OFFER_BOOK_RULE,
     },
+    // DuplicateDeliveryRepublishError precisa ir para a DLX; o default da
+    // lib é REQUEUE e criaria hot-loop numa fila prefetch=1.
+    errorBehavior: MessageHandlerErrorBehavior.NACK,
   })
   public consume(message: PipelineMessage): Promise<void> {
     return this.process(message);

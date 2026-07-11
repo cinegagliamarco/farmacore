@@ -15,9 +15,12 @@ class TestConsumer extends BasePipelineConsumer<{ value: number }> {
   protected step = PipelineStep.SYNC_BASE_PRODUCT;
   public lastInvoked = 0;
   public failNext = false;
+  public duplicateNext = false;
 
   protected handle(): Promise<HandleResult> {
     this.lastInvoked++;
+    if (this.duplicateNext)
+      throw new DuplicateDeliveryRepublishError('active execution lock');
     if (this.failNext) throw new Error('boom');
     return Promise.resolve({ successors: [] });
   }
@@ -31,6 +34,7 @@ describe('BasePipelineConsumer', () => {
   let tenants: { findActive: jest.Mock };
   let factory: { forTenantSlug: jest.Mock };
   let outbox: { insertMany: jest.Mock };
+  let metrics: ReturnType<typeof noopPipelineMetrics>;
 
   beforeEach(async () => {
     runs = {
@@ -54,6 +58,7 @@ describe('BasePipelineConsumer', () => {
     };
     factory = { forTenantSlug: jest.fn().mockResolvedValue(null) };
     outbox = { insertMany: jest.fn() };
+    metrics = noopPipelineMetrics();
 
     const mod = await Test.createTestingModule({
       providers: [
@@ -64,7 +69,7 @@ describe('BasePipelineConsumer', () => {
         { provide: TenantService, useValue: tenants },
         { provide: IntegrationDataSourceFactory, useValue: factory },
         { provide: OutboxRepository, useValue: outbox },
-        { provide: PipelineMetricsRegistry, useValue: noopPipelineMetrics() },
+        { provide: PipelineMetricsRegistry, useValue: metrics },
       ],
     }).compile();
     consumer = mod.get(TestConsumer);
@@ -118,6 +123,24 @@ describe('BasePipelineConsumer', () => {
     // delivery's RUNNING row (COMPLETED→FAILED flip).
     expect(runs.fail).not.toHaveBeenCalled();
     expect(runs.complete).not.toHaveBeenCalled();
+  });
+
+  it('rethrows a step-level duplicate lock and closes its metrics exactly once', async () => {
+    consumer.duplicateNext = true;
+
+    await expect(consumer.process(msg)).rejects.toBeInstanceOf(
+      DuplicateDeliveryRepublishError,
+    );
+
+    expect(metrics.onConsumeStart).toHaveBeenCalledTimes(1);
+    expect(metrics.onConsumeEnd).toHaveBeenCalledTimes(1);
+    expect(metrics.onConsumeEnd).toHaveBeenCalledWith(
+      'acme',
+      PipelineStep.SYNC_BASE_PRODUCT,
+      'skip',
+      0,
+    );
+    expect(runs.fail).not.toHaveBeenCalled();
   });
 
   it('on failure -> retry, on retry returning dlq -> fail row', async () => {

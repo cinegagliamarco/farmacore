@@ -12,7 +12,9 @@ import { AdminPipelineService } from '../../pipeline/admin-pipeline.service';
 import { PipelineStep } from '../../database/enums/pipeline-step.enum';
 import type { JwtPayload } from '../../auth/jwt-payload.type';
 
-const TRIGGERABLE_STEPS = Object.values(PipelineStep);
+const TRIGGERABLE_STEPS = Object.values(PipelineStep).filter(
+  (step) => step !== PipelineStep.EXECUTE_OFFER_BOOK_RULE,
+);
 
 @Controller('admin/tenants/:slug/pipeline')
 @UseGuards(SystemAdminGuard)

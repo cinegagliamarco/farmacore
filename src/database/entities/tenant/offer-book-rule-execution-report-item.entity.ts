@@ -4,7 +4,12 @@ import { BaseEntity } from '../base.entity';
 import { OfferBookRuleExecutionReportEntity } from './offer-book-rule-execution-report.entity';
 
 /** Ledger money-safe: dirige o push à A7 e dedupa a redelivery. */
-export type ItemApplyStatus = 'pending' | 'applied' | 'failed' | 'skipped';
+export type ItemApplyStatus =
+  | 'pending'
+  | 'erp_applied'
+  | 'applied'
+  | 'failed'
+  | 'skipped';
 
 /** Snapshot por produto de uma execução (um por produto atualizado OU pulado). */
 @Entity({ name: 'offer_book_rule_execution_report_item' })
@@ -15,6 +20,10 @@ export class OfferBookRuleExecutionReportItemEntity extends BaseEntity {
 
   @Column({ type: 'bigint' })
   public ean!: string;
+
+  /** Destino A7 congelado junto do preço; nunca reler do cadastro ao consumir. */
+  @Column({ name: 'external_id', type: 'text', nullable: true })
+  public externalId?: string | null;
 
   @Column({ type: 'text' })
   public name!: string;
@@ -49,7 +58,7 @@ export class OfferBookRuleExecutionReportItemEntity extends BaseEntity {
   })
   public currentMargin!: number;
 
-  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  @Column({ type: 'numeric', precision: 12, scale: 4, default: 0 })
   public cost!: number;
 
   @Column({ name: 'action_type', type: 'text', nullable: true })

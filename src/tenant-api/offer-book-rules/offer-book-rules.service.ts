@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EntityManager, IsNull, QueryFailedError } from 'typeorm';
+import { EntityManager, IsNull, Not, QueryFailedError } from 'typeorm';
 import { CalculationBaseType } from '../../database/enums/calculation-base-type.enum';
 import { OfferBookRuleStatus } from '../../database/enums/offer-book-rule-status.enum';
 import { PriceBaseSource } from '../../database/enums/price-base-source.enum';
@@ -344,9 +344,19 @@ export class OfferBookRulesService {
   }
 
   public async remove(em: EntityManager, id: string): Promise<{ id: string }> {
-    const result = await em.getRepository(OfferBookRuleEntity).delete({ id });
-    if (!result.affected)
+    const repo = em.getRepository(OfferBookRuleEntity);
+    // Condição no próprio DELETE: fecha a corrida com um /execute
+    // concorrente. Apagar RUNNING faria o CASCADE sumir com o ledger durante
+    // o HTTP da A7, deixando efeito externo sem checkpoint/mirror/auditoria.
+    const result = await repo.delete({
+      id,
+      status: Not(OfferBookRuleStatus.RUNNING),
+    });
+    if (!result.affected) {
+      if (await repo.exists({ where: { id } }))
+        throw new ConflictException(`Regra ${id} está em execução`);
       throw new NotFoundException(`Regra ${id} não encontrada`);
+    }
     return { id };
   }
 

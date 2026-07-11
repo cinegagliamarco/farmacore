@@ -45,8 +45,9 @@ export class OfferBookRuleExecutionReportEntity extends BaseEntity {
   @Column({ name: 'products_skipped', type: 'int', default: 0 })
   public productsSkipped!: number;
 
-  @Column({ type: 'text', default: ExecutionOutcome.SUCCESS })
-  public outcome!: ExecutionOutcome;
+  /** Null enquanto o worker ainda não finalizou a execução. */
+  @Column({ type: 'text', nullable: true })
+  public outcome?: ExecutionOutcome | null;
 
   @Column({ name: 'error_message', type: 'text', nullable: true })
   public errorMessage?: string | null;
