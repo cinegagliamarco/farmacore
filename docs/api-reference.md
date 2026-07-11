@@ -1,6 +1,6 @@
 # Farmacore API — Referência completa de endpoints
 
-Guia de todos os 90 endpoints HTTP da API, escrito para quem nunca viu o sistema.
+Guia de todos os 94 endpoints HTTP da API, escrito para quem nunca viu o sistema.
 Fonte da verdade: os controllers em `src/` (cada seção aponta o arquivo). Para
 testar na prática, importe `postman/farmacore.postman_collection.json` — toda
 rota daqui existe lá com exemplo pronto.
@@ -63,7 +63,7 @@ Rota de módulo desligado responde `403`.
 | `crossed-products` | Grid cruzado com concorrentes (`/products/crossed`, `/products/export`) e escritas de preço/oferta. |
 | `active-ingredient-analysis` | Análise por princípio ativo (`/products/active-ingredients*`) e escritas de preço/oferta. |
 | `pricing-rules` | Aplicação em massa, agendamentos, sugestões, regras, clusters, auditoria e arredondamento. |
-| `offer-book-rules` | Regras de caderno de oferta (preview + CRUD, seção 15) e arredondamento. |
+| `offer-book-rules` | Regras de caderno de oferta (preview, CRUD, execução assíncrona e relatórios, seção 15) e arredondamento. |
 | `strategic-pricing` | Grid de preço estratégico (`/products/strategic-price`) e escritas de preço/oferta. |
 
 As escritas de preço/oferta (`POST /products/:ean/price`, `POST/DELETE
@@ -779,9 +779,12 @@ tem cache single-flight de TTL curto, então **pode ser usado em polling**.
 ## 15. Tenant — Regras de caderno de oferta
 
 `src/tenant-api/offer-book-rules/offer-book-rules.controller.ts` — preview
-(dry-run) + CRUD do conjunto de regras aplicado a um caderno de ofertas
-existente. **Uma regra por caderno.** Tudo aqui: operator/admin + módulo
-`offer-book-rules`.
+(dry-run), CRUD, execução assíncrona e relatórios do conjunto de regras aplicado
+a um caderno de ofertas existente. **Uma regra por caderno.** Tudo aqui:
+operator/admin + módulo `offer-book-rules`.
+
+O desenho do ledger, a recuperação sem dupla escrita e as decisões de status
+estão em [`plano-offer-book-rules-fase3-execucao-2026-07-10.md`](./plano-offer-book-rules-fase3-execucao-2026-07-10.md).
 
 ### `POST /offer-book-rules/preview`
 
@@ -860,20 +863,75 @@ aqui, só se aplica regra a ele). O body reaproveita o shape do preview
 
 Lista paginada das regras salvas: `{ rows, total, page, pageSize, totalPages }`,
 cada row `{ id, offerBookInfoId, cadernoName, calculationBaseType,
-scheduleEnabled, productsCount, createdAt }`. `pageSize` default 50, máx 200
-(valores maiores são reduzidos em silêncio).
+scheduleEnabled, status, productsCount, createdAt }`. `status` é `IDLE`,
+`RUNNING`, `SUCCEEDED`, `PARTIALLY_SUCCEEDED` ou `ERRORED`. `pageSize` default
+50, máx 200 (valores maiores são reduzidos em silêncio).
 
 ### `GET /offer-book-rules/:id`
 
-Detalhe completo: o item da lista + `priceBaseSources`, `classifications`,
-`scheduledDays`, `applyPriceRounding`, `eans`, `pricingRules` e `priceLocks`.
-`400` se `:id` não é uuid; `404` se não existe.
+Detalhe completo: o item da lista (incluindo `status`) + `priceBaseSources`,
+`classifications`, `scheduledDays`, `applyPriceRounding`, `eans`,
+`pricingRules` e `priceLocks`. `400` se `:id` não é uuid; `404` se não existe.
 
 ### `DELETE /offer-book-rules/:id`
 
 Remove a regra — **hard delete** (apaga em cascata regras, locks e produtos
 associados; diferente dos soft-deletes do resto da API). Retorna `{ id }`.
-`404` se não existe.
+`404` se não existe; `409` se a regra está `RUNNING`, para não apagar o ledger
+enquanto o worker escreve no ERP.
+
+### `POST /offer-book-rules/:id/execute` — `202`
+
+Executa uma regra salva de forma assíncrona. O request calcula os preços,
+congela preço e destino A7 em um ledger por produto e publica o trabalho para o
+worker; a resposta imediata é `{ "reportId": "<uuid>" }`.
+
+```bash
+curl -X POST {{baseUrl}}/offer-book-rules/<ruleId>/execute \
+  -H 'Authorization: Bearer <accessToken>'
+```
+
+- `404` se a regra não existe.
+- `409` se o caderno está inativo, ainda não começou ou expirou.
+- `409` se já existe uma execução recente. Uma execução antiga interrompida é
+  retomada com o mesmo `reportId`, sem recalcular ou reenviar preço já aceito.
+- O `status` da regra fica `RUNNING` até o worker concluir. Resultado parcial
+  vira `PARTIALLY_SUCCEEDED`; falha total vira `ERRORED`.
+
+### `GET /offer-book-rules/:id/execution-reports?page=1&perPage=20`
+
+Histórico de uma regra, mais recente primeiro. Retorna
+`{ rows, total, page, pageSize, totalPages }`; `perPage` aceita 1–100 e usa 20
+por padrão. Cada header contém `{ id, ruleId, offerBookInfoId, executedAt,
+executionType, calculationBaseType, totalProducts, productsUpdated,
+productsSkipped, outcome, errorMessage }`. `outcome` fica `null` durante a
+execução e depois vira `SUCCESS`, `FAILURE` ou `NO_CHANGES`.
+
+### `GET /offer-book-rules/execution-reports`
+
+Histórico global do tenant, com a mesma paginação e shape do endpoint anterior.
+Filtros opcionais:
+
+- `ruleId` (uuid) e `offerBookInfoId` (inteiro positivo).
+- `executionType=MANUAL|SCHEDULED` e
+  `outcome=SUCCESS|FAILURE|NO_CHANGES`.
+- `startDate` e `endDate` em ISO 8601. Uma data sem hora representa o dia civil
+  inteiro em `America/Sao_Paulo`; `endDate=2026-07-11`, por exemplo, inclui até
+  o fim desse dia local.
+
+Exemplo: `GET /offer-book-rules/execution-reports?ruleId=<uuid>&startDate=2026-07-01&endDate=2026-07-11&page=1&perPage=20`.
+
+### `GET /offer-book-rules/execution-reports/:reportId?page=1&perPage=50`
+
+Cabeçalho do relatório + items paginados. Aqui `page` e `perPage` são
+**obrigatórios**, `perPage` aceita 1–100 e `name` filtra nome do produto sem
+diferenciar maiúsculas/minúsculas. Retorna
+`{ report, items, totalItems, page, pageSize, totalPages }`.
+
+Cada item registra o snapshot auditável do cálculo (`ean`, `name`,
+`classification`, preços, custo, margens, ação, percentual e flags) e o estado
+da escrita: `applyStatus=pending|erp_applied|applied|failed|skipped`,
+`applyError` e `wasUpdated`. `404` se o relatório não existe.
 
 ---
 

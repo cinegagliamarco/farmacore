@@ -55,6 +55,25 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
         attempt: message.attempt,
       },
       async () => {
+        let metricsStarted = false;
+        let metricsEnded = false;
+        const consumeStart = (): void => {
+          this.metrics.onConsumeStart(message.tenantId, queue);
+          metricsStarted = true;
+        };
+        const consumeEnd = (
+          outcome: 'ok' | 'fail' | 'skip',
+          durationSeconds: number,
+        ): void => {
+          if (!metricsStarted || metricsEnded) return;
+          this.metrics.onConsumeEnd(
+            message.tenantId,
+            queue,
+            outcome,
+            durationSeconds,
+          );
+          metricsEnded = true;
+        };
         try {
           const outcome = await this.runs.start(
             message.pipelineRunId,
@@ -68,8 +87,8 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
             );
             // start+end pair: a bare 'skip' end would decrement the
             // original delivery's in-flight gauge and close its wave early.
-            this.metrics.onConsumeStart(message.tenantId, queue);
-            this.metrics.onConsumeEnd(message.tenantId, queue, 'skip', 0);
+            consumeStart();
+            consumeEnd('skip', 0);
             return;
           }
           if (outcome === 'in-progress') {
@@ -83,8 +102,8 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
             this.logger.warn(
               `${this.step} for run ${message.pipelineRunId} is already in progress; duplicate delivery routed to DLQ for replay`,
             );
-            this.metrics.onConsumeStart(message.tenantId, queue);
-            this.metrics.onConsumeEnd(message.tenantId, queue, 'skip', 0);
+            consumeStart();
+            consumeEnd('skip', 0);
             try {
               await this.retry.republishOnFailure(message);
             } catch (republishErr) {
@@ -99,7 +118,7 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
             return;
           }
 
-          this.metrics.onConsumeStart(message.tenantId, queue);
+          consumeStart();
           const t0 = Date.now();
 
           const tenant = await this.tenants.findActive(message.tenantId);
@@ -131,19 +150,20 @@ export abstract class BasePipelineConsumer<TPayload = unknown> {
             );
           });
 
-          this.metrics.onConsumeEnd(
-            message.tenantId,
-            queue,
-            'ok',
-            (Date.now() - t0) / 1000,
-          );
+          consumeEnd('ok', (Date.now() - t0) / 1000);
         } catch (err) {
-          if (err instanceof DuplicateDeliveryRepublishError) throw err;
+          if (err instanceof DuplicateDeliveryRepublishError) {
+            // Pode vir do próprio step (por exemplo, um advisory lock
+            // ocupado depois que o lease genérico venceu). Feche a métrica
+            // somente se esse caminho ainda não a fechou.
+            consumeEnd('skip', 0);
+            throw err;
+          }
           const errMessage = (err as Error).message || String(err);
           this.logger.error(
             `${this.step} failed for run ${message.pipelineRunId}: ${errMessage}`,
           );
-          this.metrics.onConsumeEnd(message.tenantId, queue, 'fail', 0);
+          consumeEnd('fail', 0);
           const outcome = await this.retry.republishOnFailure(message);
           await this.runs.fail(
             message.pipelineRunId,

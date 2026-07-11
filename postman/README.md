@@ -33,6 +33,7 @@ For each plan that touches `*.controller.ts`:
 | `pricingClusterId` | (paste from a cluster)      | Used by `/pricing/clusters/:id` routes.                         |
 | `suggestionRuleId` | (paste from a rule)         | Used by `/pricing/suggestion-rules/:id` routes.                 |
 | `offerBookRuleId`  | (paste from a rule)         | Used by `/offer-book-rules/:id*` routes.                        |
+| `offerBookReportId` | (paste from an execution)  | Used by `/offer-book-rules/execution-reports/:reportId`.        |
 
 ## Local quickstart
 
@@ -61,7 +62,7 @@ Who can call what, per endpoint, lives in [`../docs/api-reference.md`](../docs/a
 
 ## Coverage
 
-The collection mirrors **all 90 endpoints** of the API, organized in 16 folders:
+The collection mirrors **all 94 endpoints** of the API, organized in 16 folders:
 
 `Health` · `Auth` · `Admin — Tenants` · `Admin — Integration` · `Admin — Competitor origins` · `Admin — Pipeline` · `Admin — DLQ` · `Admin — Trigger competitors (each)` · `Admin — Catalog (shared catalog ops)` · `Tenant — Catalog` · `Tenant — Stores` · `Tenant — Config` · `Tenant — Integration` · `Tenant — Offer book rules` · `Tenant — Pricing (apply & schedule)` · `Tenant — Pricing (sugestões & regras)`
 
