@@ -62,7 +62,16 @@ const build = () => {
   return { step, scrapers, images, em: {} as EntityManager };
 };
 
-beforeEach(() => jest.clearAllMocks());
+const mockRepo = (notFound: Set<string> = new Set()) =>
+  (SharedProductRepository as unknown as jest.Mock).mockImplementation(() => ({
+    findNotFoundEans: jest.fn().mockResolvedValue(notFound),
+    upsertScrapes: jest.fn().mockResolvedValue(undefined),
+  }));
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockRepo();
+});
 
 describe('ImportCompetitorProductsStep.run', () => {
   it('does nothing for an empty EAN slice', async () => {
@@ -90,5 +99,20 @@ describe('ImportCompetitorProductsStep.run', () => {
     await step.run(em, 'acme', CompetitorOrigin.INDIANA, ['789']);
     expect(SharedProductRepository).toHaveBeenCalledTimes(1);
     expect(images.project).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips EANs already known not-found on this origin', async () => {
+    const { step, scrapers, em } = build();
+    mockRepo(new Set(['111']));
+    await step.run(em, 'acme', CompetitorOrigin.PACHECO, ['111', '222']);
+    expect(scrapers.pacheco.scrapeProducts).toHaveBeenCalledWith(['222']);
+  });
+
+  it('scrapes nothing when every EAN is already not-found', async () => {
+    const { step, scrapers, images, em } = build();
+    mockRepo(new Set(['111', '222']));
+    await step.run(em, 'acme', CompetitorOrigin.PACHECO, ['111', '222']);
+    expect(scrapers.pacheco.scrapeProducts).not.toHaveBeenCalled();
+    expect(images.project).not.toHaveBeenCalled();
   });
 });

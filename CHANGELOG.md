@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.2.0] - 2026-07-13
+
+### Changed
+
+- Daily competitor scraping now permanently skips (EAN, origin) pairs already confirmed as not sold on that origin, removing redundant scrape work. Note: a product marked not-found is not re-scraped, so it is not rediscovered on its own if the competitor later starts selling it.
+
+### For contributors
+
+- The competitor `found` flag moved from a `metadata` jsonb key to a first-class boolean column on `shared_catalog.product`. The migration is split on purpose: 044 adds the column with a brief metadata-only lock, and 045 backfills only the not-found subset in its own transaction, so no ACCESS EXCLUSIVE lock is held across a table rewrite of the hot table. The skip runs in the batch step, not the dispatcher, keeping the dispatch fan-in counter deterministic across restarts. Unit tests cover the skip filter and the all-skipped no-op.
+
 ## [0.1.1.0] - 2026-07-11
 
 ### Added

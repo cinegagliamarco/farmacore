@@ -40,13 +40,15 @@ describe('SharedProductRepository.upsertScrapes', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 
-  it('still persists genuine not-found (found:false without error)', async () => {
+  it('persists genuine not-found as found=false, not in metadata', async () => {
     const { repo, upsert } = makeRepo();
     await repo.upsertScrapes([scrape({ found: false })]);
     const rows = upsert.mock.calls[0][0] as Array<{
-      metadata: { found: boolean };
+      found: boolean;
+      metadata: Record<string, unknown>;
     }>;
     expect(rows).toHaveLength(1);
-    expect(rows[0].metadata.found).toBe(false);
+    expect(rows[0].found).toBe(false);
+    expect(rows[0].metadata).not.toHaveProperty('found');
   });
 });
