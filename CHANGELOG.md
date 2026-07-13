@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
-- Daily competitor scraping now permanently skips (EAN, origin) pairs already confirmed as not sold on that origin, removing redundant scrape work. Note: a product marked not-found is not re-scraped, so it is not rediscovered on its own if the competitor later starts selling it.
+- Daily competitor scraping now skips (EAN, origin) pairs already confirmed as not sold on that origin, removing most redundant scrape work. A small random sample of not-found pairs is re-checked each run, so a product a competitor starts selling later (or one hidden by a bad sweep) is rediscovered within a few weeks rather than blacklisted forever.
 
 ### For contributors
 

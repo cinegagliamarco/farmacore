@@ -3,7 +3,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 /**
  * Adds the `found` boolean column to shared_catalog.product. found=false
  * means the EAN isn't sold on that origin; the daily import skips those
- * (ean, origin) pairs permanently instead of re-scraping them.
+ * (ean, origin) pairs on later runs (re-checking a random sample so it isn't
+ * permanent) instead of re-scraping them every day.
  *
  * `ADD COLUMN ... NOT NULL DEFAULT true` is metadata-only on PG11+ (no table
  * rewrite, brief ACCESS EXCLUSIVE). The historical found=false backfill is a

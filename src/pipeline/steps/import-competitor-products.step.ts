@@ -51,9 +51,10 @@ export class ImportCompetitorProductsStep {
     if (eans.length === 0) return;
     const repo = new SharedProductRepository(em);
     // Skip EANs already known absent from this origin's catalog (found=false):
-    // that decision is permanent, so re-scraping them is wasted work. The skip
-    // lives here, not in the dispatcher, so the dispatched batch plan stays
-    // deterministic across restarts (the fan-in counter depends on it).
+    // re-scraping them is mostly wasted work (findNotFoundEans still re-checks
+    // a random sample so it isn't forever). The skip lives here, not in the
+    // dispatcher, so the dispatched batch plan stays deterministic across
+    // restarts (the fan-in counter depends on it).
     const notFound = await repo.findNotFoundEans(origin, eans);
     const toScrape = notFound.size
       ? eans.filter((ean) => !notFound.has(ean))
