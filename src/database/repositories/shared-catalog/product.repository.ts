@@ -3,6 +3,13 @@ import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialE
 import { ProductEntity } from '../../entities/shared-catalog/product.entity';
 import type { ScrapedProduct } from '../../../scrapers/types';
 
+// Fraction of already-not-found EANs re-checked each run so a not-found
+// decision isn't permanent: a competitor that later starts selling the
+// product (or a bad 200-empty sweep during their downtime) is rediscovered
+// within a few weeks instead of never. At ~10% per daily run the expected
+// re-check is ~10 days; the other ~90% stay skipped, keeping the win.
+const NOT_FOUND_RECHECK_SAMPLE = 0.1;
+
 export interface CompetitorProperties {
   ean: string;
   origin: string;
@@ -54,7 +61,8 @@ export class SharedProductRepository {
    * Bulk upsert scraped competitor products by (ean, origin). Genuine
    * `found: false` records (the EAN isn't on this origin's catalog) are
    * persisted with `found` false and most columns null, so the row reflects
-   * "not sold here" and the daily import skips it from then on.
+   * "not sold here" and the daily import skips it on later runs (re-checking
+   * a random sample so it isn't blacklisted forever).
    *
    * Scrapes with `error` set are transport failures (HTTP 403/timeout in
    * the scraper's catch) — we don't know the current state, so we SKIP
@@ -94,9 +102,11 @@ export class SharedProductRepository {
 
   /**
    * Of the given EANs, the subset already known not to be sold on `origin`
-   * (found = false). The batch scrape skips these — the not-found decision
-   * is permanent, so re-scraping them is wasted work. Scoped to the batch's
-   * EANs so the (ean, origin) index serves it instead of a full-table scan.
+   * (found = false) that the batch scrape should skip. A random
+   * NOT_FOUND_RECHECK_SAMPLE slice is deliberately left OUT of the skip set
+   * each run so not-found EANs are periodically re-scraped instead of
+   * blacklisted forever. Scoped to the batch's EANs so the (ean, origin)
+   * index serves it instead of a full-table scan.
    */
   public async findNotFoundEans(
     origin: string,
@@ -110,6 +120,7 @@ export class SharedProductRepository {
       .where('p.origin = :origin', { origin })
       .andWhere('p.found = false')
       .andWhere('p.ean = ANY(:eans::bigint[])', { eans })
+      .andWhere('random() >= :recheck', { recheck: NOT_FOUND_RECHECK_SAMPLE })
       .getRawMany();
     return new Set(rows.map((r) => String(r.ean)));
   }

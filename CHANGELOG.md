@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.2.1] - 2026-07-13
+
+### Changed
+
+- The competitor not-found skip is no longer permanent: each run re-checks a small random sample (~10%) of the (EAN, origin) pairs marked as not sold, so a product a competitor starts selling later, or one hidden by a bad empty sweep, is rediscovered within a few weeks instead of being skipped forever. The other ~90% stay skipped, keeping the scrape savings.
+
+### For contributors
+
+- `findNotFoundEans` excludes a random `NOT_FOUND_RECHECK_SAMPLE` fraction from the skip set on each run. This is safe in the batch step because the batch-level skip is non-deterministic but harmless; the dispatcher stays deterministic for the fan-in counter.
+
 ## [0.1.2.0] - 2026-07-13
 
 ### Changed
