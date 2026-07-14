@@ -1,10 +1,12 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsInt,
   IsNumber,
   IsOptional,
   Max,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -13,6 +15,15 @@ export class VariationStatusDto {
   @IsOptional() @IsNumber() attentionBelow?: number;
   @IsOptional() @IsNumber() attentionAbove?: number;
   @IsOptional() @IsNumber() suspectAbove?: number;
+}
+
+export class OfferDefaultsDto {
+  /** Caderno de oferta padrão do tenant (idCadernoOferta A7); null limpa. É o
+   *  alvo da oferta de produtos sem caderno próprio. */
+  @ValidateIf((o: OfferDefaultsDto) => o.defaultCadernoId !== null)
+  @IsInt()
+  @Min(1)
+  defaultCadernoId!: number | null;
 }
 
 // Bounds mirror the DB column limits: price band numeric(10,2),

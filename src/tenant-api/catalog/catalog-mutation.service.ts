@@ -136,20 +136,90 @@ export class CatalogMutationService {
    *  `storeScoped`: a per-store apply writes into the STORE's caderno — that
    *  caderno may not be (or cover) the tenant-wide best offer, so rewriting
    *  offer_book with it would poison every global read/apply/campaign-guard
-   *  until the nightly sync. Only global writes maintain the global mirror. */
+   *  until the nightly sync. Only global writes maintain the global mirror.
+   *
+   *  `dto.storeId` (interactive per-store write): forces store scope and resolves
+   *  the caderno from the STORE's own current offer (product_item.offer_external_id)
+   *  — NOT from `dto.cadernoId` — so two stores on different cadernos get writes to
+   *  different cadernos. Since the ERP offer endpoint has no per-store dimension
+   *  (it writes the whole caderno), the response lists every store that caderno
+   *  currently covers — the honest reach. 409 when the store has no caderno for
+   *  the product (the ERP can't create one via API). */
   public async upsertOffer(
     em: EntityManager,
     tenantSlug: string,
     ean: string,
     dto: UpsertOfferDto,
     storeScoped = false,
-  ): Promise<{ ean: string; targetPrice: number; cadernoId: number }> {
+  ): Promise<{
+    ean: string;
+    targetPrice: number;
+    cadernoId: number;
+    storeId?: string;
+    affectedStores?: string[];
+  }> {
     const product = await em
       .getRepository(TenantProductEntity)
       .findOne({ where: { ean } });
     if (!product) throw new NotFoundException(`product ${ean} not found`);
     if (!product.externalId) {
       throw new ConflictException('product has no ERP external_id');
+    }
+    let cadernoId = dto.cadernoId;
+    let affectedStores: string[] | undefined;
+    if (dto.storeId) {
+      storeScoped = true;
+      const tenantId = await resolveTenantId(em, tenantSlug);
+      const store = await em
+        .getRepository(TenantStoreEntity)
+        .findOne({ where: { id: dto.storeId, tenantId } });
+      if (!store) throw new NotFoundException(`store ${dto.storeId} not found`);
+      if (!store.active)
+        throw new ConflictException(`store ${dto.storeId} is inactive`);
+      // A oferta usa o caderno que ESTA loja tem para o produto (o vencedor do
+      // último sync — product_item.offer_external_id), não o dto.cadernoId: lojas
+      // em cadernos distintos recebem escritas em cadernos distintos. Uma passada
+      // sobre as lojas ATIVAS resolve o caderno da loja em foco E lista o alcance
+      // (todas cujo caderno vencedor é o mesmo — o ERP grava o caderno inteiro).
+      const rows: Array<{
+        storeId: string;
+        caderno: string | null;
+        name: string;
+      }> = await em.query(
+        `SELECT pi.store_id AS "storeId", pi.offer_external_id::text AS caderno,
+                ts.name
+           FROM product_item pi
+           JOIN product p ON p.id = pi.product_id
+           JOIN core.tenant_store ts
+             ON ts.id = pi.store_id AND ts.tenant_id = $2
+            AND ts.active = true AND ts.deleted_at IS NULL
+          WHERE p.ean = $1::bigint
+          ORDER BY ts.name`,
+        [ean, tenantId],
+      );
+      const focused = rows.find((r) => r.storeId === dto.storeId);
+      if (focused?.caderno) {
+        cadernoId = Number(focused.caderno);
+      } else {
+        // Produto sem caderno na loja: cai no caderno de oferta padrão do tenant
+        // (a A7 inclui o produto no caderno ao gravar a oferta). 409 se não há
+        // padrão configurado (nada onde pôr a oferta).
+        const def: Array<{ caderno: string | null }> = await em.query(
+          `SELECT settings->>'defaultCadernoId' AS caderno
+             FROM core.status_settings WHERE tenant_id = $1`,
+          [tenantId],
+        );
+        const defaultCaderno = def[0]?.caderno ? Number(def[0].caderno) : null;
+        if (defaultCaderno == null) {
+          throw new ConflictException(
+            `store ${dto.storeId} has no offer caderno for product ${ean} and no default caderno configured`,
+          );
+        }
+        cadernoId = defaultCaderno;
+      }
+      affectedStores = rows
+        .filter((r) => r.caderno === String(cadernoId))
+        .map((r) => r.name);
     }
     const creds = await this.integration.getApiCredentials(tenantSlug);
     if (!creds) {
@@ -158,7 +228,7 @@ export class CatalogMutationService {
       );
     }
     await this.pushToErp(
-      this.a7.upsertOffer(creds, dto.cadernoId, [
+      this.a7.upsertOffer(creds, cadernoId, [
         {
           idEmbalagem: Number(product.externalId),
           precoOferta: dto.targetPrice,
@@ -170,7 +240,7 @@ export class CatalogMutationService {
         {
           ean,
           targetPrice: String(dto.targetPrice),
-          externalId: String(dto.cadernoId),
+          externalId: String(cadernoId),
           // An omitted description keeps the stored one (bulk apply must not
           // wipe it); the column only joins the upsert when the dto sends it.
           ...(dto.description !== undefined && {
@@ -191,9 +261,14 @@ export class CatalogMutationService {
          FROM product p
         WHERE p.id = pi.product_id AND p.ean = $1::bigint
           AND pi.offer_external_id = $3::bigint`,
-      [ean, dto.targetPrice, dto.cadernoId],
+      [ean, dto.targetPrice, cadernoId],
     );
-    return { ean, targetPrice: dto.targetPrice, cadernoId: dto.cadernoId };
+    return {
+      ean,
+      targetPrice: dto.targetPrice,
+      cadernoId,
+      ...(dto.storeId && { storeId: dto.storeId, affectedStores }),
+    };
   }
 
   /** Remove the product's offer from its caderno on the ERP (precoOferta=null),

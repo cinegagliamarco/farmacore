@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -39,8 +40,17 @@ export class UpsertOfferDto {
   /** Offer price pushed to the caderno (precoOferta). */
   @IsNumber() @Min(0) public targetPrice!: number;
 
-  /** A7Pharma caderno de ofertas id (idCadernoOferta). */
-  @IsNumber() public cadernoId!: number;
+  /** A7Pharma caderno de ofertas id (idCadernoOferta). Inteiro: vira `::bigint`
+   *  na query de participação — um decimal aqui viraria 500, não 400. */
+  @IsInt() public cadernoId!: number;
 
   @IsOptional() @IsString() @Length(1, 500) public description?: string;
+
+  /** Quando presente, a oferta é escopada à loja (core.tenant_store id): o
+   *  caderno é RESOLVIDO do product_item daquela loja (offer_external_id),
+   *  ignorando `cadernoId` — lojas em cadernos distintos recebem escritas em
+   *  cadernos distintos. Pula o espelho global offer_book; 409 se a loja não
+   *  tem caderno para o produto. Como o ERP escreve por CADERNO (não por loja),
+   *  a resposta devolve as lojas co-afetadas — o alcance honesto da escrita. */
+  @IsOptional() @IsUUID() public storeId?: string;
 }

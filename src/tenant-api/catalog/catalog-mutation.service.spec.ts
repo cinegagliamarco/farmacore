@@ -333,6 +333,152 @@ describe('CatalogMutationService.upsertOffer', () => {
       ['ean'],
     );
   });
+
+  // --- Escrita de oferta escopada à loja (dto.storeId) ---
+  // O caderno é RESOLVIDO da loja (product_item.offer_external_id), não do dto:
+  // dto.cadernoId (7) é ignorado quando storeId está presente.
+
+  const storeDto = { cadernoId: 7, targetPrice: 8.5, storeId: 's1' };
+
+  /** em que despacha por SQL: resolveTenantId, a query que resolve o caderno da
+   *  loja + o alcance, e o UPDATE do espelho caem em ramos distintos. `rows` é
+   *  o retorno da resolução (uma linha por loja ativa, com seu caderno). */
+  const buildStoreOffer = (
+    rows: Array<{ storeId: string; caderno: string | null; name: string }>,
+    store: { findOne: jest.Mock },
+    defaultCaderno: string | null = null,
+  ) => {
+    const product = makeRepo();
+    product.findOne.mockResolvedValue({ id: 'p-uuid', externalId: '55' });
+    const offer = makeRepo();
+    const a7 = {
+      upsertOffer: jest.fn().mockResolvedValue(undefined),
+    } as unknown as A7PharmaApiClient;
+    const em = {
+      query: jest.fn((sql: string) => {
+        if (sql.includes('UPDATE product_item')) return Promise.resolve([]);
+        if (sql.includes('FROM core.tenant WHERE'))
+          return Promise.resolve([{ id: 'tenant-1' }]);
+        if (sql.includes('status_settings'))
+          return Promise.resolve([{ caderno: defaultCaderno }]);
+        return Promise.resolve(rows); // resolve caderno da loja + alcance
+      }),
+      getRepository: jest.fn((entity: { name?: string }) => {
+        if (entity === TenantProductEntity) return product;
+        if (entity?.name === 'TenantStoreEntity') return store;
+        return offer;
+      }),
+    } as unknown as EntityManager;
+    const service = new CatalogMutationService(
+      {
+        getApiCredentials: jest.fn().mockResolvedValue(creds),
+      } as unknown as IntegrationConnectionService,
+      a7,
+    );
+    return { service, em, offer, a7 };
+  };
+
+  it('resolve o caderno DA LOJA (ignora dto.cadernoId); pula offer_book; alcance isolado', async () => {
+    const store = {
+      findOne: jest.fn().mockResolvedValue({ id: 's1', active: true }),
+    };
+    // s1 no caderno 5010589, s2 noutro — a escrita da s1 só atinge a s1.
+    const { service, em, offer, a7 } = buildStoreOffer(
+      [
+        { storeId: 's1', caderno: '5010589', name: 'LOJA 01' },
+        { storeId: 's2', caderno: '5010575', name: 'LOJA 02' },
+      ],
+      store,
+    );
+    const out = await service.upsertOffer(em, 't', '789', storeDto);
+    // Escreve no caderno RESOLVIDO (5010589), NÃO no dto.cadernoId (7).
+    expect(a7.upsertOffer).toHaveBeenCalledWith(creds, 5010589, [
+      { idEmbalagem: 55, precoOferta: 8.5 },
+    ]);
+    // O espelho por loja também usa o caderno resolvido (não o do dto).
+    expect(em.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE product_item'),
+      ['789', 8.5, 5010589],
+    );
+    expect(offer.upsert).not.toHaveBeenCalled();
+    expect(out).toEqual({
+      ean: '789',
+      targetPrice: 8.5,
+      cadernoId: 5010589,
+      storeId: 's1',
+      affectedStores: ['LOJA 01'],
+    });
+  });
+
+  it('caderno de rede: o alcance lista todas as lojas participantes', async () => {
+    const store = {
+      findOne: jest.fn().mockResolvedValue({ id: 's1', active: true }),
+    };
+    // s1 e s2 no MESMO caderno (7) — a escrita atinge as duas.
+    const { service, em, a7 } = buildStoreOffer(
+      [
+        { storeId: 's1', caderno: '7', name: 'LOJA 01' },
+        { storeId: 's2', caderno: '7', name: 'LOJA 02' },
+      ],
+      store,
+    );
+    const out = await service.upsertOffer(em, 't', '789', storeDto);
+    expect(a7.upsertOffer).toHaveBeenCalledWith(creds, 7, [
+      { idEmbalagem: 55, precoOferta: 8.5 },
+    ]);
+    expect(out.affectedStores).toEqual(['LOJA 01', 'LOJA 02']);
+  });
+
+  it('sem caderno na loja, cai no caderno de oferta padrão do tenant', async () => {
+    const store = {
+      findOne: jest.fn().mockResolvedValue({ id: 's1', active: true }),
+    };
+    // s1 sem caderno para o produto; tenant tem caderno padrão 999.
+    const { service, em, a7 } = buildStoreOffer(
+      [{ storeId: 's1', caderno: null, name: 'LOJA 01' }],
+      store,
+      '999',
+    );
+    const out = await service.upsertOffer(em, 't', '789', storeDto);
+    expect(a7.upsertOffer).toHaveBeenCalledWith(creds, 999, [
+      { idEmbalagem: 55, precoOferta: 8.5 },
+    ]);
+    expect(out.cadernoId).toBe(999);
+  });
+
+  it('409 quando a loja não tem caderno E não há caderno padrão (nada ao ERP)', async () => {
+    const store = {
+      findOne: jest.fn().mockResolvedValue({ id: 's1', active: true }),
+    };
+    const { service, em, a7 } = buildStoreOffer(
+      [{ storeId: 's1', caderno: null, name: 'LOJA 01' }],
+      store,
+      null,
+    );
+    await expect(service.upsertOffer(em, 't', '789', storeDto)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(a7.upsertOffer).not.toHaveBeenCalled();
+  });
+
+  it('409 quando a loja está inativa', async () => {
+    const store = {
+      findOne: jest.fn().mockResolvedValue({ id: 's1', active: false }),
+    };
+    const { service, em, a7 } = buildStoreOffer([], store);
+    await expect(service.upsertOffer(em, 't', '789', storeDto)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(a7.upsertOffer).not.toHaveBeenCalled();
+  });
+
+  it('404 quando a loja é desconhecida', async () => {
+    const store = { findOne: jest.fn().mockResolvedValue(null) };
+    const { service, em } = buildStoreOffer([], store);
+    await expect(service.upsertOffer(em, 't', '789', storeDto)).rejects.toThrow(
+      NotFoundException,
+    );
+  });
 });
 
 describe('CatalogMutationService.removeOffer', () => {

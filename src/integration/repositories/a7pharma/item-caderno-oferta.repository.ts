@@ -97,7 +97,9 @@ export class ItemCadernoOfertaRepository {
    * offers vary per store even in a chain-wide caderno); types without a unit
    * price (S/M/B/F) resolve to NULL but still mark caderno membership. Winner
    * per (store, embalagem): most specific tipoitem, then lowest effective
-   * sell price — mirroring the ERP's own resolution (client-verified query).
+   * sell price — mirroring the ERP's own resolution (client-verified query) —
+   * then lowest caderno id, then the item's own id (unique), so exact price
+   * ties never flip the recorded caderno/offer between syncs.
    *
    * The caderno "active" filters mirror findBestOffersWithDealsByEmbalagemIds
    * (keep the two lists in sync) with two deliberate divergences: cadernos
@@ -184,7 +186,7 @@ export class ItemCadernoOfertaRepository {
             WHERE ico.comboofertaid IS NULL
          ),
          com_preco AS (
-           SELECT o.embalagemid, o.unidadenegocioid, o.tipoitem,
+           SELECT o.embalagemid, o.unidadenegocioid, o.tipoitem, o.itemid,
                   o.cadernoofertaid, o.caderno_nome,
                   COALESCE(peu.precovenda, a.precovenda) AS preco_cadastro,
                   CASE o.tipooferta
@@ -224,7 +226,7 @@ export class ItemCadernoOfertaRepository {
              ) q1 ON true
          ),
          precificado AS (
-           SELECT embalagemid, unidadenegocioid, tipoitem, cadernoofertaid,
+           SELECT embalagemid, unidadenegocioid, tipoitem, itemid, cadernoofertaid,
                   caderno_nome, preco_cadastro,
                   CASE WHEN preco_calc > 0 THEN preco_calc END AS preco_final_oferta
              FROM com_preco
@@ -238,7 +240,8 @@ export class ItemCadernoOfertaRepository {
                       PARTITION BY p.unidadenegocioid, p.embalagemid
                       ORDER BY p.tipoitem,
                                LEAST(COALESCE(p.preco_final_oferta, p.preco_cadastro),
-                                     p.preco_cadastro)
+                                     p.preco_cadastro),
+                               p.cadernoofertaid, p.itemid
                     ) AS rn
                FROM precificado p
            ) ranked
