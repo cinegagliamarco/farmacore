@@ -77,6 +77,10 @@
   {
    "key": "offerBookRuleId",
    "value": ""
+  },
+  {
+   "key": "offerBookReportId",
+   "value": ""
   }
  ],
  "auth": {
@@ -2065,7 +2069,7 @@
         "offer-book-rules"
        ]
       },
-      "description": "Salva o conjunto de regras aplicado a um caderno de ofertas EXISTENTE (`offerBookInfoId` = id de GET /offer-campaigns; não cria caderno). Produtos-alvo: exatamente UM de `eans` OU `classifications` (subárvore). `scheduledDays` usa índice Postgres dow (0=domingo…6=sábado) e é obrigatório quando `scheduleEnabled=true`. Retorna `{ id }`. 404 caderno inexistente/inativo; 409 já existe regra para o caderno (uma por caderno, unique fecha a corrida)."
+      "description": "Salva o conjunto de regras aplicado a um caderno de ofertas EXISTENTE (`offerBookInfoId` = id de GET /offer-campaigns; não cria caderno). Produtos-alvo: exatamente UM de `eans` OU `classifications` (subárvore). `scheduledDays` usa índice Postgres dow (0=domingo…6=sábado) e é obrigatório quando `scheduleEnabled=true`. Retorna `{ id }`. 404 caderno inexistente/inativo; 409 já existe regra para o caderno (uma por caderno, unique fecha a corrida). Com `scheduleEnabled=true`, um cron executa a regra automaticamente 1×/dia nos `scheduledDays`, entre 07–21 America/Sao_Paulo (mesmo caminho money-safe do POST /:id/execute)."
      },
      "response": []
     },
@@ -2134,9 +2138,118 @@
       "description": "Remove a regra (hard delete — apaga regras, locks e produtos associados). Retorna `{ id }`. 404 se não existe."
      },
      "response": []
+    },
+    {
+     "name": "POST /offer-book-rules/:id/execute",
+     "request": {
+      "method": "POST",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{offerBookRuleId}}/execute",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{offerBookRuleId}}",
+        "execute"
+       ]
+      },
+      "description": "Executa a regra de forma assíncrona (operator/admin, módulo offer-book-rules). Responde 202 `{ reportId }`; copie o valor para `offerBookReportId`. 409 se a regra já está executando ou se o caderno não está ativo e vigente. O request congela o ledger e o worker escreve na A7 sem duplicar preço em redelivery."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/:id/execution-reports",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/{{offerBookRuleId}}/execution-reports?page=1&perPage=20",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "{{offerBookRuleId}}",
+        "execution-reports"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "perPage",
+         "value": "20"
+        }
+       ]
+      },
+      "description": "Lista os reports de uma regra, mais recente primeiro: `{ rows, total, page, pageSize, totalPages }`. `outcome` fica null enquanto roda e depois é SUCCESS, FAILURE ou NO_CHANGES. `perPage` 1–100, default 20."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/execution-reports",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/execution-reports?page=1&perPage=20",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "execution-reports"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "perPage",
+         "value": "20"
+        }
+       ]
+      },
+      "description": "Lista global de reports do tenant. Filtros opcionais: ruleId, offerBookInfoId, executionType (MANUAL|SCHEDULED), outcome (SUCCESS|FAILURE|NO_CHANGES), startDate e endDate. Datas sem hora cobrem o dia civil em America/Sao_Paulo."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /offer-book-rules/execution-reports/:reportId",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/offer-book-rules/execution-reports/{{offerBookReportId}}?page=1&perPage=50",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "offer-book-rules",
+        "execution-reports",
+        "{{offerBookReportId}}"
+       ],
+       "query": [
+        {
+         "key": "page",
+         "value": "1"
+        },
+        {
+         "key": "perPage",
+         "value": "50"
+        }
+       ]
+      },
+      "description": "Detalhe do report com items paginados: `{ report, items, totalItems, page, pageSize, totalPages }`. page/perPage são obrigatórios (1–100); `name` é filtro opcional ILIKE. Cada item traz o snapshot do cálculo, applyStatus, applyError e wasUpdated."
+     },
+     "response": []
     }
    ],
-   "description": "Regras de precificação de caderno de ofertas — `src/tenant-api/offer-book-rules/offer-book-rules.controller.ts`. Preview (dry-run) + CRUD do conjunto de regras aplicado a um caderno existente (uma regra por caderno). Operator/admin + módulo offer-book-rules em tudo."
+   "description": "Regras de precificação de caderno de ofertas — `src/tenant-api/offer-book-rules/offer-book-rules.controller.ts`. Preview (dry-run), CRUD, execução assíncrona e relatórios do conjunto de regras aplicado a um caderno existente (uma regra por caderno). Operator/admin + módulo offer-book-rules em tudo."
   },
   {
    "name": "Tenant — Pricing (apply & schedule)",

@@ -4,7 +4,7 @@ End-to-end walkthrough for a fresh developer: get the app running locally, exerc
 
 > Companion docs
 > - [`README.md`](./README.md) — one-screen quickstart
-> - [`docs/api-reference.md`](./docs/api-reference.md) — complete per-endpoint API reference (all 90 endpoints: auth, roles, modules, bodies, errors)
+> - [`docs/api-reference.md`](./docs/api-reference.md) — complete per-endpoint API reference (all 94 endpoints: auth, roles, modules, bodies, errors)
 > - [`docs/provisioning/first-deploy.md`](./docs/provisioning/first-deploy.md) — first-time cloud setup (Fly + Neon + CloudAMQP + R2 + GitHub Actions)
 > - [`docs/provisioning/teardown.md`](./docs/provisioning/teardown.md) — environment teardown
 > - [`postman/README.md`](./postman/README.md) — Postman collection sync rules
@@ -109,7 +109,7 @@ The e2e suite forces `NODE_ENV=development` via [`test/setup-e2e-env.ts`](./test
 
 ## 5. Exercise the API with curl
 
-The full HTTP surface (90 endpoints) is documented per endpoint in [`docs/api-reference.md`](./docs/api-reference.md) and mirrored by the Postman collection (next section). The curl snippets below cover the most common flows.
+The full HTTP surface (94 endpoints) is documented per endpoint in [`docs/api-reference.md`](./docs/api-reference.md) and covered by the Postman collection (next section). The curl snippets below cover the most common flows.
 
 ### 5.1 Health
 
@@ -302,7 +302,7 @@ The full request set with bodies and examples lives in the Postman collection (t
 
 ## 6. Postman collection
 
-Import [`postman/farmacore.postman_collection.json`](./postman/farmacore.postman_collection.json). It mirrors all 90 endpoints of the API; [`docs/api-reference.md`](./docs/api-reference.md) is the per-endpoint guide. The collection's `POST /auth/login` request has a Tests script that stores `accessToken` / `refreshToken` as collection variables, so the rest of the requests Just Work.
+Import [`postman/farmacore.postman_collection.json`](./postman/farmacore.postman_collection.json). It mirrors all 94 endpoints of the API; [`docs/api-reference.md`](./docs/api-reference.md) is the per-endpoint guide. The collection's `POST /auth/login` request has a Tests script that stores `accessToken` / `refreshToken` as collection variables, so the rest of the requests Just Work.
 
 See [`postman/README.md`](./postman/README.md) for the per-plan sync rule (whenever you touch a controller, update the collection in the same commit).
 

@@ -49,15 +49,32 @@ export class ImportCompetitorProductsStep {
     eans: string[],
   ): Promise<void> {
     if (eans.length === 0) return;
+    const repo = new SharedProductRepository(em);
+    // Skip EANs already known absent from this origin's catalog (found=false):
+    // re-scraping them is mostly wasted work (findNotFoundEans still re-checks
+    // a random sample so it isn't forever). The skip lives here, not in the
+    // dispatcher, so the dispatched batch plan stays deterministic across
+    // restarts (the fan-in counter depends on it).
+    const notFound = await repo.findNotFoundEans(origin, eans);
+    const toScrape = notFound.size
+      ? eans.filter((ean) => !notFound.has(ean))
+      : eans;
+    if (toScrape.length === 0) return;
     const scraper = this.scraperFor(origin);
-    const scrapes = await scraper.scrapeProducts(eans);
-    await new SharedProductRepository(em).upsertScrapes(scrapes);
+    const scrapes = await scraper.scrapeProducts(toScrape);
+    await repo.upsertScrapes(scrapes);
     await this.images.project(em, scrapes);
     const found = scrapes.filter((s) => s.found).length;
     const errors = scrapes.filter((s) => s.error).length;
-    this.metrics.onScrapeBatch(tenantId, origin, eans.length, found, errors);
+    this.metrics.onScrapeBatch(
+      tenantId,
+      origin,
+      toScrape.length,
+      found,
+      errors,
+    );
     this.logger.debug(
-      `import-competitor-products[${origin}]: ${eans.length} scraped, ${found} found`,
+      `import-competitor-products[${origin}]: ${toScrape.length} scraped, ${found} found`,
     );
   }
 

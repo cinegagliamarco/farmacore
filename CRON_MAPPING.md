@@ -43,7 +43,7 @@ Daily cron itself: legacy `@Cron(EVERY_DAY_AT_MIDNIGHT)` single job → split in
 | every 5 min | `updateProductsWithErrorsOrOutdated` | "re-scrape errored products" (system periodic) | 🆕 | Re-scrape `shared_catalog.product` rows where `metadata.error` is set or the row is stale. Reuses the per-origin scrape queues. |
 | every 5 min | `updateStockWithErrorsOrOutdated` | "re-scrape errored stock" (system periodic) | 🆕 | Same shape for competitor stock. |
 | every 1 min | `executeSchedulings` | `PricingScheduleCron` (`src/tenant-api/pricing/pricing-schedule.cron.ts`) | ✅ | Fires due `pricing_schedule` rows per minute (one-shot frozen prices, `recalc`, recurring `cronExpr`); a schedule whose apply throws is parked as `status='failed'` instead of retrying forever. The legacy `core.scheduling` table was dropped (dead code). |
-| hourly 07–21 | `executeScheduledOfferBookRules` | — | ⛔ | Needs the **offer-book-rules** feature (`offer-book-rules.controller` is ❌). |
+| hourly 07–21 | `executeScheduledOfferBookRules` | dedicated offer-book-rule cron | ⛔ | Manual async execution and reports exist; the timezone-aware scheduled trigger is still pending. |
 | every 12 h | `restartApplication` | — | ❌ | Fly.io manages process lifecycle/restarts; the legacy "restart to free memory" workaround isn't needed. |
 
 ---
@@ -53,3 +53,6 @@ Daily cron itself: legacy `@Cron(EVERY_DAY_AT_MIDNIGHT)` single job → split in
 Independent of the crons, an admin can run any single routine on demand via
 `POST /admin/tenants/:slug/pipeline/steps/:step` (see CONTROLLER_MAPPING.md →
 "Triggerable routine"). The crons publish the same step messages on a schedule.
+The internal `execute-offer-book-rule` step is the exception: it requires a
+pre-created report ledger and can only be started by
+`POST /offer-book-rules/:id/execute`, not by the generic admin route.
