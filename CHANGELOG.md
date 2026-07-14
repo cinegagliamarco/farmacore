@@ -2,6 +2,41 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.0.0] - 2026-07-14
+
+### Added
+
+- Preço de oferta por loja na grade de Cruzados: com `?store=`, o backend
+  projeta `priceOffer`/`book`/`cadernoId` do `product_item` daquela loja, e a
+  edição inline grava a oferta no caderno que o produto pertence NA LOJA
+  (resolvido do `product_item.offer_external_id`, não mais de um caderno global
+  escolhido à mão). Lojas em cadernos distintos recebem escritas em cadernos
+  distintos; a resposta devolve `affectedStores` (o ERP grava o caderno inteiro).
+- Filtro multiselect de caderno na grade de Cruzados (`?caderno=`): filtra por
+  caderno vencedor da loja (`EXISTS product_item`) ou global (`offer_book`).
+- Caderno de oferta padrão do tenant: novo `GET/PATCH /settings/offer-defaults`
+  (`defaultCadernoId`). Produto sem caderno na loja cai no padrão ao gravar a
+  oferta (a A7 inclui o produto no caderno) — imediato E agendado; `409` só sem
+  padrão configurado.
+
+### Fixed
+
+- Escrita de oferta agendada agora é escopada à loja (`ApplyItem.storeId`): antes,
+  "Agendar" gravava o caderno da loja no `offer_book` GLOBAL (envenenamento da
+  rede), enquanto "Alterar agora" já era por loja. Os dois caminhos agora batem.
+- `findStoreOffers`: desempate determinístico (`cadernoofertaid`, `itemid`) — o
+  caderno vencedor não alterna mais entre syncs quando há empate de preço.
+- Guard de preço de oferta zero/negativo (`> 0`) na projeção por loja, alinhado
+  ao ramo global.
+
+### For contributors
+
+- `catalog.service.ts`: `cadernoIdExpr(hasStore)` e o filtro `?caderno=` via
+  `buildFilters(q, storeUuid)` com `EXISTS` (joinless, vale no `count`).
+- `catalog-mutation.service.upsertOffer` resolve o caderno do `product_item` da
+  loja e cai no `status_settings.settings->>'defaultCadernoId'`; o mesmo fallback
+  vive em `pricing-apply.service.revalidate` (caminho agendado).
+
 ## [0.1.2.1] - 2026-07-13
 
 ### Changed
