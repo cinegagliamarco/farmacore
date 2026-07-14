@@ -149,6 +149,24 @@ const EFF_MARGIN = `CASE WHEN ${EFF_BASE} > 0
           THEN ROUND(((${EFF_BASE} - COALESCE(${EFF_COST}, 0)) / ${EFF_BASE}) * 100, 4)
           ELSE NULL END`;
 
+/** Per-store offer: a product_item row for the selected store wins ENTIRELY —
+ *  NULL price_offer there means "no offer undercutting this store's shelf
+ *  price", deliberately not falling back to the global book (same semantics
+ *  as pricing-suggestions). The `> 0` guard keeps parity with the global
+ *  expression's `<= 0 THEN NULL` rule: an offer write can mirror a zero (or,
+ *  via a correction, negative) price_offer into product_item, which must read
+ *  as "no offer", not R$ 0. Without ?store= the pi join never matches and the
+ *  global expression applies. */
+const EFF_PRICE_OFFER = `CASE WHEN pi.id IS NULL THEN ${PRICE_OFFER_EXPR} WHEN pi.price_offer > 0 THEN pi.price_offer ELSE NULL END`;
+const EFF_BOOK = `CASE WHEN pi.id IS NULL THEN ob.description ELSE pi.offer_description END`;
+/** Caderno id da linha — o alvo da escrita de oferta e o que o filtro casa.
+ *  Com `?store=` é o caderno DA LOJA (product_item.offer_external_id, NULL quando
+ *  a loja não tem linha) — sem fallback global, pra bater exatamente com o filtro
+ *  (EXISTS product_item) e com a escrita por loja (que resolve do product_item e
+ *  409a sem linha). Sem store, é o caderno global (offer_book.external_id). */
+const cadernoIdExpr = (hasStore: boolean): string =>
+  hasStore ? 'pi.offer_external_id' : 'ob.external_id';
+
 const productItemJoin = (param: number): string =>
   `LEFT JOIN product_item pi ON pi.product_id = p.id AND pi.store_id = $${param}::uuid`;
 
@@ -175,6 +193,8 @@ const SORTABLE_EFFECTIVE: Record<SortableColumn, string> = {
   cost: EFF_COST,
   price: EFF_PRICE,
   margin: EFF_MARGIN,
+  priceOffer: EFF_PRICE_OFFER,
+  book: EFF_BOOK,
 };
 
 // stock() joins neither offer_book nor tenant_offer_campaign; dropping the
@@ -208,7 +228,7 @@ export class CatalogService {
   ): Promise<Paginated<Record<string, unknown>>> {
     const { page, perPage, offset } = this.paginate(q);
     const storeUuid = await this.storeUuid(em, slug, q.store);
-    const f = this.buildFilters(q);
+    const f = this.buildFilters(q, storeUuid);
     const order = this.orderBy(q, SORTABLE_EFFECTIVE);
 
     const count = await this.count(em, f);
@@ -247,15 +267,15 @@ export class CatalogService {
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const { page, perPage, offset } = this.paginate(q);
     const storeUuid = await this.storeUuid(em, slug, q.store);
-    const f = this.buildFilters(q);
+    const f = this.buildFilters(q, storeUuid);
     const order = this.orderBy(q, SORTABLE_EFFECTIVE);
     const { joins, selects } = buildCompetitorCrossJoins(origins);
 
     const count = await this.count(em, f);
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
-              ob.description AS book,
-              ${EFF_COST} AS cost, ${EFF_PRICE} AS price, ${PRICE_OFFER_EXPR} AS "priceOffer",
+              ${EFF_BOOK} AS book, ${cadernoIdExpr(storeUuid != null)} AS "cadernoId",
+              ${EFF_COST} AS cost, ${EFF_PRICE} AS price, ${EFF_PRICE_OFFER} AS "priceOffer",
               ${EFF_MARGIN} AS margin, p.average_variation AS "averageVariation", p.status,
               p.active, p.monitored, p.receipt_date AS "receiptDate"
               ${selects ? `,\n              ${selects}` : ''}
@@ -299,7 +319,7 @@ export class CatalogService {
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const { page, perPage, offset } = this.paginate(q);
     const storeUuid = await this.storeUuid(em, slug, q.store);
-    const f = this.buildFilters(q);
+    const f = this.buildFilters(q, storeUuid);
     const order = this.orderBy(q, SORTABLE_EFFECTIVE);
     const { joins, selects } = buildCompetitorCrossJoins(origins);
     const observationChecks = safeOrigins(origins).map(
@@ -321,7 +341,7 @@ export class CatalogService {
     );
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
-              ${EFF_COST} AS cost, ${EFF_PRICE} AS price, ${PRICE_OFFER_EXPR} AS "priceOffer", p.deals,
+              ${EFF_COST} AS cost, ${EFF_PRICE} AS price, ${EFF_PRICE_OFFER} AS "priceOffer", p.deals,
               ${EFF_MARGIN} AS margin, p.average_variation AS "averageVariation", p.status
               ${selects ? `,\n              ${selects}` : ''}
          ${fromJoins} ${where}
@@ -437,7 +457,7 @@ export class CatalogService {
               ${EFF_PRICE} AS price, ${EFF_COST} AS cost, ${EFF_MARGIN} AS margin,
               COALESCE(ps.quantity, 0) AS "stockInStore",
               cc.origin AS "competitorOrigin", cc.price AS "competitorPrice",
-              ${PRICE_OFFER_EXPR} AS "priceOffer"
+              ${EFF_PRICE_OFFER} AS "priceOffer"
               ${selects ? `,\n              ${selects}` : ''}
          FROM product p
          ${BASE_PRODUCT_JOIN}
@@ -575,7 +595,7 @@ export class CatalogService {
   ): Promise<string> {
     const origins = await this.competitorOrigins.enabledOrigins(em, slug);
     const storeUuid = await this.storeUuid(em, slug, q.store);
-    const f = this.buildFilters(q);
+    const f = this.buildFilters(q, storeUuid);
     const { joins, selects } = buildCompetitorCrossJoins(origins);
     const rows: Array<Record<string, unknown>> = await em.query(
       `SELECT p.ean, p.name, p.supplier, c.name AS classification,
@@ -695,7 +715,10 @@ export class CatalogService {
     return Number(rows[0]?.count ?? 0);
   }
 
-  private buildFilters(q: ListProductsQueryDto): Filters {
+  private buildFilters(
+    q: ListProductsQueryDto,
+    storeUuid?: string | null,
+  ): Filters {
     const clauses: string[] = [];
     const params: unknown[] = [];
     const add = (sql: string, value: unknown): void => {
@@ -716,6 +739,30 @@ export class CatalogService {
     if (q.active === 'false') add('p.active = $?', false);
     if (q.receiptFrom) add('p.receipt_date >= $?', q.receiptFrom);
     if (q.receiptTo) add('p.receipt_date <= $?', q.receiptTo);
+
+    // Caderno filter: keep the product only if its EFF_BOOK caderno is in the
+    // set. A self-contained EXISTS (its own alias) so it works in the joinless
+    // count() too. With a store it matches the store's own caderno
+    // (product_item), else the global book (offer_book).
+    const cadernos = this.csv(q.caderno);
+    if (cadernos.length) {
+      if (storeUuid) {
+        params.push(storeUuid);
+        const pStore = params.length;
+        params.push(cadernos);
+        clauses.push(
+          `EXISTS (SELECT 1 FROM product_item pi_f WHERE pi_f.product_id = p.id
+             AND pi_f.store_id = $${pStore}::uuid
+             AND pi_f.offer_external_id = ANY($${params.length}::bigint[]))`,
+        );
+      } else {
+        params.push(cadernos);
+        clauses.push(
+          `EXISTS (SELECT 1 FROM offer_book ob_f WHERE ob_f.ean = p.ean
+             AND ob_f.external_id = ANY($${params.length}::bigint[]))`,
+        );
+      }
+    }
 
     return {
       where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',

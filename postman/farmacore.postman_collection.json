@@ -1176,7 +1176,7 @@
         }
        ]
       },
-      "description": "Tenant catalog list (no competitor cross). Filters: name, supplier, classification, eans (csv), status (csv), monitored. Returns { rows, count, page, perPage }. Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost over the global values."
+      "description": "Tenant catalog list (no competitor cross). Filters: name, supplier, classification, eans (csv), status (csv), monitored. Returns { rows, count, page, perPage }. Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost/margin AND offer (priceOffer/book) over the global values."
      },
      "response": []
     },
@@ -1234,7 +1234,7 @@
         }
        ]
       },
-      "description": "Tenant products CROSSED with competitors: per row cost/price/margin/status + priceOffer (current offer price) + one price/observation column per enabled competitor origin (response includes origins: string[]). Same filters as /products plus sortBy (ean,name,supplier,classification,book,cost,price,margin,averageVariation,status,priceOffer,receiptDate). Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost over the global values. Requires module crossed-products (403 without it)."
+      "description": "Tenant products CROSSED with competitors: per row cost/price/margin/status + priceOffer (current offer price) + one price/observation column per enabled competitor origin (response includes origins: string[]). Same filters as /products plus sortBy (ean,name,supplier,classification,book,cost,price,margin,averageVariation,status,priceOffer,receiptDate). Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost/margin AND offer (priceOffer/book/cadernoId) over the global values. Optional `caderno` (csv of caderno ids) filters the listing to products whose winning caderno (per store, else global) is in the set. Requires module crossed-products (403 without it)."
      },
      "response": []
     },
@@ -1428,7 +1428,7 @@
         }
        ]
       },
-      "description": "Crossed products with a deal worth reacting to — a competitor observation on ANY enabled origin OR tenant deals. Returns `{ rows, count, page, perPage }` with `deals` plus each competitor’s price/observation (no per-origin deal fields). Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost. Requires module strategic-pricing."
+      "description": "Crossed products with a deal worth reacting to — a competitor observation on ANY enabled origin OR tenant deals. Returns `{ rows, count, page, perPage }` with `deals` plus each competitor’s price/observation (no per-origin deal fields). Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost/margin AND offer (priceOffer/book). Requires module strategic-pricing."
      },
      "response": []
     },
@@ -1569,7 +1569,7 @@
         }
        ]
       },
-      "description": "Tenant catalog crossed with competitors as CSV (text/csv, capped 50k). Filters same as /products. Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost over the global values. Requires module crossed-products."
+      "description": "Tenant catalog crossed with competitors as CSV (text/csv, capped 50k). Filters same as /products. Optional `store` (numeric external id from GET /products/stores) projects that store’s per-store price/cost/margin AND offer (priceOffer/book) over the global values. Requires module crossed-products."
      },
      "response": []
     },
@@ -1612,10 +1612,10 @@
         "offer"
        ]
       },
-      "description": "Upsert an offer (operator/admin). Pushes precoOferta to the product's caderno on A7Pharma (idCadernoOferta=cadernoId, idEmbalagem=product.external_id), then mirrors it in tenant.offer_book. 409 if product has no ERP id or the tenant has no A7Pharma API configured; 502 when the ERP write fails. Requires operator/admin + one of crossed-products | active-ingredient-analysis | strategic-pricing.",
+      "description": "Upsert an offer (operator/admin). Pushes precoOferta to the product's caderno on A7Pharma (idCadernoOferta=cadernoId, idEmbalagem=product.external_id), then mirrors it in tenant.offer_book + product_item. Optional `storeId` (core.tenant_store UUID) scopes the write to a store: it skips the global offer_book mirror, validates the store participates in cadernoId (409 if not), and — since the ERP writes the whole caderno — returns the reach as { ean, targetPrice, cadernoId, storeId, affectedStores: [...] }. 409 if product has no ERP id, the tenant has no A7Pharma API configured, the store is inactive, or the store does not participate in the caderno; 404 for an unknown store; 502 when the ERP write fails. Requires operator/admin + one of crossed-products | active-ingredient-analysis | strategic-pricing.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"targetPrice\": 9.9,\n  \"cadernoId\": 123,\n  \"description\": \"Oferta da semana\"\n}"
+       "raw": "{\n  \"targetPrice\": 9.9,\n  \"cadernoId\": 123,\n  \"description\": \"Oferta da semana\",\n  \"storeId\": \"OPTIONAL-tenant_store-uuid\"\n}"
       }
      },
      "response": []

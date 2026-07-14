@@ -88,4 +88,67 @@ describe('SettingsService.updateVariationStatus', () => {
       settings: out,
     });
   });
+
+  it('preserves the default caderno through a variation-status update', async () => {
+    const { em, save } = makeEm({
+      settingsRow: {
+        id: 'row-9',
+        tenantId: 't1',
+        settings: { defaultCadernoId: 999 },
+      } as unknown as StatusSettingsEntity,
+    });
+    await new SettingsService().updateVariationStatus(em, 's', {
+      suspectBelow: -20,
+    });
+    const saved = save.mock.calls[0][0] as StatusSettingsEntity;
+    expect(saved.settings.defaultCadernoId).toBe(999);
+  });
+});
+
+describe('SettingsService offer defaults', () => {
+  it('returns null when no default caderno is set', async () => {
+    const { em } = makeEm({});
+    expect(await new SettingsService().getOfferDefaults(em, 's')).toEqual({
+      defaultCadernoId: null,
+    });
+  });
+
+  it('reads the stored default caderno', async () => {
+    const { em } = makeEm({
+      settingsRow: {
+        tenantId: 't1',
+        settings: { defaultCadernoId: 555 },
+      } as unknown as StatusSettingsEntity,
+    });
+    expect(await new SettingsService().getOfferDefaults(em, 's')).toEqual({
+      defaultCadernoId: 555,
+    });
+  });
+
+  it('stores the default caderno without wiping the variation thresholds', async () => {
+    const { em, save } = makeEm({
+      settingsRow: {
+        id: 'row-9',
+        tenantId: 't1',
+        settings: { suspectAbove: 99 },
+      } as unknown as StatusSettingsEntity,
+    });
+    const out = await new SettingsService().updateOfferDefaults(em, 's', 777);
+    expect(out).toEqual({ defaultCadernoId: 777 });
+    const saved = save.mock.calls[0][0] as StatusSettingsEntity;
+    expect(saved.settings).toEqual({ suspectAbove: 99, defaultCadernoId: 777 });
+  });
+
+  it('clears the default caderno with null', async () => {
+    const { em, save } = makeEm({
+      settingsRow: {
+        id: 'row-9',
+        tenantId: 't1',
+        settings: { defaultCadernoId: 777 },
+      } as unknown as StatusSettingsEntity,
+    });
+    await new SettingsService().updateOfferDefaults(em, 's', null);
+    const saved = save.mock.calls[0][0] as StatusSettingsEntity;
+    expect(saved.settings.defaultCadernoId).toBeNull();
+  });
 });

@@ -188,7 +188,13 @@ export class CatalogController {
     @CurrentUser() user: JwtPayload,
     @Param('ean') ean: string,
     @Body() dto: UpsertOfferDto,
-  ): Promise<{ ean: string; targetPrice: number; cadernoId: number }> {
+  ): Promise<{
+    ean: string;
+    targetPrice: number;
+    cadernoId: number;
+    storeId?: string;
+    affectedStores?: string[];
+  }> {
     this.assertEan(ean);
     return this.mutations.upsertOffer(em, user.tenantId, ean, dto);
   }

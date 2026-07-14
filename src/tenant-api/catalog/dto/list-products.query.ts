@@ -78,6 +78,16 @@ export class ListProductsQueryDto {
   })
   public eans?: string;
 
+  // Comma-separated caderno (offer) ids — filters the listing to products whose
+  // winning caderno (per `?store=`, else the global book) is in the set. Numeric
+  // like `eans` so junk can't reach the `::bigint[]` cast.
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{1,18}(\s*,\s*\d{1,18})*$/, {
+    message: 'caderno must be a comma-separated list of numeric caderno ids',
+  })
+  public caderno?: string;
+
   @IsOptional()
   @IsString()
   public monitored?: string; // 'true' | 'false'

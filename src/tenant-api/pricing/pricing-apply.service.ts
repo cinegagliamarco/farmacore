@@ -554,6 +554,18 @@ export class PricingApplyService {
     ];
     const stores = await this.loadStores(em, slug, storeIds);
     const storeItems = await this.loadStoreItems(em, eans, storeIds);
+    // Caderno de oferta padrão do tenant: fallback quando a loja não tem caderno
+    // para o produto — mesma regra do POST /offer interativo, pra que "Agendar"
+    // não descarte silenciosamente o que "Alterar agora" aceita. Uma vez/lote.
+    const defRows: Array<{ caderno: string | null }> = await em.query(
+      `SELECT ss.settings->>'defaultCadernoId' AS caderno
+         FROM core.status_settings ss
+         JOIN core.tenant t ON t.id = ss.tenant_id AND t.slug = $1`,
+      [slug],
+    );
+    const defaultCaderno = defRows[0]?.caderno
+      ? Number(defRows[0].caderno)
+      : null;
 
     let active = (await this.rules.list(em)).filter((r) => r.active);
     if (
@@ -667,14 +679,19 @@ export class PricingApplyService {
           // Item de loja só escreve no caderno vencedor DELA. Caderno
           // explícito divergente (congelado num agendamento antigo, ou o
           // global) não tem cobertura verificável — escreveria em lojas
-          // erradas sem tocar a alvo. Sem caderno conhecido (loja pré-sync)
-          // idem: nunca cai no global.
+          // erradas sem tocar a alvo.
           const storeCaderno = num(si?.offerExternalId);
-          if (item.cadernoId != null && item.cadernoId !== storeCaderno) {
-            reject('caderno_nao_cobre_loja');
-            continue;
+          if (storeCaderno != null) {
+            if (item.cadernoId != null && item.cadernoId !== storeCaderno) {
+              reject('caderno_nao_cobre_loja');
+              continue;
+            }
+            cadernoId = storeCaderno;
+          } else {
+            // Loja sem caderno para o produto: cai no caderno padrão do tenant
+            // (igual ao interativo). Sem padrão, 'sem_caderno' abaixo.
+            cadernoId = defaultCaderno;
           }
-          cadernoId = storeCaderno;
         } else {
           cadernoId = item.cadernoId ?? num(row.cadernoId);
         }

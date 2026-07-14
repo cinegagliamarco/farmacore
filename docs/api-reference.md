@@ -523,7 +523,8 @@ exceções anotadas):
 | `monitored`, `active` | `true` | flags do produto |
 | `receiptFrom`, `receiptTo` | `2026-06-01` | janela da última entrada |
 | `sortBy`, `sortDirection` | `price`, `DESC` | ordenação (o `/export` ignora — ordem fixa por EAN) |
-| `store` | `3` | **id externo numérico** da loja: projeta preço/custo daquela loja. Só em `/products`, `/crossed`, `/strategic-price` e `/export` — `/stock` e `/stock-metrics` ignoram |
+| `store` | `3` | **id externo numérico** da loja: projeta preço/custo/margem e a oferta/caderno (`priceOffer`/`book`/`cadernoId`) daquela loja via `product_item`. Só em `/products`, `/crossed`, `/strategic-price` e `/export` — `/stock` e `/stock-metrics` ignoram |
+| `caderno` | `118,5010589` | csv de **ids de caderno** — filtra a listagem aos produtos cujo caderno vencedor (da loja com `?store=`, senão global) está no conjunto. `/crossed` |
 
 O DTO também aceita `activeIngredient`, mas esses grids o **ignoram** — o
 filtro só tem efeito nos endpoints de princípio ativo (abaixo).
@@ -635,15 +636,24 @@ Mesmo padrão ERP-primeiro para **oferta** (preço de caderno):
   e espelha em `tenant.offer_book` + nos `product_item` cujo caderno vencedor é
   esse. Body: `{ "targetPrice": 24.9, "cadernoId": 118, "description": "Oferta encarte julho" }`
   (description opcional — omitida preserva a atual). Resposta: `{ ean, targetPrice, cadernoId }`.
+- **Escopo por loja:** com `storeId` (UUID de `core.tenant_store`) no body, a
+  escrita é escopada à loja — pula o espelho global `offer_book` e **resolve o
+  caderno do `product_item` daquela loja** (`offer_external_id`), ignorando o
+  `cadernoId` do body: lojas em cadernos distintos recebem escritas em cadernos
+  distintos. Se a loja não tem caderno para o produto, cai no **caderno padrão
+  do tenant** (`GET/PATCH /settings/offer-defaults` → `defaultCadernoId`; a A7
+  inclui o produto no caderno ao gravar); `409` só quando não há padrão. Como o
+  ERP grava por CADERNO (não por loja), a resposta devolve o caderno resolvido e
+  o alcance: `{ ean, targetPrice, cadernoId, storeId, affectedStores: ["LOJA 01", ...] }`.
 - `DELETE` manda `precoOferta=null` ao caderno, apaga o `offer_book` local e
   zera os espelhos por loja. Resposta: `{ ean, deleted: true }`. `404` se não
   há oferta.
 
 **Quem pode:** operator/admin + um dos módulos de precificação. Erros: `409`
-apenas para produto sem `external_id` do ERP, oferta sem caderno (no DELETE) ou
-API A7Pharma não configurada — produto `monitored` **não** bloqueia oferta (só
-o `/price`) e não há caso de loja inativa (oferta não recebe loja); `502` se o
-ERP recusar.
+para produto sem `external_id` do ERP, oferta sem caderno (no DELETE), API
+A7Pharma não configurada, loja inativa ou loja que não participa do caderno
+(com `storeId`); `404` para loja desconhecida; produto `monitored` **não**
+bloqueia oferta (só o `/price`); `502` se o ERP recusar.
 
 #### `DELETE /products/:ean`
 

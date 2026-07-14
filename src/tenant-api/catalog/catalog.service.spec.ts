@@ -346,6 +346,68 @@ describe('CatalogService per-store projection (?store= on the grids)', () => {
     expect(rowsCall?.[1]).toEqual(['store-uuid-1', 50, 0]);
   });
 
+  it('crossed projects the per-store offer: a pi row wins over the global book', async () => {
+    const em = makeEm([...STORE_LOOKUP]);
+    await catalog().crossed(em, SLUG, q({ store: '10' }));
+    const [sql] = (em.query as jest.Mock).mock.calls.find((c: [string]) =>
+      c[0].includes('LIMIT $'),
+    ) as [string, unknown[]];
+    expect(sql).toContain(
+      'WHEN pi.price_offer > 0 THEN pi.price_offer ELSE NULL END AS "priceOffer"',
+    );
+    expect(sql).toContain('ELSE pi.offer_description END AS book');
+  });
+
+  it('crossed exposes the per-store caderno id (product_item only, no global fallback)', async () => {
+    const em = makeEm([...STORE_LOOKUP]);
+    await catalog().crossed(em, SLUG, q({ store: '10' }));
+    const [sql] = (em.query as jest.Mock).mock.calls.find((c: [string]) =>
+      c[0].includes('LIMIT $'),
+    ) as [string, unknown[]];
+    expect(sql).toContain('pi.offer_external_id AS "cadernoId"');
+  });
+
+  it('crossed cadernoId falls back to the global book without a store', async () => {
+    const em = makeEm([['FROM core.tenant_store', []]]);
+    await catalog().crossed(em, SLUG, q({}));
+    const [sql] = (em.query as jest.Mock).mock.calls.find((c: [string]) =>
+      c[0].includes('LIMIT $'),
+    ) as [string, unknown[]];
+    expect(sql).toContain('ob.external_id AS "cadernoId"');
+  });
+
+  it('caderno filter with a store matches the store product_item caderno', async () => {
+    const em = makeEm([...STORE_LOOKUP]);
+    await catalog().crossed(em, SLUG, q({ store: '10', caderno: '5010589,7' }));
+    const [sql, params] = (em.query as jest.Mock).mock.calls.find(
+      (c: [string]) => c[0].includes('LIMIT $'),
+    ) as [string, unknown[]];
+    expect(sql).toContain('EXISTS (SELECT 1 FROM product_item pi_f');
+    expect(sql).toContain('pi_f.offer_external_id = ANY');
+    expect(params).toContainEqual(['5010589', '7']);
+  });
+
+  it('caderno filter without a store matches the global offer_book caderno', async () => {
+    const em = makeEm([['FROM core.tenant_store', []]]);
+    await catalog().crossed(em, SLUG, q({ caderno: '5010589' }));
+    const [sql, params] = (em.query as jest.Mock).mock.calls.find(
+      (c: [string]) => c[0].includes('LIMIT $'),
+    ) as [string, unknown[]];
+    expect(sql).toContain('EXISTS (SELECT 1 FROM offer_book ob_f');
+    expect(sql).not.toContain('product_item pi_f');
+    expect(params).toContainEqual(['5010589']);
+  });
+
+  it('caderno filter is applied to the count query too (EXISTS is joinless)', async () => {
+    const em = makeEm([...STORE_LOOKUP]);
+    await catalog().crossed(em, SLUG, q({ store: '10', caderno: '7' }));
+    const [countSql, countParams] = (em.query as jest.Mock).mock.calls.find(
+      (c: [string]) => c[0].includes('count(*)::int AS count'),
+    ) as [string, unknown[]];
+    expect(countSql).toContain('EXISTS (SELECT 1 FROM product_item pi_f');
+    expect(countParams).toContainEqual(['7']);
+  });
+
   it('computes margin from the offer-target/effective-price base, rounded to 4', async () => {
     const em = makeEm([...STORE_LOOKUP]);
     await catalog().list(em, SLUG, q({ store: '10' }));
@@ -391,6 +453,19 @@ describe('CatalogService sort maps', () => {
     );
     const [sql] = dataCall(query);
     expect(sql).toContain('ORDER BY COALESCE(pi.price, p.price) DESC');
+  });
+
+  it('list sorts priceOffer by the per-store-aware expression', async () => {
+    const { em, query } = recordingEm();
+    await catalog().list(
+      em,
+      SLUG,
+      q({ sortBy: ['priceOffer'], sortDirection: ['ASC'] }),
+    );
+    const [sql] = dataCall(query);
+    expect(sql).toContain(
+      'WHEN pi.price_offer > 0 THEN pi.price_offer ELSE NULL END ASC',
+    );
   });
 
   it('stock ignores book/priceOffer sorts instead of referencing ob', async () => {
@@ -626,7 +701,7 @@ describe('CatalogService.crossed', () => {
     const [sql] = dataCall(query);
     expect(sql).toContain('p.active');
     expect(sql).toContain(`AS "priceOffer"`);
-    expect(sql).toContain(`ob.description AS book`);
+    expect(sql).toContain(`ELSE pi.offer_description END AS book`);
     expect(sql).toContain('tenant_offer_campaign toc');
     expect(sql).not.toContain(`dg.price AS "drogalPrice"`);
     expect(sql).toContain(`"DROGAL__price"`);

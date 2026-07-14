@@ -33,11 +33,15 @@ const makeEm = (
   products: ProductSeed[],
   stores: Array<{ id: string; active: boolean }> = [],
   storeItems: StoreItemSeed[] = [],
+  defaultCaderno: string | null = null,
 ): EntityManager =>
   ({
     query: jest.fn((sql: string) => {
       if (/FROM core\.tenant\s+WHERE slug/.test(sql)) {
         return Promise.resolve([{ id: 't-1' }]);
+      }
+      if (/status_settings/.test(sql)) {
+        return Promise.resolve([{ caderno: defaultCaderno }]);
       }
       if (/core\.tenant_competitor_origin/.test(sql)) {
         return Promise.resolve([]);
@@ -238,6 +242,43 @@ describe('PricingApplyService revalidação por loja (via preview)', () => {
         ean: '789',
         target: 'precoOferta',
         storeId: null,
+        price: 8.4,
+        basis: null,
+      },
+    ]);
+  });
+
+  it('loja sem caderno com caderno PADRÃO configurado: aceita (fallback), não rejeita', async () => {
+    const service = buildService();
+    const em = makeEm(
+      [PRODUCT],
+      [{ id: 's-sem-caderno', active: true }],
+      [
+        {
+          ean: '789',
+          storeId: 's-sem-caderno',
+          price: null,
+          cost: null,
+          priceOffer: null,
+          offerExternalId: null,
+        },
+      ],
+      '999', // caderno de oferta padrão do tenant
+    );
+    const out = await service.preview(em, 'acme', [
+      {
+        ean: '789',
+        target: 'precoOferta',
+        price: 8.4,
+        storeId: 's-sem-caderno',
+      },
+    ]);
+    expect(out.rejected).toEqual([]);
+    expect(out.accepted).toEqual([
+      {
+        ean: '789',
+        target: 'precoOferta',
+        storeId: 's-sem-caderno',
         price: 8.4,
         basis: null,
       },

@@ -4,6 +4,9 @@ import { StatusSettingsEntity } from '../../database/entities/core/status-settin
 import { resolveTenantId } from '../../tenant/tenant-lookup';
 import { VariationStatusDto } from './dto/config.dto';
 
+/** Chave do caderno de oferta padrão dentro do bag status_settings.settings. */
+const DEFAULT_CADERNO_KEY = 'defaultCadernoId';
+
 /**
  * Variation-status thresholds drive the OK/ATENÇÃO/SUSPEITA classification in
  * calc-base-product-metrics.step. Stored per-tenant in core.status_settings;
@@ -28,7 +31,10 @@ export class SettingsService {
     const row = await em.getRepository(StatusSettingsEntity).findOne({
       where: { tenantId },
     });
-    return { ...DEFAULTS, ...(row?.settings ?? {}) };
+    // O caderno padrão divide o mesmo bag, mas não faz parte deste contrato.
+    const settings = { ...(row?.settings ?? {}) };
+    delete settings[DEFAULT_CADERNO_KEY];
+    return { ...DEFAULTS, ...settings };
   }
 
   public async updateVariationStatus(
@@ -51,5 +57,41 @@ export class SettingsService {
       await repo.save(repo.create({ tenantId, settings: merged }));
     }
     return merged;
+  }
+
+  /** Caderno de oferta padrão do tenant (o alvo de ofertas de produtos sem
+   *  caderno próprio). Compartilha o bag status_settings com os thresholds. */
+  public async getOfferDefaults(
+    em: EntityManager,
+    slug: string,
+  ): Promise<{ defaultCadernoId: number | null }> {
+    const tenantId = await resolveTenantId(em, slug);
+    const row = await em
+      .getRepository(StatusSettingsEntity)
+      .findOne({ where: { tenantId } });
+    const raw = row?.settings?.[DEFAULT_CADERNO_KEY];
+    return { defaultCadernoId: typeof raw === 'number' ? raw : null };
+  }
+
+  public async updateOfferDefaults(
+    em: EntityManager,
+    slug: string,
+    defaultCadernoId: number | null,
+  ): Promise<{ defaultCadernoId: number | null }> {
+    const tenantId = await resolveTenantId(em, slug);
+    const repo = em.getRepository(StatusSettingsEntity);
+    const row = await repo.findOne({ where: { tenantId } });
+    // Preserva os outros ajustes do bag (thresholds de variação).
+    const settings = {
+      ...(row?.settings ?? {}),
+      [DEFAULT_CADERNO_KEY]: defaultCadernoId,
+    };
+    if (row) {
+      row.settings = settings;
+      await repo.save(row);
+    } else {
+      await repo.save(repo.create({ tenantId, settings }));
+    }
+    return { defaultCadernoId };
   }
 }
