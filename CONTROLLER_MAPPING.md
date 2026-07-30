@@ -23,7 +23,7 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 
 ## New HTTP surface (today)
 
-> This table is a partial snapshot — the complete, current list (all 94 endpoints, with auth, roles, modules and examples) lives in [`docs/api-reference.md`](./docs/api-reference.md).
+> This table is a partial snapshot — the complete, current list (all 96 endpoints, with auth, roles, modules and examples) lives in [`docs/api-reference.md`](./docs/api-reference.md).
 
 | Method | Route | Controller |
 |---|---|---|
@@ -37,6 +37,7 @@ The new app is a **multi-tenant control plane + asynchronous pipeline**:
 | GET | `/admin/tenants/:slug` | `src/admin/controllers/tenants.controller.ts` |
 | PATCH | `/admin/tenants/:slug/status` | `src/admin/controllers/tenants.controller.ts` |
 | PUT | `/admin/tenants/:slug/modules` | `src/admin/controllers/tenants.controller.ts` |
+| PUT | `/admin/tenants/:slug/store-limit` | `src/admin/controllers/tenants.controller.ts` |
 | DELETE | `/admin/tenants/:slug` | `src/admin/controllers/tenants.controller.ts` |
 | PUT | `/admin/tenants/:slug/integration` | `src/admin/controllers/integration.controller.ts` |
 | POST | `/admin/tenants/:slug/integration/test` | `src/admin/controllers/integration.controller.ts` |

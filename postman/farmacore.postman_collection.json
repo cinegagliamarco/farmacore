@@ -434,6 +434,36 @@
      "response": []
     },
     {
+     "name": "PUT /admin/tenants/:slug/store-limit",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"storeLimit\": 3\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/store-limit",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "admin",
+        "tenants",
+        "{{tenantSlug}}",
+        "store-limit"
+       ]
+      },
+      "description": "Define a quantidade de lojas contratada (máximo de lojas ativas). `storeLimit: null` remove o limite. Baixar o limite não desativa lojas; apenas bloqueia novas ativações (PUT /stores/:id responde 409)."
+     },
+     "response": []
+    },
+    {
      "name": "DELETE /admin/tenants/:slug",
      "request": {
       "method": "DELETE",
@@ -1665,6 +1695,25 @@
      "response": []
     },
     {
+     "name": "GET /stores/quota",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/stores/quota",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "stores",
+        "quota"
+       ]
+      },
+      "description": "Cota de lojas do tenant: `{ limit, active }` — limit é a quantidade contratada (null = sem limite) e active o nº de lojas ativas."
+     },
+     "response": []
+    },
+    {
      "name": "PUT /stores/:id",
      "request": {
       "method": "PUT",
@@ -1688,7 +1737,7 @@
         "{{storeId}}"
        ]
       },
-      "description": "Atualiza `active` e/ou o cluster da loja; campo omitido fica como está, `clusterId: null` desanexa. Reativar uma loja apaga os product_item congelados dela (leituras voltam ao preço global até o próximo sync do ERP). 400 body vazio; 404 loja ou cluster inexistente."
+      "description": "Atualiza `active` e/ou o cluster da loja; campo omitido fica como está, `clusterId: null` desanexa. Reativar uma loja apaga os product_item congelados dela (leituras voltam ao preço global até o próximo sync do ERP). 400 body vazio ou `active: null` (use true/false); 404 loja ou cluster inexistente; 409 ativar loja com a cota cheia (GET /stores/quota); 503 outra alteração de loja do mesmo tenant em andamento — transitório, tentar de novo."
      },
      "response": []
     },

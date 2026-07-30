@@ -1,6 +1,6 @@
 # Farmacore API — Referência completa de endpoints
 
-Guia de todos os 94 endpoints HTTP da API, escrito para quem nunca viu o sistema.
+Guia de todos os 96 endpoints HTTP da API, escrito para quem nunca viu o sistema.
 Fonte da verdade: os controllers em `src/` (cada seção aponta o arquivo). Para
 testar na prática, importe `postman/farmacore.postman_collection.json` — toda
 rota daqui existe lá com exemplo pronto.
@@ -253,6 +253,24 @@ nova; módulo omitido é desligado. Valores válidos na tabela da seção 1.
 ```
 
 Responde `200` sem body. Erros: `400` valor inválido ou duplicado; `404`.
+
+### `PUT /admin/tenants/:slug/store-limit`
+
+Define a quantidade de lojas contratada — o máximo de lojas que o tenant pode
+manter **ativas** (`PUT /stores/:id`). `null` remove o limite.
+
+```json
+{ "storeLimit": 3 }
+```
+
+Baixar o limite abaixo do nº de lojas já ativas não desativa nenhuma; apenas
+bloqueia novas ativações até o tenant ficar dentro da cota. Responde `200` sem
+body. Erros: `400` valor não inteiro, < 1, > 2147483647 (limite do `int4`) ou
+chave `storeLimit` ausente — `null` remove o limite, omitir é inválido; `404`.
+
+O valor vigente sai no `storeLimit` de `GET /admin/tenants` e
+`GET /admin/tenants/:slug` (é a tela do system admin que o lê); o tenant vê a
+própria cota em `GET /stores/quota`.
 
 ### `DELETE /admin/tenants/:slug`
 
@@ -692,6 +710,13 @@ Lojas não deletadas, ordenadas por nome:
 `[{ id, externalId, name, cnpj, active, clusterId, clusterName }]`.
 `clusterId/clusterName` vêm `null` sem cluster.
 
+### `GET /stores/quota`
+
+Cota de lojas do tenant: `{ limit, active }` — `limit` é a quantidade
+contratada (`PUT /admin/tenants/:slug/store-limit`; `null` = sem limite) e
+`active` o nº de lojas ativas. O FE usa para mostrar "X de Y lojas" e
+desabilitar a ativação quando a cota está cheia.
+
 ### `PUT /stores/:id`
 
 Atualiza `active` e/ou o cluster; campo omitido fica como está; `clusterId:
@@ -703,7 +728,10 @@ null` desanexa.
 
 Detalhe importante: **reativar** uma loja apaga os `product_item` congelados
 dela — as leituras voltam ao preço global até o próximo sync do ERP repovoar.
-`400` body sem nenhum campo; `404` loja ou cluster inexistente.
+`400` body sem nenhum campo (ou `active: null` — use `true`/`false`); `404`
+loja ou cluster inexistente; `409` ativar loja com a cota cheia
+(`GET /stores/quota`); `503` outra alteração de loja do mesmo tenant em
+andamento — é transitório, o cliente deve tentar de novo.
 
 ### `GET /store-clusters` · `POST /store-clusters` · `PUT /store-clusters/:id` · `DELETE /store-clusters/:id`
 

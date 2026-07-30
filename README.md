@@ -4,7 +4,7 @@ Multi-tenant NestJS backend. See [`arc/`](./arc/) for architecture and [`plans/`
 
 > **New here? Start with [`TUTORIAL.md`](./TUTORIAL.md)** — covers local setup, the API surface with curl examples, running tests, deploying to Fly.io, and where every console lives.
 >
-> Looking for a specific endpoint? [`docs/api-reference.md`](./docs/api-reference.md) documents all 94 API endpoints (auth, roles, modules, bodies, errors), all covered by the [Postman collection](./postman/farmacore.postman_collection.json).
+> Looking for a specific endpoint? [`docs/api-reference.md`](./docs/api-reference.md) documents all 96 API endpoints (auth, roles, modules, bodies, errors), all covered by the [Postman collection](./postman/farmacore.postman_collection.json).
 
 ## Quickstart
 

@@ -15,7 +15,12 @@ import type { JwtPayload } from '../../auth/jwt-payload.type';
 import { UserRole } from '../../database/enums/user-role.enum';
 import { TenantEm } from '../../tenant/decorators/tenant-em.decorator';
 import { UpdateStoreDto, UpsertStoreClusterDto } from './dto/stores.dto';
-import { StoreApi, StoreClusterApi, StoresService } from './stores.service';
+import {
+  StoreApi,
+  StoreClusterApi,
+  StoreQuotaApi,
+  StoresService,
+} from './stores.service';
 
 /**
  * Tenant-admin store management. Stores are synced from the ERP (active=false
@@ -33,6 +38,15 @@ export class StoresController {
     @CurrentUser() user: JwtPayload,
   ): Promise<StoreApi[]> {
     return this.stores.listStores(em, user.tenantId);
+  }
+
+  @Get('quota')
+  @Roles(UserRole.ADMIN)
+  public quota(
+    @TenantEm() em: EntityManager,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<StoreQuotaApi> {
+    return this.stores.getQuota(em, user.tenantId);
   }
 
   @Put(':id')

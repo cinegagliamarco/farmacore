@@ -4,12 +4,15 @@ import {
   IsString,
   IsUUID,
   Length,
+  ValidateIf,
 } from 'class-validator';
 
 /** Update a store's `active` flag and/or its cluster. `clusterId: null`
  *  detaches; omitting a field leaves it unchanged. */
 export class UpdateStoreDto {
-  @IsOptional()
+  // @ValidateIf (e não @IsOptional) porque @IsOptional também deixaria passar
+  // `active: null`, que escaparia da cota e estouraria na coluna NOT NULL.
+  @ValidateIf((o: UpdateStoreDto) => o.active !== undefined)
   @IsBoolean()
   public active?: boolean;
 
