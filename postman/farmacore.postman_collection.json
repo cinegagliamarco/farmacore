@@ -1737,7 +1737,7 @@
         "{{storeId}}"
        ]
       },
-      "description": "Atualiza `active` e/ou o cluster da loja; campo omitido fica como está, `clusterId: null` desanexa. Reativar uma loja apaga os product_item congelados dela (leituras voltam ao preço global até o próximo sync do ERP). 400 body vazio; 404 loja ou cluster inexistente."
+      "description": "Atualiza `active` e/ou o cluster da loja; campo omitido fica como está, `clusterId: null` desanexa. Reativar uma loja apaga os product_item congelados dela (leituras voltam ao preço global até o próximo sync do ERP). 400 body vazio ou `active: null` (use true/false); 404 loja ou cluster inexistente; 409 ativar loja com a cota cheia (GET /stores/quota); 503 outra alteração de loja do mesmo tenant em andamento — transitório, tentar de novo."
      },
      "response": []
     },

@@ -268,6 +268,10 @@ bloqueia novas ativações até o tenant ficar dentro da cota. Responde `200` se
 body. Erros: `400` valor não inteiro, < 1, > 2147483647 (limite do `int4`) ou
 chave `storeLimit` ausente — `null` remove o limite, omitir é inválido; `404`.
 
+O valor vigente sai no `storeLimit` de `GET /admin/tenants` e
+`GET /admin/tenants/:slug` (é a tela do system admin que o lê); o tenant vê a
+própria cota em `GET /stores/quota`.
+
 ### `DELETE /admin/tenants/:slug`
 
 Soft-delete: seta `status=suspended` e carimba `deletedAt`. Linha e schema são
