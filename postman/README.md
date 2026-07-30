@@ -62,7 +62,7 @@ Who can call what, per endpoint, lives in [`../docs/api-reference.md`](../docs/a
 
 ## Coverage
 
-The collection mirrors **all 94 endpoints** of the API, organized in 16 folders:
+The collection mirrors **all 96 endpoints** of the API, organized in 16 folders:
 
 `Health` · `Auth` · `Admin — Tenants` · `Admin — Integration` · `Admin — Competitor origins` · `Admin — Pipeline` · `Admin — DLQ` · `Admin — Trigger competitors (each)` · `Admin — Catalog (shared catalog ops)` · `Tenant — Catalog` · `Tenant — Stores` · `Tenant — Config` · `Tenant — Integration` · `Tenant — Offer book rules` · `Tenant — Pricing (apply & schedule)` · `Tenant — Pricing (sugestões & regras)`
 
