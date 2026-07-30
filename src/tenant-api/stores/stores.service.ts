@@ -1,11 +1,16 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { resolveTenantId } from '../../tenant/tenant-lookup';
 import { UpdateStoreDto, UpsertStoreClusterDto } from './dto/stores.dto';
+
+/** Postgres `lock_not_available` — lock_timeout estourou. */
+const PG_LOCK_NOT_AVAILABLE = '55P03';
 
 export interface StoreApi {
   id: string;
@@ -15,6 +20,12 @@ export interface StoreApi {
   active: boolean;
   clusterId: string | null;
   clusterName: string | null;
+}
+
+export interface StoreQuotaApi {
+  /** Máximo de lojas ativas contratado; null = sem limite. */
+  limit: number | null;
+  active: number;
 }
 
 export interface StoreClusterApi {
@@ -51,7 +62,27 @@ export class StoresService {
     return rows.map(mapStore);
   }
 
+  /** Todo lock desta operação tem prazo (ver `applyUpdate`); estourar o prazo
+   *  não é erro do cliente, é "outra alteração de loja em andamento". */
   public async updateStore(
+    em: EntityManager,
+    slug: string,
+    id: string,
+    dto: UpdateStoreDto,
+  ): Promise<StoreApi> {
+    try {
+      return await this.applyUpdate(em, slug, id, dto);
+    } catch (err) {
+      if ((err as { code?: string }).code === PG_LOCK_NOT_AVAILABLE) {
+        throw new ServiceUnavailableException(
+          'another store change is in progress; retry',
+        );
+      }
+      throw err;
+    }
+  }
+
+  private async applyUpdate(
     em: EntityManager,
     slug: string,
     id: string,
@@ -62,6 +93,54 @@ export class StoresService {
     }
     const tenantId = await resolveTenantId(em, slug);
     if (dto.clusterId) await this.assertCluster(em, tenantId, dto.clusterId);
+    if (dto.active === true) {
+      // Prazo para TODA espera de lock desta transação: a linha do tenant
+      // fica travada até o commit (que inclui o DELETE de product_item), e
+      // uma espera sem prazo prenderia conexão do pool indefinidamente. Não
+      // restauramos o default depois: um `SET LOCAL` numa transação já
+      // abortada estoura 25P02 e mascararia o erro original.
+      await em.query(`SET LOCAL lock_timeout = '3s'`);
+      // Serializa ativações concorrentes (e o admin baixando o limite) na
+      // linha do tenant. O lock vem em um statement SEPARADO da contagem de
+      // propósito: em READ COMMITTED o snapshot do statement é tirado ANTES
+      // da espera pelo lock, então contar no mesmo statement leria o total
+      // anterior ao concorrente e as duas ativações passariam da cota.
+      // FOR NO KEY UPDATE conflita só com ele mesmo — não bloqueia o
+      // FOR KEY SHARE que as FKs pegam para inserir loja/cluster (sync).
+      await em.query(
+        `SELECT 1 FROM core.tenant WHERE id = $1 FOR NO KEY UPDATE`,
+        [tenantId],
+      );
+      // Só a transição inativa→ativa consome cota: loja já ativa pode
+      // reenviar active=true (ex.: troca de cluster) mesmo acima do limite.
+      // `FOR NO KEY UPDATE OF st` porque desativação NÃO pega o lock do
+      // tenant: sem travar a loja, um active=false concorrente deixaria
+      // `wasActive` obsoleto (true) e a reativação real escaparia da cota e
+      // do DELETE de product_item, ressuscitando preços congelados.
+      const rows: Array<{
+        wasActive: boolean;
+        limit: number | null;
+        active: string;
+      }> = await em.query(
+        `SELECT st.active AS "wasActive", t.store_limit AS "limit",
+                (SELECT count(*) FROM core.tenant_store s
+                  WHERE s.tenant_id = t.id AND s.active
+                    AND s.deleted_at IS NULL AND s.id <> st.id) AS "active"
+           FROM core.tenant t
+           JOIN core.tenant_store st
+             ON st.tenant_id = t.id AND st.id = $2 AND st.deleted_at IS NULL
+          WHERE t.id = $1
+            FOR NO KEY UPDATE OF st`,
+        [tenantId, id],
+      );
+      if (!rows.length) throw new NotFoundException(`store ${id} not found`);
+      const q = rows[0];
+      if (!q.wasActive && q.limit !== null && Number(q.active) >= q.limit) {
+        throw new ConflictException(
+          `store limit reached (${q.limit} active stores allowed)`,
+        );
+      }
+    }
 
     const sets: string[] = [];
     const params: unknown[] = [id, tenantId];
@@ -101,6 +180,23 @@ export class StoresService {
     }
     const stores = await this.listStores(em, slug);
     return stores.find((s) => s.id === id)!;
+  }
+
+  public async getQuota(
+    em: EntityManager,
+    slug: string,
+  ): Promise<StoreQuotaApi> {
+    const tenantId = await resolveTenantId(em, slug);
+    const rows: Array<{ limit: number | null; active: string }> =
+      await em.query(
+        `SELECT t.store_limit AS "limit",
+                (SELECT count(*) FROM core.tenant_store s
+                  WHERE s.tenant_id = t.id AND s.active
+                    AND s.deleted_at IS NULL) AS "active"
+           FROM core.tenant t WHERE t.id = $1`,
+        [tenantId],
+      );
+    return { limit: rows[0].limit, active: Number(rows[0].active) };
   }
 
   public async listClusters(
