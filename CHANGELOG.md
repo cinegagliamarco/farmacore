@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.1.0] - 2026-07-30
+
+### Added
+
+- Limite de lojas contratadas por tenant: o system admin define quantas lojas o
+  tenant pode manter **ativas** em `PUT /admin/tenants/:slug/store-limit`
+  (`{ "storeLimit": 3 }`; `null` remove o limite), e o tenant escolhe quais
+  lojas usar dentro da cota no `PUT /stores/:id` de sempre. Tenants existentes
+  nascem sem limite, então nada muda até um limite ser definido.
+- `GET /stores/quota` devolve `{ limit, active }` para a tela de Lojas mostrar
+  "X de Y lojas" e desabilitar a ativação quando a cota está cheia.
+
+### Changed
+
+- `PUT /stores/:id` responde `409` ao ativar uma loja além da cota e `503`
+  quando outra alteração de loja do mesmo tenant está em andamento (transitório,
+  o cliente deve tentar de novo). Baixar o limite abaixo do número de lojas já
+  ativas não desativa nenhuma — apenas bloqueia novas ativações até o tenant
+  caber na cota; uma loja já ativa continua editável (troca de cluster) mesmo
+  acima do limite.
+
+### Fixed
+
+- `PUT /stores/:id` com `active: null` respondia 500 (a coluna é `NOT NULL`);
+  agora é `400`.
+
 ## [0.2.0.0] - 2026-07-14
 
 ### Added

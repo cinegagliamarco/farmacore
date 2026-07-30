@@ -434,6 +434,36 @@
      "response": []
     },
     {
+     "name": "PUT /admin/tenants/:slug/store-limit",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"storeLimit\": 3\n}"
+      },
+      "url": {
+       "raw": "{{baseUrl}}/admin/tenants/{{tenantSlug}}/store-limit",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "admin",
+        "tenants",
+        "{{tenantSlug}}",
+        "store-limit"
+       ]
+      },
+      "description": "Define a quantidade de lojas contratada (máximo de lojas ativas). `storeLimit: null` remove o limite. Baixar o limite não desativa lojas; apenas bloqueia novas ativações (PUT /stores/:id responde 409)."
+     },
+     "response": []
+    },
+    {
      "name": "DELETE /admin/tenants/:slug",
      "request": {
       "method": "DELETE",
@@ -1661,6 +1691,25 @@
        ]
       },
       "description": "Lista as lojas não deletadas do tenant, ordenadas por nome: `[{ id, externalId, name, cnpj, active, clusterId, clusterName }]`. clusterId/clusterName são null quando a loja não está em cluster."
+     },
+     "response": []
+    },
+    {
+     "name": "GET /stores/quota",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/stores/quota",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "stores",
+        "quota"
+       ]
+      },
+      "description": "Cota de lojas do tenant: `{ limit, active }` — limit é a quantidade contratada (null = sem limite) e active o nº de lojas ativas."
      },
      "response": []
     },
