@@ -22,6 +22,9 @@ import { IntegrationConnectionService } from '../src/integration/integration-con
  */
 const SLUG = 'e2ecatalog';
 const SCHEMA = 'tenant_e2ecatalog';
+const STORE_A = '33333333-3333-3333-3333-333333333333';
+const STORE_B = '44444444-4444-4444-4444-444444444444';
+const SYS_EMAIL = 'sysadmin@e2e-tenant-api.test';
 const ROOT_ID = '11111111-1111-1111-1111-111111111111';
 const CHILD_ID = '22222222-2222-2222-2222-222222222222';
 const EAN_A = '7891111111111';
@@ -35,6 +38,7 @@ describe('Tenant API (e2e)', () => {
   let ds: DataSource;
   let adminToken: string;
   let operatorToken: string;
+  let systemToken: string;
 
   const get = (path: string, token = adminToken) =>
     request(app.getHttpServer())
@@ -47,6 +51,10 @@ describe('Tenant API (e2e)', () => {
   const patch = (path: string, token = adminToken) =>
     request(app.getHttpServer())
       .patch(path)
+      .set('Authorization', `Bearer ${token}`);
+  const put = (path: string, token = adminToken) =>
+    request(app.getHttpServer())
+      .put(path)
       .set('Authorization', `Bearer ${token}`);
   const del = (path: string, token = adminToken) =>
     request(app.getHttpServer())
@@ -150,12 +158,45 @@ describe('Tenant API (e2e)', () => {
     };
     adminToken = await login('admin@e2e.test');
     operatorToken = await login('op@e2e.test');
+
+    // Duas lojas inativas (como o sync do ERP as cria) para exercitar a cota
+    // de lojas contratadas, e um system admin para o endpoint que a define.
+    await ds.query(
+      `INSERT INTO core.tenant_store (id, tenant_id, external_id, name, active)
+       SELECT $2::uuid, t.id, 9001, 'Loja A', false
+         FROM core.tenant t WHERE t.slug = $1
+       UNION ALL
+       SELECT $3::uuid, t.id, 9002, 'Loja B', false
+         FROM core.tenant t WHERE t.slug = $1`,
+      [SLUG, STORE_A, STORE_B],
+    );
+    // Senha aleatória por run: se o teardown abortar no meio, o que sobra não
+    // é uma credencial de system admin utilizável.
+    const sysPassword = `e2e-${Math.random().toString(36).slice(2)}`;
+    await ds.query(
+      `INSERT INTO core."user" (tenant_id, email, password_hash, role, status)
+       VALUES ('system', $1, $2, 'admin', 'active')
+       ON CONFLICT (tenant_id, email) DO UPDATE
+         SET password_hash = EXCLUDED.password_hash`,
+      [SYS_EMAIL, await argon2.hash(sysPassword)],
+    );
+    const sysLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: SYS_EMAIL, password: sysPassword, tenantSlug: 'system' })
+      .expect(200);
+    systemToken = (sysLogin.body as { accessToken: string }).accessToken;
   }, 60000);
 
   afterAll(async () => {
     // Resolve the tenant id here (not from a beforeAll var) so cleanup still
     // runs fully even if beforeAll aborted partway — no leaked schema/rows.
     if (ds?.isInitialized) {
+      // O system admin sai PRIMEIRO: se algum DELETE abaixo falhar, o que
+      // não pode sobrar é uma credencial cross-tenant.
+      await ds.query(
+        `DELETE FROM core."user" WHERE tenant_id = 'system' AND email = $1`,
+        [SYS_EMAIL],
+      );
       await ds.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
       await ds.query(
         `DELETE FROM shared_catalog.base_product WHERE ean IN (${EAN_A}, ${EAN_B})`,
@@ -166,6 +207,10 @@ describe('Tenant API (e2e)', () => {
       );
       const id = rows[0]?.id;
       if (id) {
+        // Antes do DELETE em core.tenant: tenant_store tem FK para ele.
+        await ds.query(`DELETE FROM core.tenant_store WHERE tenant_id = $1`, [
+          id,
+        ]);
         await ds.query(
           `DELETE FROM core.price_rounding_rule WHERE tenant_id = $1`,
           [id],
@@ -347,6 +392,89 @@ describe('Tenant API (e2e)', () => {
     it('returns only active, in-window campaigns', async () => {
       const res = await get('/offer-campaigns').expect(200);
       expect(res.body).toEqual([{ id: 501, name: 'Caderno Ativo' }]);
+    });
+  });
+
+  // Cota de lojas contratadas. Os specs unitários mockam em.query, então só
+  // aqui o SQL real da cota roda (o lock em statement separado, a contagem
+  // que exclui a própria loja e o int4 do store_limit). Os passos são
+  // sequenciais de propósito: cada um monta o estado do próximo.
+  describe('lojas + limite contratado', () => {
+    const setLimit = (storeLimit: number | null) =>
+      put(`/admin/tenants/${SLUG}/store-limit`, systemToken).send({
+        storeLimit,
+      });
+
+    it('400s on a limit below 1 and 404s on an unknown tenant', async () => {
+      await setLimit(0).expect(400);
+      await put(`/admin/tenants/nao-existe/store-limit`, systemToken)
+        .send({ storeLimit: 1 })
+        .expect(404);
+    });
+
+    it('403s a tenant admin on the system-admin limit endpoint', async () => {
+      await put(`/admin/tenants/${SLUG}/store-limit`)
+        .send({ storeLimit: 1 })
+        .expect(403);
+    });
+
+    it('starts unlimited: both stores activate', async () => {
+      expect((await get('/stores/quota').expect(200)).body).toEqual({
+        limit: null,
+        active: 0,
+      });
+      expect(
+        (await put(`/stores/${STORE_A}`).send({ active: true }).expect(200))
+          .body.active,
+      ).toBe(true);
+      await put(`/stores/${STORE_B}`).send({ active: true }).expect(200);
+      expect((await get('/stores/quota').expect(200)).body).toEqual({
+        limit: null,
+        active: 2,
+      });
+    });
+
+    it('lowering the limit below the active count deactivates nothing', async () => {
+      await setLimit(1).expect(200);
+      expect((await get('/stores/quota').expect(200)).body).toEqual({
+        limit: 1,
+        active: 2,
+      });
+    });
+
+    it('an already-active store still accepts active=true over quota', async () => {
+      await put(`/stores/${STORE_A}`).send({ active: true }).expect(200);
+    });
+
+    it('blocks a new activation once the quota is full', async () => {
+      await put(`/stores/${STORE_B}`).send({ active: false }).expect(200);
+      const res = await put(`/stores/${STORE_B}`)
+        .send({ active: true })
+        .expect(409);
+      expect(res.body.message).toContain('store limit reached');
+      expect((await get('/stores/quota').expect(200)).body).toEqual({
+        limit: 1,
+        active: 1,
+      });
+    });
+
+    it('404s on activating an unknown store', async () => {
+      await put('/stores/55555555-5555-5555-5555-555555555555')
+        .send({ active: true })
+        .expect(404);
+    });
+
+    it('removing the limit (null) frees activation again', async () => {
+      await setLimit(null).expect(200);
+      await put(`/stores/${STORE_B}`).send({ active: true }).expect(200);
+      expect((await get('/stores/quota').expect(200)).body).toEqual({
+        limit: null,
+        active: 2,
+      });
+    });
+
+    it('403s a non-admin on the quota read', async () => {
+      await get('/stores/quota', operatorToken).expect(403);
     });
   });
 });
