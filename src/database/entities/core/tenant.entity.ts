@@ -21,4 +21,8 @@ export class TenantEntity extends BaseEntity {
 
   @Column({ type: 'text', array: true, default: '{}' })
   public modules!: ModuleCode[];
+
+  /** Quantidade de lojas contratada (máximo de lojas ativas). NULL = sem limite. */
+  @Column({ type: 'integer', name: 'store_limit', nullable: true })
+  public storeLimit!: number | null;
 }
