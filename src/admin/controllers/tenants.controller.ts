@@ -21,6 +21,7 @@ import { TenantService } from '../../tenant/tenant.service';
 import { CreateTenantDto } from '../dto/create-tenant.dto';
 import { UpdateTenantStatusDto } from '../dto/update-tenant-status.dto';
 import { UpdateTenantModulesDto } from '../dto/update-tenant-modules.dto';
+import { UpdateTenantStoreLimitDto } from '../dto/update-tenant-store-limit.dto';
 import { TenantEntity } from '../../database/entities/core/tenant.entity';
 
 @Controller('admin/tenants')
@@ -66,6 +67,18 @@ export class TenantsController {
   ): Promise<void> {
     const t = await this.tenants.findBySlug(slug);
     t.modules = dto.modules;
+    await this.repo.save(t);
+  }
+
+  // Baixar o limite abaixo do nº de lojas já ativas não desativa nenhuma;
+  // apenas bloqueia novas ativações até o tenant ficar dentro da cota.
+  @Put(':slug/store-limit')
+  public async updateStoreLimit(
+    @Param('slug') slug: string,
+    @Body() dto: UpdateTenantStoreLimitDto,
+  ): Promise<void> {
+    const t = await this.tenants.findBySlug(slug);
+    t.storeLimit = dto.storeLimit;
     await this.repo.save(t);
   }
 
